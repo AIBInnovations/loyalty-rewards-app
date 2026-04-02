@@ -1,0 +1,28 @@
+{
+  "loyalty_widget": {
+    "name": "Loyalty Rewards Widget",
+    "settings": {
+      "primary_color": {
+        "label": "Primary Color"
+      },
+      "position": {
+        "label": "Widget Position",
+        "options": {
+          "bottom_right": "Bottom Right",
+          "bottom_left": "Bottom Left"
+        }
+      },
+      "title": {
+        "label": "Widget Title"
+      }
+    }
+  },
+  "loyalty_inline": {
+    "name": "Loyalty Points Display",
+    "settings": {
+      "show_earning_info": {
+        "label": "Show earning info"
+      }
+    }
+  }
+}

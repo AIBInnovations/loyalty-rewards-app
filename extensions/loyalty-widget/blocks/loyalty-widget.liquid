@@ -1,0 +1,68 @@
+{% comment %}
+  Loyalty Rewards - Inline App Block
+  Place on product or cart pages to show earning info.
+{% endcomment %}
+
+{% if customer %}
+  <div class="loyalty-inline-widget" style="
+    padding: 12px 16px;
+    background: {{ block.settings.background_color }};
+    border-radius: 8px;
+    margin: 8px 0;
+    font-family: inherit;
+  ">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+        <circle cx="10" cy="10" r="9" stroke="#FFB800" stroke-width="2"/>
+        <text x="10" y="14" text-anchor="middle" fill="#FFB800" font-size="10" font-weight="bold">&#x20B9;</text>
+      </svg>
+      <div>
+        <p style="margin: 0; font-size: 14px; font-weight: 600; color: #333;">
+          You have <strong>{{ customer.metafields.app--341573861377--loyalty.points | default: 0 }}</strong> reward points
+        </p>
+        {% if block.settings.show_earning_info %}
+          {% if template.name == 'product' and product %}
+            {% assign earning_rate = shop.metafields.app--341573861377--loyalty.earning_rate | default: 10 %}
+            {% assign product_price = product.price | divided_by: 100.0 %}
+            {% assign potential_points = product_price | times: earning_rate | divided_by: 100 | floor %}
+            {% if potential_points > 0 %}
+              <p style="margin: 4px 0 0; font-size: 12px; color: #666;">
+                Earn up to <strong>{{ potential_points }}</strong> points on this purchase!
+              </p>
+            {% endif %}
+          {% elsif template.name == 'cart' and cart %}
+            {% assign earning_rate = shop.metafields.app--341573861377--loyalty.earning_rate | default: 10 %}
+            {% assign cart_total = cart.total_price | divided_by: 100.0 %}
+            {% assign potential_points = cart_total | times: earning_rate | divided_by: 100 | floor %}
+            {% if potential_points > 0 %}
+              <p style="margin: 4px 0 0; font-size: 12px; color: #666;">
+                You'll earn <strong>{{ potential_points }}</strong> points from this order!
+              </p>
+            {% endif %}
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Loyalty Points Display",
+  "target": "section",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_earning_info",
+      "label": "Show earning info for current product/cart",
+      "default": true
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background Color",
+      "default": "#FFF8E1"
+    }
+  ]
+}
+{% endschema %}

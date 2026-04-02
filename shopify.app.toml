@@ -1,0 +1,34 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "f02a4de3d53b38e4ce40fab85a24e84b"
+name = "Loyalty and Rewards App"
+application_url = "https://shopify.dev/apps/default-app-home"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+include_config_on_deploy = true
+
+[access_scopes]
+scopes = "read_customers,write_customers,read_orders,write_discounts,read_discounts"
+
+[auth]
+redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+
+[webhooks]
+api_version = "2025-01"
+
+  # Only app/uninstalled allowed without protected customer data approval.
+  # Orders/customers webhooks will be registered programmatically
+  # after protected customer data access is approved.
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled"]
+  uri = "/webhooks"
+
+[app_proxy]
+url = "https://your-app.fly.dev/api/proxy"
+subpath = "loyalty"
+prefix = "apps"
+
+[pos]
+embedded = false

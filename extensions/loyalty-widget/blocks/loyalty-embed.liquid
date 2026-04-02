@@ -1,0 +1,57 @@
+{% comment %}
+  Loyalty Rewards - App Embed Block (floating widget)
+  Only renders for logged-in customers.
+  Passes customer data via data attributes for the JS widget.
+{% endcomment %}
+
+{% if customer %}
+  <div
+    id="loyalty-rewards-app"
+    data-customer-id="{{ customer.id }}"
+    data-customer-name="{{ customer.first_name | escape }}"
+    data-points-balance="{{ customer.metafields.app--341573861377--loyalty.points | default: 0 }}"
+    data-tier="{{ customer.metafields.app--341573861377--loyalty.tier | default: 'Bronze' }}"
+    data-referral-code="{{ customer.metafields.app--341573861377--loyalty.referral_code | default: '' }}"
+    data-shop-domain="{{ shop.permanent_domain }}"
+    data-currency="{{ shop.currency }}"
+    data-primary-color="{{ block.settings.primary_color }}"
+    data-position="{{ block.settings.position }}"
+    data-widget-title="{{ block.settings.title | escape }}"
+    data-app-proxy-url="/apps/loyalty"
+    style="display: none;"
+  ></div>
+
+  {{ 'loyalty-widget.css' | asset_url | stylesheet_tag }}
+  <script src="{{ 'loyalty-widget.js' | asset_url }}" defer></script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Loyalty Rewards Widget",
+  "target": "body",
+  "settings": [
+    {
+      "type": "color",
+      "id": "primary_color",
+      "label": "Primary Color",
+      "default": "#5C6AC4"
+    },
+    {
+      "type": "select",
+      "id": "position",
+      "label": "Widget Position",
+      "options": [
+        { "value": "bottom-right", "label": "Bottom Right" },
+        { "value": "bottom-left", "label": "Bottom Left" }
+      ],
+      "default": "bottom-right"
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Widget Title",
+      "default": "Rewards"
+    }
+  ]
+}
+{% endschema %}
