@@ -13,6 +13,7 @@ import { Settings } from "../.server/models/settings.model";
 import { unauthenticated } from "../shopify.server";
 import { socialShareKey, birthdayBonusKey } from "../.server/utils/idempotency";
 import { earnPoints } from "../.server/services/points.service";
+import { CartDrawerSettings } from "../.server/models/cart-settings.model";
 
 // Rate limit tracker (in-memory, per-instance)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -62,6 +63,14 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
   // Check if this is an action request (redeem/referral/social-share via GET)
   const action = params.get("action");
 
+  // ─── Public endpoints (no customer auth required) ───────────
+  if (path === "cart-settings") {
+    if (!checkRateLimit(`cart-settings:${shop}`, 60)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetCartSettings(shop);
+  }
+
   if (!shopifyCustomerId) {
     return json({ error: "Not logged in" }, { status: 401 });
   }
@@ -83,6 +92,33 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
 
   return handleGetBalance(shop, shopifyCustomerId);
 };
+
+// ─── Cart Settings (public, no customer auth) ───────────────────
+
+async function handleGetCartSettings(shop: string) {
+  const settings = await CartDrawerSettings.findOne({ shopId: shop })
+    .lean();
+
+  if (!settings?.enabled) {
+    return json({ enabled: false, tiers: [] });
+  }
+
+  return json({
+    enabled: true,
+    tiers: settings.tiers,
+    showRecommendations: settings.showRecommendations,
+    recommendationsTitle: settings.recommendationsTitle,
+    recommendationsCount: settings.recommendationsCount,
+    showSavings: settings.showSavings,
+    checkoutButtonText: settings.checkoutButtonText,
+    prepaidBannerText: settings.prepaidBannerText,
+    showPrepaidBanner: settings.showPrepaidBanner,
+    primaryColor: settings.primaryColor,
+    interceptAddToCart: settings.interceptAddToCart,
+  });
+}
+
+// ─── Balance (customer auth required) ────────────────────────────
 
 async function handleGetBalance(shop: string, shopifyCustomerId: string) {
   const balance = await getBalance(shop, shopifyCustomerId);

@@ -24,5 +24,15 @@
         "label": "Show earning info"
       }
     }
+  },
+  "cart_drawer": {
+    "name": "Cart Drawer",
+    "settings": {
+      "primary_color": { "label": "Primary Color" },
+      "show_progress_bar": { "label": "Show Progress Bar" },
+      "show_recommendations": { "label": "Show Product Recommendations" },
+      "recommendations_title": { "label": "Recommendations Title" },
+      "intercept_add_to_cart": { "label": "Open drawer on Add to Cart" }
+    }
   }
 }

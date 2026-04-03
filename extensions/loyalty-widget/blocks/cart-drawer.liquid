@@ -1,0 +1,66 @@
+{% comment %}
+  Custom Cart Drawer - App Embed Block
+  Renders a slide-out cart drawer with:
+  - Tiered progress bar (item or amount based)
+  - Cart items with quantity controls
+  - Product recommendations ("People Also Bought")
+  - Checkout button with prepaid discount banner
+  Works for ALL visitors (logged in or guest).
+{% endcomment %}
+
+<div
+  id="custom-cart-drawer"
+  data-cart="{{ cart | json | escape }}"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-currency="{{ shop.currency }}"
+  data-money-format="{{ shop.money_format | escape }}"
+  data-template="{{ template.name }}"
+  data-primary-color="{{ block.settings.primary_color }}"
+  data-show-recommendations="{{ block.settings.show_recommendations }}"
+  data-recommendations-title="{{ block.settings.recommendations_title | escape }}"
+  data-show-progress="{{ block.settings.show_progress_bar }}"
+  data-intercept-atc="{{ block.settings.intercept_add_to_cart }}"
+  style="display: none;"
+></div>
+
+{{ 'cart-drawer.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'cart-drawer.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Cart Drawer",
+  "target": "body",
+  "settings": [
+    {
+      "type": "color",
+      "id": "primary_color",
+      "label": "Primary Color",
+      "default": "#5C6AC4"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_progress_bar",
+      "label": "Show Progress Bar",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_recommendations",
+      "label": "Show Product Recommendations",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "recommendations_title",
+      "label": "Recommendations Title",
+      "default": "People Also Bought"
+    },
+    {
+      "type": "checkbox",
+      "id": "intercept_add_to_cart",
+      "label": "Open drawer on Add to Cart",
+      "default": true
+    }
+  ]
+}
+{% endschema %}

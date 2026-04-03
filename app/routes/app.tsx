@@ -26,6 +26,7 @@ export default function App() {
         <Link to="/app/customers">Customers</Link>
         <Link to="/app/transactions">Transactions</Link>
         <Link to="/app/referrals">Referrals</Link>
+        <Link to="/app/cart-settings">Cart Drawer</Link>
         <Link to="/app/settings">Settings</Link>
       </NavMenu>
       <Outlet />

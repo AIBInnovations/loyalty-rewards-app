@@ -2,12 +2,11 @@
 
 client_id = "b63a3efb51482133917069cad999bef3"
 name = "Loyalty and Rewards App"
-application_url = "https://shopify.dev/apps/default-app-home"
+application_url = "https://loyalty-rewards-app-gxb7.onrender.com"
 embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2025-01"
@@ -40,10 +39,10 @@ api_version = "2025-01"
 scopes = "read_customers,read_discounts,read_orders,write_customers,write_discounts"
 
 [auth]
-redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+redirect_urls = [ "https://loyalty-rewards-app-gxb7.onrender.com/auth/callback" ]
 
 [app_proxy]
-url = "https://swimming-measurement-manner-word.trycloudflare.com/api/proxy"
+url = "https://loyalty-rewards-app-gxb7.onrender.com/api/proxy"
 subpath = "loyalty"
 prefix = "apps"
 
