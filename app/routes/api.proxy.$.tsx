@@ -109,6 +109,8 @@ async function handleGetCartSettings(shop: string) {
     showRecommendations: settings.showRecommendations,
     recommendationsTitle: settings.recommendationsTitle,
     recommendationsCount: settings.recommendationsCount,
+    recommendationMode: settings.recommendationMode || "auto",
+    manualProducts: settings.manualProducts || [],
     showSavings: settings.showSavings,
     checkoutButtonText: settings.checkoutButtonText,
     prepaidBannerText: settings.prepaidBannerText,

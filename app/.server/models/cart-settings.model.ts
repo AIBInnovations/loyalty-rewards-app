@@ -13,6 +13,18 @@ export interface ICartTier {
   reachedMessage: string;
 }
 
+export type RecommendationMode = "auto" | "manual";
+
+export interface IManualProduct {
+  shopifyProductId: string;
+  title: string;
+  handle: string;
+  imageUrl: string;
+  price: number;
+  compareAtPrice?: number;
+  variantId: string;
+}
+
 export interface ICartDrawerSettings extends Document {
   shopId: string;
   enabled: boolean;
@@ -20,6 +32,8 @@ export interface ICartDrawerSettings extends Document {
   showRecommendations: boolean;
   recommendationsTitle: string;
   recommendationsCount: number;
+  recommendationMode: RecommendationMode;
+  manualProducts: IManualProduct[];
   showSavings: boolean;
   checkoutButtonText: string;
   prepaidBannerText: string;
@@ -86,6 +100,19 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     showRecommendations: { type: Boolean, default: true },
     recommendationsTitle: { type: String, default: "People Also Bought" },
     recommendationsCount: { type: Number, default: 4, min: 2, max: 8 },
+    recommendationMode: { type: String, enum: ["auto", "manual"], default: "auto" },
+    manualProducts: {
+      type: [{
+        shopifyProductId: { type: String, required: true },
+        title: { type: String },
+        handle: { type: String },
+        imageUrl: { type: String },
+        price: { type: Number },
+        compareAtPrice: { type: Number },
+        variantId: { type: String },
+      }],
+      default: [],
+    },
     showSavings: { type: Boolean, default: true },
     checkoutButtonText: { type: String, default: "CHECKOUT" },
     prepaidBannerText: { type: String, default: "5% Off on Prepaid Orders!" },

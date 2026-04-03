@@ -24,6 +24,7 @@ import {
   getOrCreateCartSettings,
   CartDrawerSettings,
   type ICartTier,
+  type IManualProduct,
 } from "../.server/models/cart-settings.model";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -42,6 +43,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     const tiers = JSON.parse(String(data.tiers) || "[]");
+    const manualProducts = JSON.parse(String(data.manualProducts) || "[]");
 
     await CartDrawerSettings.findOneAndUpdate(
       { shopId: session.shop },
@@ -52,6 +54,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           showRecommendations: data.showRecommendations === "true",
           recommendationsTitle: data.recommendationsTitle || "People Also Bought",
           recommendationsCount: Number(data.recommendationsCount) || 4,
+          recommendationMode: data.recommendationMode || "auto",
+          manualProducts,
           showSavings: data.showSavings === "true",
           checkoutButtonText: data.checkoutButtonText || "CHECKOUT",
           prepaidBannerText: data.prepaidBannerText || "",
@@ -101,6 +105,14 @@ export default function CartSettingsPage() {
   const [recommendationsCount, setRecommendationsCount] = useState(
     String(settings.recommendationsCount),
   );
+  const [recommendationMode, setRecommendationMode] = useState(
+    settings.recommendationMode || "auto",
+  );
+  const [manualProducts, setManualProducts] = useState<IManualProduct[]>(
+    settings.manualProducts || [],
+  );
+  const [newProductUrl, setNewProductUrl] = useState("");
+  const [addingProduct, setAddingProduct] = useState(false);
   const [showSavings, setShowSavings] = useState(settings.showSavings);
   const [checkoutButtonText, setCheckoutButtonText] = useState(
     settings.checkoutButtonText,
@@ -143,6 +155,8 @@ export default function CartSettingsPage() {
     formData.set("showRecommendations", String(showRecommendations));
     formData.set("recommendationsTitle", recommendationsTitle);
     formData.set("recommendationsCount", recommendationsCount);
+    formData.set("recommendationMode", recommendationMode);
+    formData.set("manualProducts", JSON.stringify(manualProducts));
     formData.set("showSavings", String(showSavings));
     formData.set("checkoutButtonText", checkoutButtonText);
     formData.set("prepaidBannerText", prepaidBannerText);
@@ -152,9 +166,58 @@ export default function CartSettingsPage() {
     submit(formData, { method: "post" });
   }, [
     enabled, interceptAddToCart, showRecommendations, recommendationsTitle,
-    recommendationsCount, showSavings, checkoutButtonText, prepaidBannerText,
-    showPrepaidBanner, primaryColor, tiers, submit,
+    recommendationsCount, recommendationMode, manualProducts, showSavings,
+    checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor,
+    tiers, submit,
   ]);
+
+  const removeManualProduct = useCallback((index: number) => {
+    setManualProducts((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleAddProduct = useCallback(async () => {
+    if (!newProductUrl.trim()) return;
+    setAddingProduct(true);
+
+    try {
+      // Extract handle from URL: /products/handle or full URL
+      let handle = newProductUrl.trim();
+      const match = handle.match(/\/products\/([a-zA-Z0-9\-_]+)/);
+      if (match) handle = match[1];
+      // Remove query params
+      handle = handle.split("?")[0].split("#")[0];
+
+      // Fetch product data from Shopify Storefront
+      const res = await fetch(
+        `/api/product-lookup?handle=${encodeURIComponent(handle)}`,
+      );
+      if (!res.ok) throw new Error("Product not found");
+      const product = await res.json();
+
+      // Check if already added
+      if (manualProducts.some((p) => p.shopifyProductId === product.id)) {
+        setAddingProduct(false);
+        return;
+      }
+
+      setManualProducts((prev) => [
+        ...prev,
+        {
+          shopifyProductId: product.id,
+          title: product.title,
+          handle: product.handle,
+          imageUrl: product.imageUrl,
+          price: product.price,
+          compareAtPrice: product.compareAtPrice,
+          variantId: product.variantId,
+        },
+      ]);
+      setNewProductUrl("");
+    } catch (err) {
+      alert("Could not find product. Please enter a valid product handle or URL.");
+    }
+    setAddingProduct(false);
+  }, [newProductUrl, manualProducts]);
 
   return (
     <Page
@@ -288,7 +351,7 @@ export default function CartSettingsPage() {
 
           <Layout.AnnotatedSection
             title="Product Recommendations"
-            description="Show 'People Also Bought' products below the cart items to increase AOV."
+            description="Show 'People Also Bought' products below the cart items to increase AOV. Choose auto (AI-powered based on purchase history) or manually pick specific products."
           >
             <Card>
               <BlockStack gap="400">
@@ -305,15 +368,112 @@ export default function CartSettingsPage() {
                       onChange={setRecommendationsTitle}
                       autoComplete="off"
                     />
-                    <TextField
-                      label="Number of products"
-                      type="number"
-                      value={recommendationsCount}
-                      onChange={setRecommendationsCount}
-                      min={2}
-                      max={8}
-                      autoComplete="off"
+                    <Select
+                      label="Recommendation Mode"
+                      options={[
+                        {
+                          label: "Auto (AI-powered)",
+                          value: "auto",
+                        },
+                        {
+                          label: "Manual (Pick products yourself)",
+                          value: "manual",
+                        },
+                      ]}
+                      value={recommendationMode}
+                      onChange={setRecommendationMode}
+                      helpText={
+                        recommendationMode === "auto"
+                          ? "Shopify automatically suggests products based on purchase history and product relationships."
+                          : "You choose exactly which products to show in the cart drawer."
+                      }
                     />
+                    {recommendationMode === "auto" && (
+                      <TextField
+                        label="Number of products"
+                        type="number"
+                        value={recommendationsCount}
+                        onChange={setRecommendationsCount}
+                        min={2}
+                        max={8}
+                        autoComplete="off"
+                      />
+                    )}
+                    {recommendationMode === "manual" && (
+                      <BlockStack gap="300">
+                        <Text as="h3" variant="headingSm">
+                          Selected Products ({manualProducts.length})
+                        </Text>
+                        {manualProducts.map((product, index) => (
+                          <div
+                            key={product.shopifyProductId}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "12px",
+                              padding: "8px",
+                              border: "1px solid #e0e0e0",
+                              borderRadius: "8px",
+                            }}
+                          >
+                            {product.imageUrl && (
+                              <img
+                                src={product.imageUrl}
+                                alt={product.title}
+                                style={{
+                                  width: "48px",
+                                  height: "48px",
+                                  objectFit: "cover",
+                                  borderRadius: "6px",
+                                }}
+                              />
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                {product.title}
+                              </Text>
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                ₹{(product.price / 100).toFixed(0)}
+                                {product.compareAtPrice
+                                  ? ` (was ₹${(product.compareAtPrice / 100).toFixed(0)})`
+                                  : ""}
+                              </Text>
+                            </div>
+                            <Button
+                              size="slim"
+                              tone="critical"
+                              onClick={() => removeManualProduct(index)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                        <Divider />
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Enter a product handle or URL to add it. Example:
+                          "my-product" or
+                          "https://your-store.myshopify.com/products/my-product"
+                        </Text>
+                        <InlineStack gap="200" blockAlign="end">
+                          <div style={{ flex: 1 }}>
+                            <TextField
+                              label="Product Handle or URL"
+                              value={newProductUrl}
+                              onChange={setNewProductUrl}
+                              placeholder="e.g., my-awesome-product"
+                              autoComplete="off"
+                              labelHidden
+                            />
+                          </div>
+                          <Button
+                            onClick={handleAddProduct}
+                            loading={addingProduct}
+                          >
+                            Add Product
+                          </Button>
+                        </InlineStack>
+                      </BlockStack>
+                    )}
                   </>
                 )}
               </BlockStack>

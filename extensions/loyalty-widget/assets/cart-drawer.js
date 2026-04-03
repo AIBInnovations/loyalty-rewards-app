@@ -123,6 +123,32 @@
       return;
     }
 
+    // If manual mode and we have manual products from settings, use those
+    if (state.settings && state.settings.recommendationMode === "manual" && state.settings.manualProducts && state.settings.manualProducts.length > 0) {
+      var cartProductIds = new Set();
+      state.cart.items.forEach(function (item) { cartProductIds.add(String(item.product_id)); });
+
+      var manualRecs = state.settings.manualProducts
+        .filter(function (p) { return !cartProductIds.has(p.shopifyProductId.replace("gid://shopify/Product/", "")); })
+        .map(function (p) {
+          return {
+            id: p.shopifyProductId,
+            title: p.title,
+            handle: p.handle,
+            url: "/products/" + p.handle,
+            price: p.price,
+            compare_at_price: p.compareAtPrice || null,
+            featured_image: p.imageUrl,
+            variants: [{ id: p.variantId.replace("gid://shopify/ProductVariant/", ""), available: true }],
+          };
+        });
+
+      state.recommendations = manualRecs;
+      state.recsLoading = false;
+      if (state.isOpen) render();
+      return;
+    }
+
     state.recsLoading = true;
     var productIds = [];
     var cartProductIds = new Set();
