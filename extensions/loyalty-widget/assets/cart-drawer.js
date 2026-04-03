@@ -485,13 +485,22 @@
   }
 
   // ─── Render Recommendations ───────────────────────────────────
+  // Track collapsible state
+  var recsExpanded = true;
+
   function renderRecommendations() {
     if (!state.recommendations.length) return "";
 
     var title = (state.settings && state.settings.recommendationsTitle) || config.recommendationsTitle;
 
     var html = '<div class="cd-recs-section">' +
-      '<h3 class="cd-recs-title">' + esc(title) + '</h3>' +
+      '<div class="cd-recs-header" data-action="toggle-recs">' +
+        '<h3 class="cd-recs-title">' + esc(title) + '</h3>' +
+        '<span class="cd-recs-toggle' + (recsExpanded ? ' open' : '') + '">' +
+          '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '</span>' +
+      '</div>' +
+      '<div class="cd-recs-body' + (recsExpanded ? ' open' : '') + '">' +
       '<div class="cd-recs-carousel">';
 
     state.recommendations.forEach(function (p) {
@@ -520,11 +529,11 @@
               (hasCompare ? '<span class="cd-rec-compare">' + formatMoney(p.compare_at_price) + '</span>' : '') +
             '</div>' +
           '</div>' +
-          '<button class="cd-rec-add" data-action="add-rec" data-variant-id="' + variantId + '">Add to Cart</button>' +
+          '<button class="cd-rec-add" data-action="add-rec" data-variant-id="' + variantId + '">+ Add</button>' +
         '</div>';
     });
 
-    html += '</div></div>';
+    html += '</div></div></div>';
     return html;
   }
 
@@ -576,6 +585,17 @@
     // Close
     drawer.querySelectorAll('[data-action="close"]').forEach(function (btn) {
       btn.addEventListener("click", closeDrawer);
+    });
+
+    // Toggle recommendations collapse
+    drawer.querySelectorAll('[data-action="toggle-recs"]').forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        recsExpanded = !recsExpanded;
+        var body = drawer.querySelector(".cd-recs-body");
+        var toggle = drawer.querySelector(".cd-recs-toggle");
+        if (body) body.classList.toggle("open", recsExpanded);
+        if (toggle) toggle.classList.toggle("open", recsExpanded);
+      });
     });
 
     // Quantity minus
