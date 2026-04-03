@@ -126,11 +126,14 @@
     state.recsLoading = true;
     var productIds = [];
     var cartProductIds = new Set();
+    var cartHandles = new Set();
     state.cart.items.forEach(function (item) {
       cartProductIds.add(item.product_id);
+      if (item.handle) cartHandles.add(item.handle);
       if (productIds.length < 2) productIds.push(item.product_id);
     });
 
+    // Try Shopify's recommendation API first
     var promises = productIds.map(function (pid) {
       return fetch("/recommendations/products.json?product_id=" + pid + "&limit=6&intent=complementary")
         .then(function (r) { return r.json(); })
@@ -149,10 +152,82 @@
           }
         });
       });
-      state.recommendations = recs.slice(0, 8);
-      state.recsLoading = false;
-      if (state.isOpen) render();
+
+      if (recs.length > 0) {
+        state.recommendations = recs.slice(0, 8);
+        state.recsLoading = false;
+        if (state.isOpen) render();
+      } else {
+        // Fallback: fetch products from the store's catalog
+        fetchFallbackProducts(cartProductIds);
+      }
     });
+  }
+
+  // ─── Fallback: Fetch random products when no recommendations ──
+  function fetchFallbackProducts(cartProductIds) {
+    // Try fetching from /collections/all which contains all products
+    fetch("/collections/all/products.json?limit=12")
+      .then(function (r) {
+        if (!r.ok) throw new Error("Failed");
+        return r.json();
+      })
+      .then(function (data) {
+        var products = data.products || [];
+        var recs = [];
+        // Shuffle and filter out cart items
+        products.sort(function () { return Math.random() - 0.5; });
+        products.forEach(function (p) {
+          if (!cartProductIds.has(p.id) && recs.length < 8) {
+            // Normalize product format to match recommendations API format
+            recs.push({
+              id: p.id,
+              title: p.title,
+              handle: p.handle,
+              url: "/products/" + p.handle,
+              price: p.variants && p.variants[0] ? p.variants[0].price * 100 : 0,
+              compare_at_price: p.variants && p.variants[0] && p.variants[0].compare_at_price
+                ? p.variants[0].compare_at_price * 100 : null,
+              featured_image: p.images && p.images[0] ? p.images[0].src : "",
+              variants: p.variants || [],
+            });
+          }
+        });
+        state.recommendations = recs;
+        state.recsLoading = false;
+        if (state.isOpen) render();
+      })
+      .catch(function () {
+        // Final fallback: try the search API
+        fetch("/search/suggest.json?q=*&resources[type]=product&resources[limit]=8")
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var products = (data.resources && data.resources.results && data.resources.results.products) || [];
+            var recs = [];
+            products.forEach(function (p) {
+              if (!cartProductIds.has(p.id) && recs.length < 8) {
+                recs.push({
+                  id: p.id,
+                  title: p.title,
+                  handle: p.handle,
+                  url: p.url,
+                  price: p.price * 100,
+                  compare_at_price: p.compare_at_price ? p.compare_at_price * 100 : null,
+                  featured_image: p.featured_image ? p.featured_image.url : "",
+                  variants: p.variants || [],
+                });
+              }
+            });
+            state.recommendations = recs;
+            state.recsLoading = false;
+            if (state.isOpen) render();
+          })
+          .catch(function () {
+            state.recommendations = [];
+            state.recsLoading = false;
+            if (state.isOpen) render();
+          });
+      });
   }
 
   // ─── Cart Operations ─────────────────────────────────────────
