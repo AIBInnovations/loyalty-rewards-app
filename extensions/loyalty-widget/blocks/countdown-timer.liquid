@@ -1,0 +1,50 @@
+{% comment %}
+  Countdown Timer - App Embed Block
+  Supports fixed deadline and evergreen (per-session) timers.
+  Display modes: announcement bar, product page, or both.
+  Works for ALL visitors.
+{% endcomment %}
+
+<div
+  id="countdown-timer-app"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-template="{{ template.name }}"
+  data-product-id="{{ product.id | default: '' }}"
+  data-product-tags="{{ product.tags | join: ',' | default: '' }}"
+  data-has-sale="{% if product.compare_at_price_max > product.price_max %}true{% else %}false{% endif %}"
+  data-product-title="{{ product.title | escape | default: '' }}"
+  data-bar-bg="{{ block.settings.bar_background_color }}"
+  data-bar-text="{{ block.settings.bar_text_color }}"
+  data-digit-color="{{ block.settings.timer_digit_color }}"
+  style="display: none;"
+></div>
+
+{{ 'countdown-timer.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'countdown-timer.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Countdown Timer",
+  "target": "body",
+  "settings": [
+    {
+      "type": "color",
+      "id": "bar_background_color",
+      "label": "Bar Background Color",
+      "default": "#1a1a1a"
+    },
+    {
+      "type": "color",
+      "id": "bar_text_color",
+      "label": "Text Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "timer_digit_color",
+      "label": "Timer Digit Color",
+      "default": "#ff4444"
+    }
+  ]
+}
+{% endschema %}

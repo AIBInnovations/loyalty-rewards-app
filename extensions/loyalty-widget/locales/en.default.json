@@ -25,6 +25,14 @@
       }
     }
   },
+  "countdown_timer": {
+    "name": "Countdown Timer",
+    "settings": {
+      "bar_background_color": { "label": "Bar Background Color" },
+      "bar_text_color": { "label": "Text Color" },
+      "timer_digit_color": { "label": "Timer Digit Color" }
+    }
+  },
   "cart_drawer": {
     "name": "Cart Drawer",
     "settings": {

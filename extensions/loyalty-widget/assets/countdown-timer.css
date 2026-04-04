@@ -1,0 +1,204 @@
+/* ─── Countdown Timer Styles ─────────────────────────────────────── */
+
+:root {
+  --ct-bg: #1a1a1a;
+  --ct-text: #ffffff;
+  --ct-digit: #ff4444;
+}
+
+/* ─── Announcement Bar Mode ─────────────────────────────────────── */
+
+.ct-bar {
+  position: sticky;
+  top: 0;
+  z-index: 9997;
+  width: 100%;
+  background: var(--ct-bg);
+  color: var(--ct-text);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  animation: ctSlideDown 0.4s ease-out;
+}
+
+@keyframes ctSlideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.ct-bar-message {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ct-bar .ct-dismiss {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--ct-text);
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 16px;
+  line-height: 1;
+  transition: opacity 0.2s;
+}
+
+.ct-bar .ct-dismiss:hover { opacity: 1; }
+
+/* ─── Product Page Mode ─────────────────────────────────────────── */
+
+.ct-product {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin: 10px 0;
+  background: linear-gradient(135deg, #fff5f5, #fff0f0);
+  border: 1px solid #ffe0e0;
+  border-left: 3px solid var(--ct-digit);
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  animation: ctPulseIn 0.5s ease-out;
+}
+
+@keyframes ctPulseIn {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.ct-product .ct-pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--ct-digit);
+  border-radius: 50%;
+  animation: ctPulseDot 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes ctPulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+.ct-product .ct-message-text {
+  flex: 1;
+}
+
+/* ─── Timer Digits ──────────────────────────────────────────────── */
+
+.ct-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ct-digit-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ct-digit-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 28px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ct-digit);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+/* Product page digit boxes - different background */
+.ct-product .ct-digit-box {
+  background: rgba(255,0,0,0.08);
+  min-width: 24px;
+  height: 26px;
+  font-size: 14px;
+}
+
+.ct-separator {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ct-digit);
+  margin: 0 1px;
+  opacity: 0.7;
+}
+
+.ct-digit-label {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.6;
+  text-align: center;
+  margin-top: 1px;
+  font-weight: 600;
+}
+
+/* Product page labels */
+.ct-product .ct-digit-label {
+  color: #999;
+}
+
+/* ─── Expired State ─────────────────────────────────────────────── */
+
+.ct-expired {
+  opacity: 0.7;
+}
+
+.ct-expired .ct-digit-box {
+  color: #999;
+  background: rgba(0,0,0,0.1);
+}
+
+/* ─── Mobile Responsive ─────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .ct-bar {
+    padding: 8px 36px 8px 12px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .ct-digit-box {
+    min-width: 22px;
+    height: 24px;
+    font-size: 13px;
+  }
+
+  .ct-product .ct-digit-box {
+    min-width: 20px;
+    height: 22px;
+    font-size: 12px;
+  }
+
+  .ct-separator {
+    font-size: 13px;
+  }
+
+  .ct-product {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+}

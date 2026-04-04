@@ -14,6 +14,7 @@ import { unauthenticated } from "../shopify.server";
 import { socialShareKey, birthdayBonusKey } from "../.server/utils/idempotency";
 import { earnPoints } from "../.server/services/points.service";
 import { CartDrawerSettings } from "../.server/models/cart-settings.model";
+import { TimerSettings } from "../.server/models/timer-settings.model";
 
 // Rate limit tracker (in-memory, per-instance)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -71,6 +72,13 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
     return handleGetCartSettings(shop);
   }
 
+  if (path === "timer-settings") {
+    if (!checkRateLimit(`timer-settings:${shop}`, 60)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetTimerSettings(shop);
+  }
+
   if (!shopifyCustomerId) {
     return json({ error: "Not logged in" }, { status: 401 });
   }
@@ -94,6 +102,33 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
 };
 
 // ─── Cart Settings (public, no customer auth) ───────────────────
+
+async function handleGetTimerSettings(shop: string) {
+  const settings = await TimerSettings.findOne({ shopId: shop }).lean();
+
+  if (!settings?.enabled) {
+    return json({ enabled: false });
+  }
+
+  return json({
+    enabled: true,
+    timerType: settings.timerType,
+    endDate: settings.endDate ? new Date(settings.endDate).toISOString() : null,
+    durationHours: settings.durationHours,
+    durationMinutes: settings.durationMinutes,
+    displayMode: settings.displayMode,
+    messageTemplate: settings.messageTemplate,
+    expiredMessage: settings.expiredMessage,
+    barBackgroundColor: settings.barBackgroundColor,
+    barTextColor: settings.barTextColor,
+    timerDigitColor: settings.timerDigitColor,
+    showOnAllProducts: settings.showOnAllProducts,
+    saleItemsOnly: settings.saleItemsOnly,
+    specificTags: settings.specificTags,
+    hideWhenExpired: settings.hideWhenExpired,
+    showDismissButton: settings.showDismissButton,
+  });
+}
 
 async function handleGetCartSettings(shop: string) {
   const settings = await CartDrawerSettings.findOne({ shopId: shop })
