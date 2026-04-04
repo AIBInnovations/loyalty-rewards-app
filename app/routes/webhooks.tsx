@@ -11,6 +11,7 @@ import {
   handleCustomerRedact,
   handleShopRedact,
 } from "../.server/services/webhook.service";
+import { handleCheckoutWebhook } from "../.server/services/abandoned-cart-poller.service";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, shop, session, admin, payload } =
@@ -48,6 +49,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       case "CUSTOMERS_UPDATE":
         await handleCustomerUpdate(shop, payload);
+        break;
+
+      case "CHECKOUTS_CREATE":
+      case "CHECKOUTS_UPDATE":
+        await handleCheckoutWebhook(shop, payload);
         break;
 
       case "APP_UNINSTALLED":

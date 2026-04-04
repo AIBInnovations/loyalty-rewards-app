@@ -43,6 +43,8 @@ export async function registerWebhooksOnStartup(): Promise<void> {
       "REFUNDS_CREATE",
       "CUSTOMERS_CREATE",
       "CUSTOMERS_UPDATE",
+      "CHECKOUTS_CREATE",
+      "CHECKOUTS_UPDATE",
       "APP_UNINSTALLED",
     ];
 

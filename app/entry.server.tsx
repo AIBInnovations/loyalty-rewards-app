@@ -10,13 +10,14 @@ import { addDocumentResponseHeaders } from "./shopify.server";
 import { connectDB } from "./db.server";
 import { initBackgroundJobs } from "./.server/services/jobs.service";
 import { registerWebhooksOnStartup } from "./.server/services/webhook-register.service";
+import { initVoiceAgentService } from "./.server/services/voice-agent.service";
 
 // Connect to MongoDB, start background jobs, and auto-register webhooks
 connectDB()
   .then(() => {
     initBackgroundJobs();
-    // Auto-register webhooks with current tunnel URL (runs after 5s delay)
     registerWebhooksOnStartup();
+    initVoiceAgentService();
   })
   .catch(console.error);
 
