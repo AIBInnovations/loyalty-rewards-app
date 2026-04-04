@@ -280,10 +280,61 @@
     return updateQuantity(lineKey, 0);
   }
 
+  // ─── Hide Native Cart Drawer ──────────────────────────────────
+  function hideNativeCartDrawer() {
+    // Common selectors for native Shopify cart drawers across themes
+    var selectors = [
+      "cart-drawer",            // Dawn theme custom element
+      "#cart-drawer",
+      ".cart-drawer",
+      "#CartDrawer",
+      ".cart-drawer-overlay",
+      "[data-cart-drawer]",
+      "details[id*='cart']",    // Dawn uses <details> element
+      ".js-drawer.drawer--right",
+      "#shopify-section-cart-drawer",
+    ];
+
+    selectors.forEach(function (sel) {
+      var els = document.querySelectorAll(sel);
+      els.forEach(function (el) {
+        // Close the native drawer
+        if (el.tagName === "DETAILS" && el.hasAttribute("open")) {
+          el.removeAttribute("open");
+        }
+        // Also try clicking any close buttons inside
+        var closeBtn = el.querySelector("[data-cart-close], .drawer__close, .cart-drawer__close");
+        if (closeBtn) closeBtn.click();
+      });
+    });
+  }
+
+  // Inject CSS to hide native cart drawer permanently when our drawer is active
+  function injectNativeCartHideCSS() {
+    if (document.getElementById("cd-hide-native-cart")) return;
+    var style = document.createElement("style");
+    style.id = "cd-hide-native-cart";
+    style.textContent =
+      "cart-drawer, #cart-drawer, .cart-drawer, #CartDrawer, " +
+      "#shopify-section-cart-drawer .drawer, " +
+      "details#cart-drawer-details, " +
+      ".js-drawer.drawer--right { " +
+      "  display: none !important; " +
+      "  visibility: hidden !important; " +
+      "  pointer-events: none !important; " +
+      "}" +
+      "cart-drawer .drawer__close, " +
+      ".cart-drawer-overlay { " +
+      "  display: none !important; " +
+      "}";
+    document.head.appendChild(style);
+  }
+
   // ─── Open / Close ─────────────────────────────────────────────
   function openDrawer() {
     state.isOpen = true;
     if (!isRendered) createDOM();
+    hideNativeCartDrawer();
     render();
     fetchCart().then(function () { fetchRecommendations(); });
     overlay.classList.add("open");
@@ -296,6 +347,7 @@
     overlay.classList.remove("open");
     drawer.classList.remove("open");
     document.body.style.overflow = "";
+    hideNativeCartDrawer();
   }
 
   // ─── Create DOM Shell ─────────────────────────────────────────
@@ -748,6 +800,7 @@
   });
 
   // ─── Initialize ───────────────────────────────────────────────
+  injectNativeCartHideCSS(); // Hide native cart drawer permanently
   fetchSettings();
   interceptAddToCart();
 
