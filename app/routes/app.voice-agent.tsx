@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
+import { useLoaderData, useSubmit, useNavigation, useActionData } from "@remix-run/react";
 import {
   Page, Layout, Card, BlockStack, Text, TextField, Button,
   Checkbox, Select, InlineGrid, InlineStack, Divider, Banner,
@@ -14,6 +14,7 @@ import {
   VoiceAgentSettings,
 } from "../.server/models/voice-agent-settings.model";
 import { AbandonedCart } from "../.server/models/abandoned-cart.model";
+import { triggerElevenLabsCall, generateCallPrompt } from "../.server/services/elevenlabs.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -56,6 +57,58 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   await connectDB();
   const data = Object.fromEntries(await request.formData());
 
+  // Test call action
+  if (data._action === "test_call") {
+    const testPhone = String(data.testPhone || "").replace(/\s|-/g, "");
+    if (!testPhone) return json({ success: false, error: "Phone number required" });
+
+    const settings = await getOrCreateVoiceAgentSettings(session.shop);
+    if (!settings.sarvamApiKey || !settings.sarvamAgentId) {
+      return json({ success: false, error: "ElevenLabs API Key and Agent ID must be saved first" });
+    }
+
+    const brandName = session.shop.replace(".myshopify.com", "");
+    const testCart = {
+      customerName: "Test Customer",
+      productName: "Test Product (₹999)",
+      cartTotal: 99900,
+      currency: "INR",
+    };
+    const discountText = settings.offerDiscount
+      ? settings.discountType === "percentage"
+        ? `${settings.discountValue}% off`
+        : `₹${settings.discountValue} off`
+      : "";
+
+    const firstMessage = settings.greeting
+      .replace(/\{name\}/g, testCart.customerName)
+      .replace(/\{brand\}/g, brandName)
+      .replace(/\{product\}/g, testCart.productName)
+      .replace(/\{amount\}/g, "₹999")
+      .replace(/\{points\}/g, String(settings.bonusPoints));
+
+    const systemPrompt = generateCallPrompt(
+      settings.greeting,
+      testCart,
+      { discountValue: discountText, bonusPoints: settings.bonusPoints, offerDiscount: settings.offerDiscount, offerLoyaltyPoints: settings.offerLoyaltyPoints },
+      brandName,
+    );
+
+    try {
+      const result = await triggerElevenLabsCall(
+        settings.sarvamApiKey,
+        settings.sarvamAgentId,
+        testPhone,
+        { customer_name: testCart.customerName, product_name: testCart.productName, cart_total: "₹999", bonus_points: settings.bonusPoints, discount_value: discountText, checkout_url: `https://${session.shop}/cart`, brand_name: brandName },
+        systemPrompt,
+        firstMessage,
+      );
+      return json({ success: true, callId: result.callId, message: `Test call initiated! Call ID: ${result.callId}` });
+    } catch (err) {
+      return json({ success: false, error: (err as Error).message });
+    }
+  }
+
   await VoiceAgentSettings.findOneAndUpdate(
     { shopId: session.shop },
     {
@@ -87,11 +140,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function VoiceAgentPage() {
   const { settings, stats, calls } = useLoaderData<typeof loader>();
+  const actionData = useActionData<{ success: boolean; message?: string; error?: string }>();
   const submit = useSubmit();
   const nav = useNavigation();
   const isLoading = nav.state === "submitting";
 
   const [s, setS] = useState({ ...settings });
+  const [testPhone, setTestPhone] = useState("");
   const u = (f: string) => (v: string | boolean) => setS((p: any) => ({ ...p, [f]: v }));
   const uN = (f: string) => (v: string) => setS((p: any) => ({ ...p, [f]: Number(v) }));
 
@@ -104,6 +159,14 @@ export default function VoiceAgentPage() {
     });
     submit(fd, { method: "post" });
   }, [s, submit]);
+
+  const sendTestCall = useCallback(() => {
+    if (!testPhone) return;
+    const fd = new FormData();
+    fd.set("_action", "test_call");
+    fd.set("testPhone", testPhone);
+    submit(fd, { method: "post" });
+  }, [testPhone, submit]);
 
   const statusBadge = (status: string) => {
     const toneMap: Record<string, "success" | "critical" | "warning" | "info"> = {
@@ -213,6 +276,39 @@ export default function VoiceAgentPage() {
             </BlockStack></Card>
           </Layout.AnnotatedSection>
         </Layout>
+
+        {/* Test Call */}
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingMd">Test Call</Text>
+            <Text as="p" tone="subdued">Send a test call immediately to verify your greeting template is working. Uses dummy cart data (Test Customer, ₹999).</Text>
+            {actionData && nav.state === "idle" && (
+              <Banner tone={actionData.success ? "success" : "critical"}>
+                <p>{actionData.success ? actionData.message : actionData.error}</p>
+              </Banner>
+            )}
+            <InlineStack gap="300" blockAlign="end">
+              <div style={{ flexGrow: 1 }}>
+                <TextField
+                  label="Phone Number"
+                  value={testPhone}
+                  onChange={setTestPhone}
+                  placeholder="+919876543210"
+                  autoComplete="off"
+                  helpText="Must be a Twilio-verified number on trial accounts"
+                />
+              </div>
+              <Button
+                variant="primary"
+                onClick={sendTestCall}
+                loading={isLoading && nav.formData?.get("_action") === "test_call"}
+                disabled={!testPhone || !s.sarvamApiKey || !s.sarvamAgentId}
+              >
+                Send Test Call
+              </Button>
+            </InlineStack>
+          </BlockStack>
+        </Card>
 
         {/* Recent Calls */}
         <Card>
