@@ -85,7 +85,7 @@ export async function triggerElevenLabsCall(
             first_message: firstMessage || `Hi ${context.customer_name}! This is a call from ${context.brand_name}.`,
           },
         },
-        custom_parameters: {
+        dynamic_variables: {
           customer_name: context.customer_name,
           product_name: context.product_name,
           cart_total: context.cart_total,
