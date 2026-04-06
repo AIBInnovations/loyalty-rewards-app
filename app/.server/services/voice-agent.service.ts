@@ -157,8 +157,19 @@ async function attemptCall(cart: any): Promise<void> {
   // Get the main product name
   const mainProduct = cart.cartItems[0]?.title || "your selected items";
 
-  // Generate prompt
-  const prompt = generateCallPrompt(
+  const brandName = cart.shopId.replace(".myshopify.com", "");
+  const cartAmountStr = `₹${(cart.cartTotal / 100).toFixed(0)}`;
+
+  // Build the first message (what the agent says when customer picks up)
+  const firstMessage = settings.greeting
+    .replace(/\{name\}/g, cart.customerName)
+    .replace(/\{brand\}/g, brandName)
+    .replace(/\{product\}/g, mainProduct)
+    .replace(/\{amount\}/g, cartAmountStr)
+    .replace(/\{points\}/g, String(settings.bonusPoints));
+
+  // Build the full system prompt with cart context
+  const systemPrompt = generateCallPrompt(
     settings.greeting,
     {
       customerName: cart.customerName,
@@ -172,7 +183,7 @@ async function attemptCall(cart: any): Promise<void> {
       offerDiscount: settings.offerDiscount,
       offerLoyaltyPoints: settings.offerLoyaltyPoints,
     },
-    cart.shopId.replace(".myshopify.com", ""),
+    brandName,
   );
 
   // Trigger the call
@@ -188,12 +199,14 @@ async function attemptCall(cart: any): Promise<void> {
       {
         customer_name: cart.customerName,
         product_name: mainProduct,
-        cart_total: `₹${(cart.cartTotal / 100).toFixed(0)}`,
+        cart_total: cartAmountStr,
         bonus_points: settings.bonusPoints,
         discount_value: discountText,
         checkout_url: cart.abandonedCheckoutUrl,
-        brand_name: cart.shopId.replace(".myshopify.com", ""),
+        brand_name: brandName,
       },
+      systemPrompt,
+      firstMessage,
     );
 
     cart.callId = result.callId;

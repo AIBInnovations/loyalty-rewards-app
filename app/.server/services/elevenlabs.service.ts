@@ -55,6 +55,8 @@ export async function triggerElevenLabsCall(
   agentId: string,
   phoneNumber: string,
   context: ElevenLabsCallContext,
+  systemPrompt?: string,
+  firstMessage?: string,
 ): Promise<ElevenLabsCallResult> {
   // Ensure phone has +91 prefix
   let phone = phoneNumber.replace(/\s|-/g, "");
@@ -79,9 +81,8 @@ export async function triggerElevenLabsCall(
         to_number: phone,
         conversation_config_override: {
           agent: {
-            first_message: context.customer_name
-              ? `Hi ${context.customer_name}! This is a call from ${context.brand_name}.`
-              : undefined,
+            ...(systemPrompt ? { prompt: { prompt: systemPrompt } } : {}),
+            first_message: firstMessage || `Hi ${context.customer_name}! This is a call from ${context.brand_name}.`,
           },
         },
         custom_parameters: {
