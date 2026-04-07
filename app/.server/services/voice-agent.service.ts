@@ -95,20 +95,6 @@ async function attemptCall(cart: any): Promise<void> {
     return;
   }
 
-  // Skip if this customer's phone was already called in the last 24 hours
-  const recentCall = await AbandonedCart.findOne({
-    shopId: cart.shopId,
-    customerPhone: cart.customerPhone,
-    status: { $in: ["calling", "called", "recovered", "declined", "no_answer"] },
-    callMadeAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-  });
-  if (recentCall) {
-    cart.status = "skipped";
-    cart.skipReason = "Customer already called in last 24 hours";
-    await cart.save();
-    return;
-  }
-
   // Check daily call limit
   const today = new Date();
   today.setHours(0, 0, 0, 0);
