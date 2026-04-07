@@ -2,7 +2,7 @@ import cron from "node-cron";
 import { AbandonedCart } from "../models/abandoned-cart.model";
 import { VoiceAgentSettings } from "../models/voice-agent-settings.model";
 import { connectDB } from "../../db.server";
-import { triggerElevenLabsCall, generateCallPrompt } from "./elevenlabs.service";
+import { triggerElevenLabsCall } from "./elevenlabs.service";
 import { pollAllShopsForAbandonedCarts } from "./abandoned-cart-poller.service";
 
 /**
@@ -160,32 +160,6 @@ async function attemptCall(cart: any): Promise<void> {
   const brandName = cart.shopId.replace(".myshopify.com", "");
   const cartAmountStr = `₹${(cart.cartTotal / 100).toFixed(0)}`;
 
-  // Build the first message (what the agent says when customer picks up)
-  const firstMessage = settings.greeting
-    .replace(/\{name\}/g, cart.customerName)
-    .replace(/\{brand\}/g, brandName)
-    .replace(/\{product\}/g, mainProduct)
-    .replace(/\{amount\}/g, cartAmountStr)
-    .replace(/\{points\}/g, String(settings.bonusPoints));
-
-  // Build the full system prompt with cart context
-  const systemPrompt = generateCallPrompt(
-    settings.greeting,
-    {
-      customerName: cart.customerName,
-      productName: mainProduct,
-      cartTotal: cart.cartTotal,
-      currency: cart.currency,
-    },
-    {
-      discountValue: discountText,
-      bonusPoints: settings.bonusPoints,
-      offerDiscount: settings.offerDiscount,
-      offerLoyaltyPoints: settings.offerLoyaltyPoints,
-    },
-    brandName,
-  );
-
   // Trigger the call
   cart.status = "calling";
   cart.callMadeAt = new Date();
@@ -205,8 +179,6 @@ async function attemptCall(cart: any): Promise<void> {
         checkout_url: cart.abandonedCheckoutUrl,
         brand_name: brandName,
       },
-      systemPrompt,
-      firstMessage,
     );
 
     cart.callId = result.callId;

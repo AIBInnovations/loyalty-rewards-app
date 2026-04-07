@@ -14,7 +14,7 @@ import {
   VoiceAgentSettings,
 } from "../.server/models/voice-agent-settings.model";
 import { AbandonedCart } from "../.server/models/abandoned-cart.model";
-import { triggerElevenLabsCall, generateCallPrompt } from "../.server/services/elevenlabs.service";
+import { triggerElevenLabsCall } from "../.server/services/elevenlabs.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -80,28 +80,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         : `₹${settings.discountValue} off`
       : "";
 
-    const firstMessage = settings.greeting
-      .replace(/\{name\}/g, testCart.customerName)
-      .replace(/\{brand\}/g, brandName)
-      .replace(/\{product\}/g, testCart.productName)
-      .replace(/\{amount\}/g, "₹999")
-      .replace(/\{points\}/g, String(settings.bonusPoints));
-
-    const systemPrompt = generateCallPrompt(
-      settings.greeting,
-      testCart,
-      { discountValue: discountText, bonusPoints: settings.bonusPoints, offerDiscount: settings.offerDiscount, offerLoyaltyPoints: settings.offerLoyaltyPoints },
-      brandName,
-    );
-
     try {
       const result = await triggerElevenLabsCall(
         settings.sarvamApiKey,
         settings.sarvamAgentId,
         testPhone,
         { customer_name: testCart.customerName, product_name: testCart.productName, cart_total: "₹999", bonus_points: settings.bonusPoints, discount_value: discountText, checkout_url: `https://${session.shop}/cart`, brand_name: brandName },
-        systemPrompt,
-        firstMessage,
       );
       return json({ success: true, callId: result.callId, message: `Test call initiated! Call ID: ${result.callId}` });
     } catch (err) {

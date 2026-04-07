@@ -152,13 +152,6 @@ async function processCheckout(
 ): Promise<void> {
   const checkoutId = checkout.id;
 
-  // Skip if already tracked
-  const existing = await AbandonedCart.findOne({
-    shopId: shop,
-    shopifyCheckoutId: checkoutId,
-  });
-  if (existing) return;
-
   // Extract phone number (try multiple sources)
   const phone =
     checkout.customer?.phone ||
@@ -188,29 +181,38 @@ async function processCheckout(
     checkout.totalPriceSet?.shopMoney?.amount || "0",
   ) * 100;
 
-  // Create abandoned cart record
   const callScheduledAt = new Date(
     Date.now() + callDelayMinutes * 60 * 1000,
   );
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  await AbandonedCart.create({
-    shopId: shop,
-    shopifyCheckoutId: checkoutId,
-    shopifyCheckoutToken: checkout.token || "",
-    customerEmail: checkout.customer?.email || "",
-    customerPhone: phone,
-    customerName,
-    customerId: checkout.customer?.id || "",
-    cartItems,
-    cartTotal,
-    currency: checkout.totalPriceSet?.shopMoney?.currencyCode || "INR",
-    abandonedCheckoutUrl: `https://${shop}/checkouts/${checkout.token || ""}`,
-    status: "scheduled",
-    callScheduledAt,
-    expiresAt,
-    detectedAt: new Date(),
-  });
+  // Atomic upsert — prevents duplicate key errors from race conditions
+  // between the poller and the CHECKOUTS_UPDATE webhook
+  const result = await AbandonedCart.findOneAndUpdate(
+    { shopId: shop, shopifyCheckoutId: checkoutId },
+    {
+      $setOnInsert: {
+        shopId: shop,
+        shopifyCheckoutId: checkoutId,
+        shopifyCheckoutToken: checkout.token || "",
+        customerEmail: checkout.customer?.email || "",
+        customerPhone: phone,
+        customerName,
+        customerId: checkout.customer?.id || "",
+        cartItems,
+        cartTotal,
+        currency: checkout.totalPriceSet?.shopMoney?.currencyCode || "INR",
+        abandonedCheckoutUrl: `https://${shop}/checkouts/${checkout.token || ""}`,
+        status: "scheduled",
+        callScheduledAt,
+        expiresAt,
+        detectedAt: new Date(),
+      },
+    },
+    { upsert: true, new: false },
+  );
+
+  if (result) return; // Already existed, skip log
 
   console.log(
     `Abandoned cart detected: ${customerName} (${phone}) - ₹${(cartTotal / 100).toFixed(0)} - call in ${callDelayMinutes}min`,
@@ -227,12 +229,6 @@ async function processRestCheckout(
 ): Promise<void> {
   const checkoutId = String(checkout.id);
 
-  // Skip if already tracked or completed
-  const existing = await AbandonedCart.findOne({
-    shopId: shop,
-    shopifyCheckoutId: checkoutId,
-  });
-  if (existing) return;
   if (checkout.completed_at) return; // Not abandoned
 
   const phone =
@@ -266,23 +262,32 @@ async function processRestCheckout(
   );
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  await AbandonedCart.create({
-    shopId: shop,
-    shopifyCheckoutId: checkoutId,
-    shopifyCheckoutToken: checkout.token || "",
-    customerEmail: checkout.email || checkout.customer?.email || "",
-    customerPhone: phone,
-    customerName,
-    customerId: String(checkout.customer?.id || ""),
-    cartItems,
-    cartTotal,
-    currency: checkout.currency || "INR",
-    abandonedCheckoutUrl: checkout.abandoned_checkout_url || "",
-    status: "scheduled",
-    callScheduledAt,
-    expiresAt,
-    detectedAt: new Date(),
-  });
+  // Atomic upsert — prevents duplicate key errors from race conditions
+  const result = await AbandonedCart.findOneAndUpdate(
+    { shopId: shop, shopifyCheckoutId: checkoutId },
+    {
+      $setOnInsert: {
+        shopId: shop,
+        shopifyCheckoutId: checkoutId,
+        shopifyCheckoutToken: checkout.token || "",
+        customerEmail: checkout.email || checkout.customer?.email || "",
+        customerPhone: phone,
+        customerName,
+        customerId: String(checkout.customer?.id || ""),
+        cartItems,
+        cartTotal,
+        currency: checkout.currency || "INR",
+        abandonedCheckoutUrl: checkout.abandoned_checkout_url || "",
+        status: "scheduled",
+        callScheduledAt,
+        expiresAt,
+        detectedAt: new Date(),
+      },
+    },
+    { upsert: true, new: false },
+  );
+
+  if (result) return; // Already existed, skip log
 
   console.log(
     `Abandoned cart detected (REST): ${customerName} (${phone}) - ₹${(cartTotal / 100).toFixed(0)}`,

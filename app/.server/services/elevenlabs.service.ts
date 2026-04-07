@@ -55,8 +55,6 @@ export async function triggerElevenLabsCall(
   agentId: string,
   phoneNumber: string,
   context: ElevenLabsCallContext,
-  systemPrompt?: string,
-  firstMessage?: string,
 ): Promise<ElevenLabsCallResult> {
   // Ensure phone has +91 prefix
   let phone = phoneNumber.replace(/\s|-/g, "");
@@ -79,20 +77,16 @@ export async function triggerElevenLabsCall(
         agent_id: agentId,
         agent_phone_number_id: agentPhoneNumberId,
         to_number: phone,
-        conversation_config_override: {
-          agent: {
-            ...(systemPrompt ? { prompt: { prompt: systemPrompt } } : {}),
-            first_message: firstMessage || `Hi ${context.customer_name}! This is a call from ${context.brand_name}.`,
+        conversation_initiation_client_data: {
+          dynamic_variables: {
+            customer_name: context.customer_name,
+            product_name: context.product_name,
+            cart_total: context.cart_total,
+            bonus_points: String(context.bonus_points),
+            discount_value: context.discount_value,
+            checkout_url: context.checkout_url,
+            brand_name: context.brand_name,
           },
-        },
-        dynamic_variables: {
-          customer_name: context.customer_name,
-          product_name: context.product_name,
-          cart_total: context.cart_total,
-          bonus_points: String(context.bonus_points),
-          discount_value: context.discount_value,
-          checkout_url: context.checkout_url,
-          brand_name: context.brand_name,
         },
       }),
     },
