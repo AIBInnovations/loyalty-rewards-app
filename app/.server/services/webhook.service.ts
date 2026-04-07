@@ -7,7 +7,7 @@ import {
   reversePoints,
   getNetEarnedForOrder,
 } from "./points.service";
-import { syncCustomerMetafields } from "./metafield.service";
+
 import { generateReferralCode } from "../utils/codes";
 import {
   orderPaidKey,
@@ -45,25 +45,23 @@ export async function handleOrderPaid(
   const subtotalPrice = parseFloat(String(payload.subtotal_price || "0"));
   if (subtotalPrice <= 0) return;
 
-  // Look up customer to get tier multiplier
-  let customer = await Customer.findOne({
-    shopId: shop,
-    shopifyCustomerId,
-  });
-
-  // If customer doesn't exist yet, create them
-  if (!customer) {
-    customer = await Customer.create({
-      shopId: shop,
-      shopifyCustomerId,
-      email: (payload.customer as Record<string, unknown>)?.email as string,
-      firstName: (payload.customer as Record<string, unknown>)?.first_name as string,
-      lastName: (payload.customer as Record<string, unknown>)?.last_name as string,
-      referralCode: generateReferralCode(
-        (payload.customer as Record<string, unknown>)?.first_name as string,
-      ),
-    });
-  }
+  // Look up or create customer atomically (prevents duplicate key on concurrent webhooks)
+  let customer = await Customer.findOneAndUpdate(
+    { shopId: shop, shopifyCustomerId },
+    {
+      $setOnInsert: {
+        shopId: shop,
+        shopifyCustomerId,
+        email: (payload.customer as Record<string, unknown>)?.email as string,
+        firstName: (payload.customer as Record<string, unknown>)?.first_name as string,
+        lastName: (payload.customer as Record<string, unknown>)?.last_name as string,
+        referralCode: generateReferralCode(
+          (payload.customer as Record<string, unknown>)?.first_name as string,
+        ),
+      },
+    },
+    { upsert: true, new: true },
+  );
 
   // Calculate tier multiplier
   const tierMultiplier =
@@ -266,19 +264,22 @@ export async function handleCustomerCreate(
   const shopifyCustomerId = String(payload.id);
   const settings = await getOrCreateSettings(shop);
 
-  // Create or find customer
-  let customer = await Customer.findOne({ shopId: shop, shopifyCustomerId });
-  if (!customer) {
-    customer = await Customer.create({
-      shopId: shop,
-      shopifyCustomerId,
-      email: payload.email as string,
-      firstName: payload.first_name as string,
-      lastName: payload.last_name as string,
-      referralCode: generateReferralCode(payload.first_name as string),
-      birthday: payload.birthday ? new Date(payload.birthday as string) : undefined,
-    });
-  }
+  // Create or find customer atomically
+  await Customer.findOneAndUpdate(
+    { shopId: shop, shopifyCustomerId },
+    {
+      $setOnInsert: {
+        shopId: shop,
+        shopifyCustomerId,
+        email: payload.email as string,
+        firstName: payload.first_name as string,
+        lastName: payload.last_name as string,
+        referralCode: generateReferralCode(payload.first_name as string),
+        birthday: payload.birthday ? new Date(payload.birthday as string) : undefined,
+      },
+    },
+    { upsert: true, new: true },
+  );
 
   // Award signup bonus
   if (settings.signupBonus > 0) {
@@ -357,9 +358,6 @@ export async function handleShopRedact(
   shop: string,
 ): Promise<void> {
   // Delete all data for this shop (48 hours after uninstall)
-  const customers = await Customer.find({ shopId: shop });
-  const customerIds = customers.map((c) => c._id);
-
   await Transaction.deleteMany({ shopId: shop });
   await Redemption.deleteMany({ shopId: shop });
   await Customer.deleteMany({ shopId: shop });
