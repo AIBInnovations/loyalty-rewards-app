@@ -57,6 +57,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   await connectDB();
   const data = Object.fromEntries(await request.formData());
 
+  // Clear all scheduled carts for this shop
+  if (data._action === "clear_scheduled") {
+    const result = await AbandonedCart.updateMany(
+      { shopId: session.shop, status: "scheduled" },
+      { $set: { status: "expired", skipReason: "Manually cleared by admin" } },
+    );
+    return json({ success: true, message: `Cleared ${result.modifiedCount} scheduled cart(s)` });
+  }
+
   // Test call action
   if (data._action === "test_call") {
     const testPhone = String(data.testPhone || "").replace(/\s|-/g, "");
@@ -151,6 +160,12 @@ export default function VoiceAgentPage() {
     fd.set("testPhone", testPhone);
     submit(fd, { method: "post" });
   }, [testPhone, submit]);
+
+  const clearScheduled = useCallback(() => {
+    const fd = new FormData();
+    fd.set("_action", "clear_scheduled");
+    submit(fd, { method: "post" });
+  }, [submit]);
 
   const statusBadge = (status: string) => {
     const toneMap: Record<string, "success" | "critical" | "warning" | "info"> = {
@@ -290,6 +305,19 @@ export default function VoiceAgentPage() {
               >
                 Send Test Call
               </Button>
+            </InlineStack>
+            <InlineStack gap="200" blockAlign="center">
+              <Button
+                tone="critical"
+                variant="plain"
+                onClick={clearScheduled}
+                loading={isLoading && nav.formData?.get("_action") === "clear_scheduled"}
+              >
+                Clear All Scheduled Carts
+              </Button>
+              <Text as="span" tone="subdued" variant="bodySm">
+                Marks all pending scheduled carts as expired — stops queued calls immediately
+              </Text>
             </InlineStack>
           </BlockStack>
         </Card>
