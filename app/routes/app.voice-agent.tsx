@@ -72,7 +72,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!testPhone) return json({ success: false, error: "Phone number required" });
 
     const settings = await getOrCreateVoiceAgentSettings(session.shop);
-    if (!settings.sarvamApiKey || !settings.sarvamAgentId) {
+    if (!settings.elevenLabsApiKey || !settings.elevenLabsAgentId) {
       return json({ success: false, error: "ElevenLabs API Key and Agent ID must be saved first" });
     }
 
@@ -91,8 +91,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     try {
       const result = await triggerElevenLabsCall(
-        settings.sarvamApiKey,
-        settings.sarvamAgentId,
+        settings.elevenLabsApiKey,
+        settings.elevenLabsAgentId,
         testPhone,
         { customer_name: testCart.customerName, product_name: testCart.productName, cart_total: "₹999", bonus_points: settings.bonusPoints, discount_value: discountText, checkout_url: `https://${session.shop}/cart`, brand_name: brandName },
       );
@@ -107,8 +107,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     {
       $set: {
         enabled: data.enabled === "true",
-        sarvamApiKey: data.sarvamApiKey || "",
-        sarvamAgentId: data.sarvamAgentId || "",
+        elevenLabsApiKey: data.elevenLabsApiKey || "",
+        elevenLabsAgentId: data.elevenLabsAgentId || "",
         callDelayMinutes: Number(data.callDelayMinutes) || 15,
         minCartValue: Number(data.minCartValue) || 500,
         maxCallsPerDay: Number(data.maxCallsPerDay) || 100,
@@ -210,8 +210,8 @@ export default function VoiceAgentPage() {
               <Checkbox label="Enable Voice Agent" checked={s.enabled} onChange={u("enabled")} />
               {s.enabled && (
                 <>
-                  <TextField label="ElevenLabs API Key" value={s.sarvamApiKey} onChange={u("sarvamApiKey")} type="password" autoComplete="off" helpText="Get your API key from elevenlabs.io → Profile → API Keys" />
-                  <TextField label="ElevenLabs Agent ID" value={s.sarvamAgentId} onChange={u("sarvamAgentId")} autoComplete="off" helpText="Create an agent in ElevenLabs → Conversational AI → copy the Agent ID from the URL" />
+                  <TextField label="ElevenLabs API Key" value={s.elevenLabsApiKey} onChange={u("elevenLabsApiKey")} type="password" autoComplete="off" helpText="Get your API key from elevenlabs.io → Profile → API Keys" />
+                  <TextField label="ElevenLabs Agent ID" value={s.elevenLabsAgentId} onChange={u("elevenLabsAgentId")} autoComplete="off" helpText="Create an agent in ElevenLabs → Conversational AI → copy the Agent ID from the URL" />
                 </>
               )}
             </BlockStack></Card>
@@ -301,7 +301,7 @@ export default function VoiceAgentPage() {
                 variant="primary"
                 onClick={sendTestCall}
                 loading={isLoading && nav.formData?.get("_action") === "test_call"}
-                disabled={!testPhone || !s.sarvamApiKey || !s.sarvamAgentId}
+                disabled={!testPhone || !s.elevenLabsApiKey || !s.elevenLabsAgentId}
               >
                 Send Test Call
               </Button>

@@ -3,9 +3,9 @@ import mongoose, { type Document, type Model, Schema } from "mongoose";
 export interface IVoiceAgentSettings extends Document {
   shopId: string;
   enabled: boolean;
-  // ElevenLabs Conversational AI config (field names kept for DB compatibility)
-  sarvamApiKey: string;   // ElevenLabs API Key
-  sarvamAgentId: string;  // ElevenLabs Agent ID
+  // ElevenLabs Conversational AI config
+  elevenLabsApiKey: string;
+  elevenLabsAgentId: string;
   // Call config
   callDelayMinutes: number;
   minCartValue: number;
@@ -35,8 +35,8 @@ const voiceAgentSettingsSchema = new Schema<IVoiceAgentSettings>(
   {
     shopId: { type: String, required: true, unique: true },
     enabled: { type: Boolean, default: false },
-    sarvamApiKey: { type: String, default: "" },
-    sarvamAgentId: { type: String, default: "" },
+    elevenLabsApiKey: { type: String, default: "" },
+    elevenLabsAgentId: { type: String, default: "" },
     callDelayMinutes: { type: Number, default: 15, min: 5, max: 120 },
     minCartValue: { type: Number, default: 500 },
     maxCallsPerDay: { type: Number, default: 100 },

@@ -88,7 +88,7 @@ async function attemptCall(cart: any): Promise<void> {
     enabled: true,
   });
 
-  if (!settings || !settings.sarvamApiKey) {
+  if (!settings || !settings.elevenLabsApiKey) {
     cart.status = "skipped";
     cart.skipReason = "Voice agent not configured";
     await cart.save();
@@ -181,8 +181,8 @@ async function attemptCall(cart: any): Promise<void> {
 
   try {
     const result = await triggerElevenLabsCall(
-      settings.sarvamApiKey,
-      settings.sarvamAgentId,
+      settings.elevenLabsApiKey,
+      settings.elevenLabsAgentId,
       cart.customerPhone,
       {
         customer_name: cart.customerName,
