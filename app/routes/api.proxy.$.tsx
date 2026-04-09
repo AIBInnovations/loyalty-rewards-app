@@ -20,6 +20,11 @@ import { WheelSettings } from "../.server/models/wheel-settings.model";
 import { Subscriber } from "../.server/models/subscriber.model";
 import { createRedemptionDiscount } from "../.server/services/discount.service";
 import { generateDiscountCode } from "../.server/utils/codes";
+import { PincodeSettings } from "../.server/models/pincode-settings.model";
+import { UpsellSettings } from "../.server/models/upsell-settings.model";
+import { UGCSettings } from "../.server/models/ugc-settings.model";
+import { ReviewSettings } from "../.server/models/review-settings.model";
+import { Review, Question } from "../.server/models/review.model";
 
 // Rate limit tracker (in-memory, per-instance)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -102,6 +107,26 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
 
   if (path === "stock-subscribe" || action === "stock-subscribe") {
     return handleStockSubscribe(params, shop);
+  }
+
+  if (path === "pincode") {
+    return handlePincodeCheck(params, shop);
+  }
+
+  if (path === "upsell-settings") {
+    return handleGetUpsellSettings(shop);
+  }
+
+  if (path === "ugc-settings") {
+    return handleGetUGCSettings(shop);
+  }
+
+  if (path === "reviews") {
+    return handleGetReviews(params, shop);
+  }
+
+  if (path === "reviews/questions") {
+    return handleGetQuestions(params, shop);
   }
 
   if (!shopifyCustomerId) {
@@ -543,6 +568,10 @@ export const action = async ({ request, params: routeParams }: ActionFunctionArg
       return handleReferral(request, shop, shopifyCustomerId);
     case "social-share":
       return handleSocialShare(request, shop, shopifyCustomerId);
+    case "reviews/submit":
+      return handleSubmitReview(request, shop);
+    case "reviews/question":
+      return handleSubmitQuestion(request, shop);
     default:
       return json({ error: "Not found" }, { status: 404 });
   }
@@ -718,4 +747,138 @@ async function handleSocialShare(
   } catch (error) {
     return json({ error: "Failed to award bonus" }, { status: 500 });
   }
+}
+
+// ─── Pincode Delivery Estimator ──────────────────────────────────
+
+async function handlePincodeCheck(params: URLSearchParams, shop: string) {
+  const code = (params.get("code") || "").trim();
+  if (!/^\d{6}$/.test(code)) {
+    return json({ error: "Invalid pincode" }, { status: 400 });
+  }
+
+  const settings = await PincodeSettings.findOne({ shopId: shop }).lean();
+  if (!settings?.enabled) {
+    // Default: all deliverable, COD available, 3-7 days
+    return json({ deliverable: true, cod: true, minDays: 3, maxDays: 7 });
+  }
+
+  if (settings.nonServiceablePincodes.includes(code)) {
+    return json({ deliverable: false, cod: false, minDays: 0, maxDays: 0 });
+  }
+
+  const cod = settings.noCodPincodes.includes(code)
+    ? false
+    : settings.codPincodes.length === 0 || settings.codPincodes.includes(code);
+
+  return json({
+    deliverable: true,
+    cod,
+    minDays: settings.defaultMinDays,
+    maxDays: settings.defaultMaxDays,
+  });
+}
+
+// ─── Upsell Settings ─────────────────────────────────────────────
+
+async function handleGetUpsellSettings(shop: string) {
+  const s = await UpsellSettings.findOne({ shopId: shop }).lean();
+  if (!s?.enabled) return json({ enabled: false });
+  return json({
+    enabled: true,
+    productHandle:   s.productHandle,
+    discountPercent: s.discountPercent,
+    headline:        s.headline,
+    buttonText:      s.buttonText,
+    primaryColor:    s.primaryColor,
+  });
+}
+
+// ─── UGC Gallery Settings ────────────────────────────────────────
+
+async function handleGetUGCSettings(shop: string) {
+  const s = await UGCSettings.findOne({ shopId: shop }).lean();
+  if (!s?.enabled) return json({ enabled: false });
+  return json({ enabled: true, title: s.title, photos: s.photos });
+}
+
+// ─── Reviews ─────────────────────────────────────────────────────
+
+async function handleGetReviews(params: URLSearchParams, shop: string) {
+  const productId = params.get("productId");
+  if (!productId) return json({ reviews: [] });
+
+  const settings = await ReviewSettings.findOne({ shopId: shop }).lean();
+  if (!settings?.enabled) return json({ reviews: [] });
+
+  const reviews = await Review.find({ shopId: shop, productId, status: "approved" })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .lean();
+
+  return json({ reviews });
+}
+
+async function handleGetQuestions(params: URLSearchParams, shop: string) {
+  const productId = params.get("productId");
+  if (!productId) return json({ questions: [] });
+
+  const questions = await Question.find({ shopId: shop, productId, answered: true })
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .lean();
+
+  return json({ questions });
+}
+
+async function handleSubmitReview(request: Request, shop: string) {
+  let body: Record<string, any> = {};
+  try {
+    const ct = request.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      body = await request.json();
+    } else {
+      const fd = await request.formData();
+      body = Object.fromEntries(fd);
+      if (body.photoUrls) {
+        try { body.photoUrls = JSON.parse(body.photoUrls as string); } catch { body.photoUrls = []; }
+      }
+    }
+  } catch {
+    return json({ error: "Invalid body" }, { status: 400 });
+  }
+
+  const { productId, rating, body: reviewBody, photoUrls = [], authorName, authorEmail, customerId } = body;
+  if (!productId || !rating || !reviewBody) {
+    return json({ error: "productId, rating, and body are required" }, { status: 400 });
+  }
+
+  const settings = await ReviewSettings.findOne({ shopId: shop }).lean();
+  const status = settings?.autoApprove ? "approved" : "pending";
+
+  await Review.create({
+    shopId: shop, productId, rating: Number(rating), body: reviewBody,
+    photoUrls, authorName: authorName || "Customer", authorEmail: authorEmail || "",
+    customerId: customerId || "", status,
+  });
+
+  return json({ success: true, status });
+}
+
+async function handleSubmitQuestion(request: Request, shop: string) {
+  let body: Record<string, any> = {};
+  try {
+    const ct = request.headers.get("content-type") || "";
+    body = ct.includes("application/json") ? await request.json() : Object.fromEntries(await request.formData());
+  } catch {
+    return json({ error: "Invalid body" }, { status: 400 });
+  }
+
+  const { productId, question } = body;
+  if (!productId || !question) {
+    return json({ error: "productId and question are required" }, { status: 400 });
+  }
+
+  await Question.create({ shopId: shop, productId, question, answered: false });
+  return json({ success: true });
 }

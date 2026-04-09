@@ -32,6 +32,11 @@ export default function App() {
         <Link to="/app/wheel-settings">Spin Wheel</Link>
         <Link to="/app/stock-alerts">Stock Alerts</Link>
         <Link to="/app/voice-agent">Voice Agent</Link>
+        <Link to="/app/pincode-settings">Pincode Estimator</Link>
+        <Link to="/app/upsell-settings">Post-Purchase Upsell</Link>
+        <Link to="/app/ugc-settings">UGC Gallery</Link>
+        <Link to="/app/cod-settings">COD WhatsApp</Link>
+        <Link to="/app/reviews-settings">Reviews & Q&A</Link>
         <Link to="/app/settings">Settings</Link>
       </NavMenu>
       <Outlet />

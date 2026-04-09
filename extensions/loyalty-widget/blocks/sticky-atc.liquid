@@ -1,0 +1,71 @@
+{% comment %}
+  Sticky Add-to-Cart Bar - App Embed Block
+  Appears when user scrolls past the native ATC button on product pages.
+  Shows product image, title, price and an Add to Cart button.
+  No backend needed — pure client-side.
+{% endcomment %}
+
+{% if template.name == 'product' %}
+<div
+  id="sticky-atc-bar"
+  data-product-handle="{{ product.handle }}"
+  data-product-title="{{ product.title | escape }}"
+  data-product-price="{{ product.selected_or_first_available_variant.price }}"
+  data-product-image="{{ product.featured_image | img_url: '120x120', crop: 'center' }}"
+  data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+  data-money-format="{{ shop.money_format | escape }}"
+  data-position="{{ block.settings.position }}"
+  data-show-on-mobile="{{ block.settings.show_on_mobile }}"
+  style="
+    --satc-bg: {{ block.settings.bg_color }};
+    --satc-btn: {{ block.settings.btn_color }};
+    --satc-btn-text: {{ block.settings.btn_text_color }};
+  "
+></div>
+
+{{ 'sticky-atc.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'sticky-atc.js' | asset_url }}" defer></script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Sticky Add-to-Cart",
+  "target": "body",
+  "settings": [
+    {
+      "type": "select",
+      "id": "position",
+      "label": "Bar Position",
+      "options": [
+        { "value": "top", "label": "Top of screen" },
+        { "value": "bottom", "label": "Bottom of screen" }
+      ],
+      "default": "bottom"
+    },
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Bar Background Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "btn_color",
+      "label": "Button Color",
+      "default": "#5C6AC4"
+    },
+    {
+      "type": "color",
+      "id": "btn_text_color",
+      "label": "Button Text Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_mobile",
+      "label": "Show on Mobile",
+      "default": true
+    }
+  ]
+}
+{% endschema %}

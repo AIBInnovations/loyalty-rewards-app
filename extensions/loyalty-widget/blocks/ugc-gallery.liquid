@@ -1,0 +1,31 @@
+{% comment %}
+  Instagram UGC Gallery - App Embed Block
+  Shoppable grid of customer photos managed by merchant in admin.
+  Photos + product tags fetched from /apps/loyalty/ugc-settings.
+{% endcomment %}
+
+<div
+  id="ugc-gallery-widget"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  style="
+    --ugc-primary: {{ block.settings.primary_color }};
+  "
+></div>
+
+{{ 'ugc-gallery.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'ugc-gallery.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Instagram UGC Gallery",
+  "target": "body",
+  "settings": [
+    {
+      "type": "color",
+      "id": "primary_color",
+      "label": "Accent Color",
+      "default": "#5C6AC4"
+    }
+  ]
+}
+{% endschema %}

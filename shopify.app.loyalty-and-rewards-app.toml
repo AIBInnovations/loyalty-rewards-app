@@ -36,7 +36,7 @@ api_version = "2025-01"
   uri = "/webhooks"
 
 [access_scopes]
-scopes = "read_customers,read_discounts,read_orders,write_customers,write_discounts"
+scopes = "read_customers,read_discounts,read_orders,read_products,write_customers,write_discounts"
 
 [auth]
 redirect_urls = [ "https://loyalty-rewards-app-gxb7.onrender.com/auth/callback" ]

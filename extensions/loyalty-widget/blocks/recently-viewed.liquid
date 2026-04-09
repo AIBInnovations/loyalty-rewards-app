@@ -1,0 +1,55 @@
+{% comment %}
+  Recently Viewed Products - App Embed Block
+  Tracks products the customer browsed in localStorage.
+  Renders a horizontal product grid anywhere on the store.
+  No backend needed — localStorage only.
+{% endcomment %}
+
+<div
+  id="recently-viewed-widget"
+  data-current-product-id="{{ product.id }}"
+  data-current-product-handle="{{ product.handle }}"
+  data-current-product-title="{{ product.title | escape }}"
+  data-current-product-image="{{ product.featured_image | img_url: '300x300', crop: 'center' }}"
+  data-current-product-url="{{ product.url }}"
+  data-current-product-price="{{ product.selected_or_first_available_variant.price }}"
+  data-current-product-compare="{{ product.selected_or_first_available_variant.compare_at_price }}"
+  data-money-format="{{ shop.money_format | escape }}"
+  data-title="{{ block.settings.title | escape }}"
+  data-max-products="{{ block.settings.max_products }}"
+  data-show-price="{{ block.settings.show_price }}"
+  data-template="{{ template.name }}"
+></div>
+
+{{ 'recently-viewed.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'recently-viewed.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Recently Viewed Products",
+  "target": "body",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Section Title",
+      "default": "Recently Viewed"
+    },
+    {
+      "type": "range",
+      "id": "max_products",
+      "label": "Max Products to Show",
+      "min": 2,
+      "max": 8,
+      "step": 1,
+      "default": 4
+    },
+    {
+      "type": "checkbox",
+      "id": "show_price",
+      "label": "Show Price",
+      "default": true
+    }
+  ]
+}
+{% endschema %}

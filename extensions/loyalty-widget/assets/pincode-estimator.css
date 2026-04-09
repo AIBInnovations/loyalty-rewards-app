@@ -1,0 +1,59 @@
+#pincode-estimator-widget {
+  margin: 16px 0;
+  padding: 14px 16px;
+  background: var(--pe-bg, #f8f8f8);
+  border-radius: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  border: 1px solid #e5e5e5;
+}
+.pe-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pe-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.pe-input {
+  flex: 1;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  max-width: 160px;
+  letter-spacing: 1px;
+}
+.pe-input:focus { border-color: var(--pe-primary, #5C6AC4); }
+.pe-btn {
+  background: var(--pe-primary, #5C6AC4);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.pe-btn:hover { opacity: 0.88; }
+.pe-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.pe-result {
+  margin-top: 10px;
+  font-size: 13px;
+  display: none;
+}
+.pe-result.pe-show { display: block; }
+.pe-delivery { color: #1a7a3c; font-weight: 600; }
+.pe-cod-yes { color: #1a7a3c; font-weight: 600; }
+.pe-cod-no  { color: #c0392b; font-weight: 600; }
+.pe-unavailable { color: #c0392b; font-weight: 600; }
+.pe-error { color: #c0392b; font-size: 12px; margin-top: 6px; }

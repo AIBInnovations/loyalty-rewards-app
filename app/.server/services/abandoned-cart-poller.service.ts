@@ -3,6 +3,14 @@ import { AbandonedCart } from "../models/abandoned-cart.model";
 import { VoiceAgentSettings } from "../models/voice-agent-settings.model";
 import { connectDB } from "../../db.server";
 
+const LOG = {
+  info: (msg: string) => console.log(`[AbandonedCart] ${msg}`),
+  warn: (msg: string) => console.warn(`[AbandonedCart] ⚠️  ${msg}`),
+  error: (msg: string, err?: unknown) => console.error(`[AbandonedCart] ❌ ${msg}`, err || ""),
+  detect: (msg: string) => console.log(`[AbandonedCart] 🛒 ${msg}`),
+  skip: (checkoutId: string, reason: string) => console.log(`[AbandonedCart] ⏭️  SKIP checkout:${checkoutId} | ${reason}`),
+};
+
 /**
  * Poll all shops for abandoned checkouts via Shopify Admin API.
  * Runs every 2 minutes as a cron job.
@@ -11,11 +19,15 @@ export async function pollAllShopsForAbandonedCarts(): Promise<void> {
   try {
     await connectDB();
 
-    // Find all shops with voice agent enabled
     const enabledShops = await VoiceAgentSettings.find({ enabled: true }).lean();
-    if (!enabledShops.length) return;
 
-    // Get sessions for each shop
+    if (!enabledShops.length) {
+      LOG.info("Poll run — no shops with voice agent enabled, skipping");
+      return;
+    }
+
+    LOG.info(`Poll run — checking ${enabledShops.length} shop(s): ${enabledShops.map(s => s.shopId).join(", ")}`);
+
     const db = mongoose.connection.db;
     if (!db) return;
     const sessionsCollection = db.collection("shopify_sessions");
@@ -27,7 +39,12 @@ export async function pollAllShopsForAbandonedCarts(): Promise<void> {
         accessToken: { $exists: true, $ne: "" },
       });
 
-      if (!session?.accessToken) continue;
+      if (!session?.accessToken) {
+        LOG.warn(`No offline session found for ${shopSettings.shopId} — cannot poll Shopify API`);
+        continue;
+      }
+
+      LOG.info(`Polling ${shopSettings.shopId} (session found, delay: ${shopSettings.callDelayMinutes}min)`);
 
       try {
         await pollShopAbandonedCheckouts(
@@ -36,11 +53,11 @@ export async function pollAllShopsForAbandonedCarts(): Promise<void> {
           shopSettings.callDelayMinutes,
         );
       } catch (err) {
-        console.error(`Abandoned cart poll failed for ${shopSettings.shopId}:`, err);
+        LOG.error(`Poll failed for ${shopSettings.shopId}:`, err);
       }
     }
   } catch (err) {
-    console.error("pollAllShopsForAbandonedCarts error:", err);
+    LOG.error("pollAllShopsForAbandonedCarts error:", err);
   }
 }
 
@@ -52,8 +69,8 @@ async function pollShopAbandonedCheckouts(
   accessToken: string,
   callDelayMinutes: number,
 ): Promise<void> {
-  // Fetch recent abandoned checkouts (last 2 hours)
   const sinceDate = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  LOG.info(`Fetching checkouts updated after ${sinceDate} for ${shop}`);
 
   const query = `#graphql
     query abandonedCheckouts($query: String!) {
@@ -100,6 +117,7 @@ async function pollShopAbandonedCheckouts(
   `;
 
   try {
+    LOG.info(`Trying GraphQL API for ${shop}`);
     const response = await fetch(
       `https://${shop}/admin/api/2025-01/graphql.json`,
       {
@@ -116,28 +134,37 @@ async function pollShopAbandonedCheckouts(
     );
 
     const result = await response.json();
+
+    if (result.errors) {
+      LOG.warn(`GraphQL errors for ${shop}: ${JSON.stringify(result.errors)}`);
+      throw new Error("GraphQL returned errors");
+    }
+
     const checkouts = result?.data?.abandonedCheckouts?.nodes || [];
+    LOG.info(`GraphQL returned ${checkouts.length} checkout(s) for ${shop}`);
 
     for (const checkout of checkouts) {
+      LOG.info(`GraphQL checkout | id: ${checkout.id} | customer: ${checkout.customer?.firstName} ${checkout.customer?.lastName} | phone: ${checkout.customer?.phone || checkout.shippingAddress?.phone || "NONE"} | total: ₹${parseFloat(checkout.totalPriceSet?.shopMoney?.amount || "0").toFixed(0)} | items: ${checkout.lineItems?.nodes?.length || 0}`);
       await processCheckout(shop, checkout, callDelayMinutes);
     }
   } catch (err) {
-    // Fallback: try REST API if GraphQL fails
+    LOG.warn(`GraphQL failed for ${shop} — falling back to REST API. Error: ${(err as Error).message}`);
     try {
-      const response = await fetch(
-        `https://${shop}/admin/api/2025-01/checkouts.json?updated_at_min=${sinceDate}&limit=50`,
-        {
-          headers: { "X-Shopify-Access-Token": accessToken },
-        },
-      );
+      const restUrl = `https://${shop}/admin/api/2025-01/checkouts.json?updated_at_min=${sinceDate}&limit=50`;
+      LOG.info(`REST fallback URL: ${restUrl}`);
+      const response = await fetch(restUrl, {
+        headers: { "X-Shopify-Access-Token": accessToken },
+      });
       const data = await response.json();
       const checkouts = data?.checkouts || [];
+      LOG.info(`REST API returned ${checkouts.length} checkout(s) for ${shop}`);
 
       for (const checkout of checkouts) {
+        LOG.info(`REST checkout | id: ${checkout.id} | completed_at: ${checkout.completed_at || "null (abandoned)"} | customer: ${checkout.customer?.first_name} ${checkout.customer?.last_name} | phone: ${checkout.phone || checkout.shipping_address?.phone || checkout.customer?.phone || "NONE"} | total: ₹${parseFloat(checkout.total_price || "0").toFixed(0)} | items: ${checkout.line_items?.length || 0}`);
         await processRestCheckout(shop, checkout, callDelayMinutes);
       }
     } catch (restErr) {
-      console.error(`REST fallback failed for ${shop}:`, restErr);
+      LOG.error(`REST fallback also failed for ${shop}:`, restErr);
     }
   }
 }
@@ -152,15 +179,16 @@ async function processCheckout(
 ): Promise<void> {
   const checkoutId = checkout.id;
 
-  // Extract phone number (try multiple sources)
   const phone =
     checkout.customer?.phone ||
     checkout.shippingAddress?.phone ||
     "";
 
-  if (!phone) return; // Can't call without phone number
+  if (!phone) {
+    LOG.skip(checkoutId, "No phone number (customer.phone and shippingAddress.phone both empty)");
+    return;
+  }
 
-  // Extract customer info
   const customerName = [
     checkout.customer?.firstName,
     checkout.customer?.lastName,
@@ -168,7 +196,6 @@ async function processCheckout(
     .filter(Boolean)
     .join(" ") || "Customer";
 
-  // Extract cart items
   const cartItems = (checkout.lineItems?.nodes || []).map((item: any) => ({
     productId: item.variant?.product?.id || "",
     title: item.title,
@@ -181,13 +208,9 @@ async function processCheckout(
     checkout.totalPriceSet?.shopMoney?.amount || "0",
   ) * 100;
 
-  const callScheduledAt = new Date(
-    Date.now() + callDelayMinutes * 60 * 1000,
-  );
+  const callScheduledAt = new Date(Date.now() + callDelayMinutes * 60 * 1000);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  // Atomic upsert — prevents duplicate key errors from race conditions
-  // between the poller and the CHECKOUTS_UPDATE webhook
   const result = await AbandonedCart.findOneAndUpdate(
     { shopId: shop, shopifyCheckoutId: checkoutId },
     {
@@ -212,11 +235,12 @@ async function processCheckout(
     { upsert: true, new: false },
   );
 
-  if (result) return; // Already existed, skip log
+  if (result) {
+    LOG.skip(checkoutId, "Already tracked in DB — skipping duplicate");
+    return;
+  }
 
-  console.log(
-    `Abandoned cart detected: ${customerName} (${phone}) - ₹${(cartTotal / 100).toFixed(0)} - call in ${callDelayMinutes}min`,
-  );
+  LOG.detect(`NEW cart saved | customer: ${customerName} | phone: ${phone} | total: ₹${(cartTotal / 100).toFixed(0)} | items: ${cartItems.map((i: any) => i.title).join(", ")} | call scheduled at: ${callScheduledAt.toISOString()} (in ${callDelayMinutes}min)`);
 }
 
 /**
@@ -229,7 +253,10 @@ async function processRestCheckout(
 ): Promise<void> {
   const checkoutId = String(checkout.id);
 
-  if (checkout.completed_at) return; // Not abandoned
+  if (checkout.completed_at) {
+    LOG.skip(checkoutId, `Checkout completed at ${checkout.completed_at} — not abandoned`);
+    return;
+  }
 
   const phone =
     checkout.phone ||
@@ -238,7 +265,10 @@ async function processRestCheckout(
     checkout.customer?.phone ||
     "";
 
-  if (!phone) return;
+  if (!phone) {
+    LOG.skip(checkoutId, "No phone number in phone/shipping_address/billing_address/customer fields");
+    return;
+  }
 
   const customerName = [
     checkout.customer?.first_name,
@@ -256,13 +286,9 @@ async function processRestCheckout(
   }));
 
   const cartTotal = parseFloat(checkout.total_price || "0") * 100;
-
-  const callScheduledAt = new Date(
-    Date.now() + callDelayMinutes * 60 * 1000,
-  );
+  const callScheduledAt = new Date(Date.now() + callDelayMinutes * 60 * 1000);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  // Atomic upsert — prevents duplicate key errors from race conditions
   const result = await AbandonedCart.findOneAndUpdate(
     { shopId: shop, shopifyCheckoutId: checkoutId },
     {
@@ -287,34 +313,42 @@ async function processRestCheckout(
     { upsert: true, new: false },
   );
 
-  if (result) return; // Already existed, skip log
+  if (result) {
+    LOG.skip(checkoutId, "Already tracked in DB — skipping duplicate");
+    return;
+  }
 
-  console.log(
-    `Abandoned cart detected (REST): ${customerName} (${phone}) - ₹${(cartTotal / 100).toFixed(0)}`,
-  );
+  LOG.detect(`NEW cart saved (REST) | customer: ${customerName} | phone: ${phone} | total: ₹${(cartTotal / 100).toFixed(0)} | items: ${cartItems.map((i: any) => i.title).join(", ")} | call scheduled at: ${callScheduledAt.toISOString()} (in ${callDelayMinutes}min)`);
 }
 
 /**
  * Handle checkout webhook (checkouts/create or checkouts/update).
- * Used as a faster detection path alongside polling.
  */
 export async function handleCheckoutWebhook(
   shop: string,
   payload: Record<string, any>,
 ): Promise<void> {
-  // If checkout is completed, mark as recovered if we were tracking it
+  LOG.info(`Webhook received | shop: ${shop} | checkout: ${payload.id} | completed_at: ${payload.completed_at || "null"} | phone: ${payload.phone || payload.shipping_address?.phone || "NONE"} | total: ₹${parseFloat(payload.total_price || "0").toFixed(0)}`);
+
   if (payload.completed_at) {
-    await AbandonedCart.findOneAndUpdate(
+    LOG.info(`Checkout ${payload.id} completed — marking as recovered if tracked`);
+    const updated = await AbandonedCart.findOneAndUpdate(
       { shopId: shop, shopifyCheckoutId: String(payload.id), status: { $nin: ["recovered", "expired"] } },
       { $set: { status: "recovered", recoveredOrderId: String(payload.order_id || "") } },
     );
+    if (updated) {
+      LOG.detect(`Cart recovered via checkout completion | customer: ${updated.customerName} | order: ${payload.order_id}`);
+    } else {
+      LOG.info(`Checkout ${payload.id} completed but was not being tracked`);
+    }
     return;
   }
 
-  // Get voice agent settings
   const settings = await VoiceAgentSettings.findOne({ shopId: shop, enabled: true });
-  if (!settings) return;
+  if (!settings) {
+    LOG.warn(`Webhook for ${shop} — voice agent not enabled, ignoring checkout`);
+    return;
+  }
 
-  // Process as potential abandoned cart
   await processRestCheckout(shop, payload, settings.callDelayMinutes);
 }

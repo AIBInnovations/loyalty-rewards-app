@@ -1,0 +1,42 @@
+{% comment %}
+  Pincode Delivery Estimator - App Embed Block
+  Input: customer enters pincode.
+  Output: estimated delivery date range + COD availability.
+  Calls /apps/loyalty/pincode?code=XXXXXX
+{% endcomment %}
+
+{% if template.name == 'product' %}
+<div
+  id="pincode-estimator"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-money-format="{{ shop.money_format | escape }}"
+  style="
+    --pe-primary: {{ block.settings.primary_color }};
+    --pe-bg: {{ block.settings.bg_color }};
+  "
+></div>
+
+{{ 'pincode-estimator.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'pincode-estimator.js' | asset_url }}" defer></script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Pincode Delivery Estimator",
+  "target": "body",
+  "settings": [
+    {
+      "type": "color",
+      "id": "primary_color",
+      "label": "Accent Color",
+      "default": "#5C6AC4"
+    },
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Background Color",
+      "default": "#f8f8f8"
+    }
+  ]
+}
+{% endschema %}

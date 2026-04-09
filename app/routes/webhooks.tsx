@@ -12,6 +12,7 @@ import {
   handleShopRedact,
 } from "../.server/services/webhook.service";
 import { handleCheckoutWebhook } from "../.server/services/abandoned-cart-poller.service";
+import { sendCodConfirmation } from "../.server/services/cod-whatsapp.service";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, shop, session, admin, payload } =
@@ -27,6 +28,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (admin) {
           await handleOrderPaid(shop, payload, admin as any);
         }
+        // Fire-and-forget COD WhatsApp confirmation (non-blocking)
+        sendCodConfirmation(shop, payload).catch((err) =>
+          console.error("[COD-WhatsApp] Error:", err),
+        );
         break;
 
       case "ORDERS_CANCELLED":
