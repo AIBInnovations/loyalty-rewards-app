@@ -1,0 +1,84 @@
+#ppu-container {
+  max-width: 640px;
+  margin: 24px auto;
+  background: #fff;
+  border-radius: 14px;
+  border: 2px solid #5C6AC4;
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+.ppu-badge {
+  display: inline-block;
+  background: #5C6AC4;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.ppu-headline {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 16px;
+}
+.ppu-product-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.ppu-product-image {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.ppu-product-info { flex: 1; }
+.ppu-product-title { font-size: 15px; font-weight: 600; color: #1a1a1a; margin: 0 0 4px; }
+.ppu-price-row { display: flex; align-items: center; gap: 8px; }
+.ppu-price { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+.ppu-compare { font-size: 13px; color: #999; text-decoration: line-through; }
+.ppu-discount-badge {
+  background: #fee2e2;
+  color: #c0392b;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+.ppu-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.ppu-btn-yes {
+  flex: 1;
+  background: #5C6AC4;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 13px 20px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.ppu-btn-yes:hover { opacity: 0.88; }
+.ppu-btn-yes:disabled { opacity: 0.6; cursor: not-allowed; }
+.ppu-btn-no {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 8px;
+  text-decoration: underline;
+}
+.ppu-success { text-align: center; padding: 12px 0; color: #1a7a3c; font-weight: 600; font-size: 15px; }
+
+@media (max-width: 480px) {
+  #ppu-container { padding: 16px; margin: 12px; }
+  .ppu-headline { font-size: 17px; }
+}

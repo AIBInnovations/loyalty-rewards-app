@@ -1,0 +1,45 @@
+{% comment %}
+  Photo & Video Reviews + Q&A - App Embed Block
+  Shows star ratings, customer reviews with photos, and Q&A on product pages.
+  Calls /apps/loyalty/reviews?productId= and /apps/loyalty/reviews/questions?productId=
+{% endcomment %}
+
+{% if template.name == 'product' %}
+<div
+  id="product-reviews-widget"
+  data-product-id="{{ product.id }}"
+  data-product-handle="{{ product.handle }}"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-customer-id="{{ customer.id }}"
+  data-customer-name="{{ customer.name | escape }}"
+  data-customer-email="{{ customer.email | escape }}"
+  style="
+    --rv-primary: {{ block.settings.primary_color }};
+    --rv-star: {{ block.settings.star_color }};
+  "
+></div>
+
+{{ 'reviews.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'reviews.js' | asset_url }}" defer></script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Product Reviews & Q&A",
+  "target": "body",
+  "settings": [
+    {
+      "type": "color",
+      "id": "primary_color",
+      "label": "Primary Color",
+      "default": "#5C6AC4"
+    },
+    {
+      "type": "color",
+      "id": "star_color",
+      "label": "Star Color",
+      "default": "#f59e0b"
+    }
+  ]
+}
+{% endschema %}

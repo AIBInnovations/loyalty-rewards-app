@@ -1,0 +1,25 @@
+{% comment %}
+  Post-Purchase Upsell - App Embed Block
+  Shows a one-click upsell offer on the thank-you / order status page.
+  Fetches upsell product from /apps/loyalty/upsell-settings
+  and adds it to a new cart via /cart/add.js.
+{% endcomment %}
+
+{% if template.name == 'customers/order' or template.suffix == 'thank-you' or request.page_type == 'thank_you' %}
+<div
+  id="post-purchase-upsell"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-money-format="{{ shop.money_format | escape }}"
+></div>
+
+{{ 'post-purchase-upsell.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'post-purchase-upsell.js' | asset_url }}" defer></script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Post-Purchase Upsell",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}

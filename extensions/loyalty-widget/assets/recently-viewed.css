@@ -1,0 +1,60 @@
+#recently-viewed-section {
+  padding: 32px 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+.rv-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 16px;
+}
+.rv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+.rv-card {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #eee;
+  transition: box-shadow 0.2s;
+}
+.rv-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+.rv-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+.rv-card-body {
+  padding: 8px 10px 10px;
+}
+.rv-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.rv-card-price {
+  font-size: 13px;
+  color: #555;
+  margin: 0;
+}
+.rv-card-compare {
+  font-size: 12px;
+  color: #999;
+  text-decoration: line-through;
+  margin-left: 4px;
+}
+
+@media (max-width: 480px) {
+  .rv-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .rv-title { font-size: 17px; }
+}
