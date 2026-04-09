@@ -188,7 +188,7 @@ async function handleGetWheelSettings(shop: string) {
     buttonText: s.buttonText, triggerButtonText: s.triggerButtonText,
     triggerButtonColor: s.triggerButtonColor,
     prizes: s.prizes, bgColor: s.bgColor,
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }
 
 async function handleWheelSpin(params: URLSearchParams, shop: string) {

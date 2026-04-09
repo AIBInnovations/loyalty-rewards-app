@@ -24,8 +24,23 @@
     widgetTitle: container.dataset.widgetTitle || "Rewards",
   };
 
-  // Apply custom color
-  document.documentElement.style.setProperty("--loyalty-primary", config.primaryColor);
+  // Apply primary color — CSS derives all tints via color-mix().
+  // JS also sets explicit tints as fallback for older browsers without color-mix().
+  function applyPrimaryColor(hex) {
+    hex = hex && /^#[0-9A-Fa-f]{6}$/i.test(hex) ? hex : "#5C6AC4";
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const tint = (c, mix) => Math.round(c + (255 - c) * mix);
+    const css = document.documentElement.style;
+    css.setProperty("--loyalty-primary", hex);
+    // Explicit fallbacks for browsers without color-mix() support
+    css.setProperty("--loyalty-primary-light",  `rgb(${tint(r,.88)},${tint(g,.88)},${tint(b,.88)})`);
+    css.setProperty("--loyalty-primary-medium", `rgb(${tint(r,.70)},${tint(g,.70)},${tint(b,.70)})`);
+    css.setProperty("--loyalty-primary-track",  `rgb(${tint(r,.55)},${tint(g,.55)},${tint(b,.55)})`);
+    css.setProperty("--loyalty-primary-shadow", `rgba(${r},${g},${b},0.4)`);
+  }
+  applyPrimaryColor(config.primaryColor);
 
   // ─── State ────────────────────────────────────────────────────
   let state = {
@@ -154,6 +169,20 @@
     });
   }
 
+  // ─── Icons ────────────────────────────────────────────────────
+
+  const icons = {
+    trophy: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15c-3.314 0-6-2.686-6-6V3h12v6c0 3.314-2.686 6-6 6z" fill="#FFB800" fill-opacity="0.25" stroke="#FFB800" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 5H3.5a1.5 1.5 0 0 0 0 3H6M18 5h2.5a1.5 1.5 0 0 1 0 3H18" stroke="#FFB800" stroke-width="1.8" stroke-linecap="round"/><path d="M12 15v4M9 19h6" stroke="#FFB800" stroke-width="1.8" stroke-linecap="round"/><path d="M8 21h8" stroke="#FFB800" stroke-width="2" stroke-linecap="round"/><path d="M10 8l1.5 1.5L14 6.5" stroke="#FFB800" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    trophySmall: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15c-3.314 0-6-2.686-6-6V3h12v6c0 3.314-2.686 6-6 6z" fill="currentColor" fill-opacity="0.2" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 5H3.5a1.5 1.5 0 0 0 0 3H6M18 5h2.5a1.5 1.5 0 0 1 0 3H18M12 15v4M9 19h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+    medal: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/></svg>`,
+    star: `<svg width="15" height="15" viewBox="0 0 24 24" fill="#FFB800" stroke="#FFB800" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+    bag: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
+    user: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+    gift: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>`,
+    share: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`,
+    check: `<svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#e8f5e9"/><path d="M14 24L21 31L34 18" stroke="#28a745" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  };
+
   // ─── Render ───────────────────────────────────────────────────
 
   function render() {
@@ -170,9 +199,14 @@
       <span class="loyalty-fab-badge">${state.balance}</span>
     `;
     fab.addEventListener("click", () => {
-      state.isOpen = !state.isOpen;
-      if (state.isOpen && state.loading) fetchBalance();
-      render();
+      if (state.isOpen) {
+        panel.classList.add("closing");
+        setTimeout(() => { state.isOpen = false; render(); }, 220);
+      } else {
+        state.isOpen = true;
+        if (state.loading) fetchBalance();
+        render();
+      }
     });
 
     // Panel
@@ -186,7 +220,7 @@
         ${renderHeader()}
         ${renderTabs()}
         <div class="loyalty-content">
-          ${state.loading ? '<div class="loyalty-loading">Loading...</div>' : renderTabContent()}
+          ${state.loading ? '<div class="loyalty-loading">Loading...</div>' : `<div class="loyalty-tab-anim">${renderTabContent()}</div>`}
         </div>
       `;
     }
@@ -196,18 +230,29 @@
 
     // Attach event listeners
     attachEventListeners(panel);
+
+    // Trigger entrance animations
+    initAnimations();
   }
 
   function renderHeader() {
+    const tierIcon = icons.medal;
     return `
       <div class="loyalty-header">
-        <p class="loyalty-header-title">${escapeHtml(config.widgetTitle)}</p>
-        <div class="loyalty-header-balance">
-          <span class="loyalty-header-points">${state.balance.toLocaleString("en-IN")}</span>
-          <span class="loyalty-header-label">points</span>
+        <p class="loyalty-header-section-label">Your Rewards Balance</p>
+        <div class="loyalty-header-card">
+          <div class="loyalty-header-points-row">
+            <span class="loyalty-header-trophy">${icons.trophy}</span>
+            <span class="loyalty-header-points" data-count-up="${state.balance}">0</span>
+            <span class="loyalty-header-pts-label">pts</span>
+          </div>
+          <a class="loyalty-header-link" href="#">How do points work? →</a>
+          <hr class="loyalty-header-divider">
+          <div class="loyalty-header-info">
+            <span class="loyalty-tier-badge">${tierIcon} ${escapeHtml(state.tier)}</span>
+            <span>${state.nextTier ? `${state.nextTier.pointsNeeded.toLocaleString("en-IN")} pts to ${escapeHtml(state.nextTier.name)}` : "Top tier reached!"}</span>
+          </div>
         </div>
-        <span class="loyalty-header-tier">${escapeHtml(state.tier)}</span>
-        ${state.nextTier ? `<span class="loyalty-header-label" style="margin-left:8px;">${state.nextTier.pointsNeeded.toLocaleString("en-IN")} pts to ${escapeHtml(state.nextTier.name)}</span>` : ""}
       </div>
     `;
   }
@@ -244,38 +289,35 @@
       : 100;
 
     return `
-      <div style="text-align:center; padding: 8px 0;">
-        <p style="font-size:40px; font-weight:800; color:var(--loyalty-primary); margin:0;">
-          ${state.balance.toLocaleString("en-IN")}
-        </p>
-        <p style="font-size:14px; color:var(--loyalty-text-light); margin:4px 0;">
-          = ₹${state.balance.toLocaleString("en-IN")} in rewards
-        </p>
+      <div class="loyalty-points-hero">
+        <p class="loyalty-points-hero-label">Available Balance</p>
+        <div>
+          <span class="loyalty-points-hero-number" data-count-up="${state.balance}">0</span>
+          <span class="loyalty-points-hero-unit">pts</span>
+        </div>
+        <p class="loyalty-points-hero-value">≈ ₹${state.balance.toLocaleString("en-IN")} in rewards</p>
       </div>
 
       ${state.nextTier ? `
-        <div style="margin:16px 0;">
-          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--loyalty-text-light); margin-bottom:4px;">
+        <div class="loyalty-progress-wrap">
+          <div class="loyalty-progress-labels">
             <span>${escapeHtml(state.tier)}</span>
             <span>${escapeHtml(state.nextTier.name)}</span>
           </div>
-          <div style="height:8px; background:#eee; border-radius:4px; overflow:hidden;">
-            <div style="height:100%; width:${progress}%; background:var(--loyalty-primary); border-radius:4px; transition:width 0.5s;"></div>
+          <div class="loyalty-progress-track">
+            <div class="loyalty-progress-fill" style="width:0%" data-progress="${progress}"></div>
           </div>
-          <p style="font-size:11px; color:var(--loyalty-text-light); margin-top:4px; text-align:center;">
-            ${state.nextTier.pointsNeeded.toLocaleString("en-IN")} more points to ${escapeHtml(state.nextTier.name)}
-          </p>
+          <p class="loyalty-progress-hint">${state.nextTier.pointsNeeded.toLocaleString("en-IN")} more pts to unlock <strong>${escapeHtml(state.nextTier.name)}</strong></p>
         </div>
       ` : `
-        <p style="text-align:center; font-size:13px; color:var(--loyalty-gold); margin-top:12px;">
-          ⭐ You've reached the highest tier!
-        </p>
+        <div class="loyalty-progress-wrap" style="text-align:center;">
+          <span style="font-size:13px; font-weight:700; color:var(--loyalty-gold); display:inline-flex; align-items:center; gap:6px;">${icons.star} You've reached the highest tier!</span>
+        </div>
       `}
 
-      <div style="margin-top:16px;">
-        <p style="font-size:12px; color:var(--loyalty-text-light);">
-          Lifetime earned: <strong>${state.lifetimeEarned.toLocaleString("en-IN")}</strong> pts
-        </p>
+      <div class="loyalty-lifetime-stat">
+        <span>Lifetime earned</span>
+        <span>${state.lifetimeEarned.toLocaleString("en-IN")} pts</span>
       </div>
     `;
   }
@@ -286,25 +328,25 @@
     const earningRate = state.settings?.earningRate || 10;
     return `
       <div class="loyalty-earn-item">
-        <div class="loyalty-earn-icon">🛍️</div>
+        <div class="loyalty-earn-icon">${icons.bag}</div>
         <span class="loyalty-earn-desc">Make a purchase</span>
         <span class="loyalty-earn-pts">${earningRate}% back</span>
       </div>
 
       <div class="loyalty-earn-item">
-        <div class="loyalty-earn-icon">👋</div>
+        <div class="loyalty-earn-icon">${icons.user}</div>
         <span class="loyalty-earn-desc">Create an account</span>
         <span class="loyalty-earn-pts">Bonus pts</span>
       </div>
 
       <div class="loyalty-earn-item">
-        <div class="loyalty-earn-icon">🎂</div>
+        <div class="loyalty-earn-icon">${icons.gift}</div>
         <span class="loyalty-earn-desc">Birthday reward</span>
         <span class="loyalty-earn-pts">Annual bonus</span>
       </div>
 
       <div class="loyalty-earn-item">
-        <div class="loyalty-earn-icon">🔗</div>
+        <div class="loyalty-earn-icon">${icons.share}</div>
         <span class="loyalty-earn-desc">Refer a friend</span>
         <span class="loyalty-earn-pts">Both earn!</span>
       </div>
@@ -338,28 +380,48 @@
       return '<p style="text-align:center; color:var(--loyalty-text-light); padding:20px;">No rewards available yet.</p>';
     }
 
-    return state.rewards
-      .map(
-        (r) => `
-        <div class="loyalty-reward-card">
-          <div class="loyalty-reward-info">
-            <p class="loyalty-reward-name">${escapeHtml(r.name)}</p>
-            <p class="loyalty-reward-cost">
-              ${r.pointsCost.toLocaleString("en-IN")} points
-              ${r.discountType === "FIXED_AMOUNT" ? `• ₹${r.discountValue} off` : `• ${r.discountValue}% off`}
-              ${r.minimumOrderAmount > 0 ? `• Min ₹${r.minimumOrderAmount}` : ""}
-            </p>
-          </div>
-          <button
-            class="loyalty-reward-btn ${r.canAfford ? "can-afford" : "cannot-afford"}"
-            ${r.canAfford ? `data-action="redeem" data-reward-id="${r.id}"` : "disabled"}
-          >
-            ${r.canAfford ? "Redeem" : "Need more pts"}
-          </button>
+    const available = state.rewards.filter((r) => r.canAfford);
+    const upcoming = state.rewards.filter((r) => !r.canAfford);
+
+    let html = "";
+    if (available.length) {
+      html += '<p class="loyalty-section-label">AVAILABLE</p>';
+      html += available.map((r, i) => renderRewardCard(r, i)).join("");
+    }
+    if (upcoming.length) {
+      html += `<p class="loyalty-section-label"${available.length ? ' style="margin-top:16px;"' : ""}>UPCOMING</p>`;
+      html += upcoming.map((r, i) => renderRewardCard(r, available.length + i)).join("");
+    }
+    return html;
+  }
+
+  function renderRewardCard(r, index = 0) {
+    const discountDisplay = r.discountType === "FIXED_AMOUNT"
+      ? `$${r.discountValue}`
+      : `${r.discountValue}% off`;
+    const dotColors = ["#4DA6E8", "#FF6B35", "#A855F7", "#10B981", "#F59E0B", "#EC4899"];
+    const dotColor = dotColors[(r.pointsCost || 0) % dotColors.length];
+    const pointsNeeded = Math.max(0, r.pointsCost - state.balance);
+    const desc = r.canAfford
+      ? `Redeem this reward for ${r.pointsCost.toLocaleString("en-IN")} points`
+      : `Earn ${pointsNeeded.toLocaleString("en-IN")} more points to redeem this reward.`;
+
+    return `
+      <div class="loyalty-reward-card" style="animation-delay:${index * 0.07}s">
+        <div class="loyalty-reward-card-top">
+          <span class="loyalty-reward-points-badge">${icons.trophySmall} ${r.pointsCost.toLocaleString("en-IN")} points</span>
+          ${r.pointsCost !== 200 ? `<span class="loyalty-reward-dot" style="background:${dotColor};"></span>` : ""}
         </div>
-      `,
-      )
-      .join("");
+        <p class="loyalty-reward-amount">${escapeHtml(discountDisplay)}</p>
+        <p class="loyalty-reward-desc">${escapeHtml(desc)}${r.minimumOrderAmount > 0 ? ` • Min ₹${r.minimumOrderAmount}` : ""}</p>
+        <button
+          class="loyalty-reward-btn ${r.canAfford ? "can-afford" : "cannot-afford"}"
+          ${r.canAfford ? `data-action="redeem" data-reward-id="${r.id}"` : "disabled"}
+        >
+          See reward
+        </button>
+      </div>
+    `;
   }
 
   // ─── History Tab ──────────────────────────────────────────────
@@ -391,22 +453,23 @@
   function renderSuccessOverlay(code) {
     return `
       <div class="loyalty-success-overlay">
-        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-          <circle cx="24" cy="24" r="24" fill="#e8f5e9"/>
-          <path d="M14 24L21 31L34 18" stroke="#28a745" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <svg width="60" height="60" viewBox="0 0 60 60" fill="none">
+          <circle cx="30" cy="30" r="30" fill="rgba(212,168,67,0.12)"/>
+          <circle cx="30" cy="30" r="22" fill="rgba(212,168,67,0.18)" stroke="rgba(212,168,67,0.4)" stroke-width="1"/>
+          <path d="M20 30L27 37L40 24" stroke="#FFB800" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <h3>Reward Redeemed!</h3>
-        <p style="font-size:13px; color:var(--loyalty-text-light);">Your discount code:</p>
+        <p class="sub">Your discount code:</p>
         <div class="code">${escapeHtml(code)}</div>
         <div class="actions">
           <button class="primary" data-action="apply-code" data-code="${escapeHtml(code)}">
-            Apply & Go to Cart
+            Apply &amp; Go to Cart
           </button>
           <button class="secondary" data-action="copy-code" data-code="${escapeHtml(code)}">
             Copy Code
           </button>
         </div>
-        <button style="margin-top:12px; background:none; border:none; color:var(--loyalty-text-light); cursor:pointer; font-size:12px;" data-action="close-success">
+        <button style="margin-top:14px;background:none;border:none;color:rgba(255,255,255,0.35);cursor:pointer;font-size:12px;font-weight:500;" data-action="close-success">
           Continue browsing
         </button>
       </div>
@@ -416,16 +479,33 @@
   // ─── Event Listeners ──────────────────────────────────────────
 
   function attachEventListeners(panel) {
-    // Tab clicks
+    // Tab clicks — only swap content, keep panel fixed
     panel.querySelectorAll("[data-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (state.activeTab === btn.dataset.tab) return;
         state.activeTab = btn.dataset.tab;
-        render();
+
+        // Update active class on tabs only
+        panel.querySelectorAll("[data-tab]").forEach((b) => {
+          b.classList.toggle("active", b.dataset.tab === state.activeTab);
+        });
+
+        // Swap only the content area
+        const content = panel.querySelector(".loyalty-content");
+        if (content) {
+          content.innerHTML = `<div class="loyalty-tab-anim">${renderTabContent()}</div>`;
+          initAnimations(content);
+          attachContentListeners(content, panel);
+        }
       });
     });
 
+    attachContentListeners(panel, panel);
+  }
+
+  function attachContentListeners(root, panel) {
     // Redeem clicks
-    panel.querySelectorAll('[data-action="redeem"]').forEach((btn) => {
+    root.querySelectorAll('[data-action="redeem"]').forEach((btn) => {
       btn.addEventListener("click", () => {
         const rewardId = btn.dataset.rewardId;
         btn.disabled = true;
@@ -435,7 +515,7 @@
     });
 
     // Apply discount code -> navigate to /discount/CODE?redirect=/cart
-    panel.querySelectorAll('[data-action="apply-code"]').forEach((btn) => {
+    root.querySelectorAll('[data-action="apply-code"]').forEach((btn) => {
       btn.addEventListener("click", () => {
         const code = btn.dataset.code;
         window.location.href = `/discount/${encodeURIComponent(code)}?redirect=/cart`;
@@ -443,7 +523,7 @@
     });
 
     // Copy discount code
-    panel.querySelectorAll('[data-action="copy-code"]').forEach((btn) => {
+    root.querySelectorAll('[data-action="copy-code"]').forEach((btn) => {
       btn.addEventListener("click", () => {
         const code = btn.dataset.code;
         navigator.clipboard.writeText(code).then(() => {
@@ -454,7 +534,7 @@
     });
 
     // Close success overlay
-    panel.querySelectorAll('[data-action="close-success"]').forEach((btn) => {
+    root.querySelectorAll('[data-action="close-success"]').forEach((btn) => {
       btn.addEventListener("click", () => {
         state.successOverlay = null;
         render();
@@ -462,7 +542,7 @@
     });
 
     // Copy referral link
-    panel.querySelectorAll('[data-action="copy-referral"]').forEach((btn) => {
+    root.querySelectorAll('[data-action="copy-referral"]').forEach((btn) => {
       btn.addEventListener("click", () => {
         const input = document.getElementById("loyalty-ref-input");
         if (input) {
@@ -475,7 +555,7 @@
     });
 
     // Social share
-    panel.querySelectorAll('[data-action="share"]').forEach((btn) => {
+    root.querySelectorAll('[data-action="share"]').forEach((btn) => {
       btn.addEventListener("click", () => {
         const platform = btn.dataset.platform;
         const shareUrl = `https://${config.shopDomain}?ref=${state.referralCode}`;
@@ -500,6 +580,33 @@
 
         // Record the share for bonus points
         recordSocialShare(platform);
+      });
+    });
+  }
+
+  // ─── Animation Helpers ────────────────────────────────────────
+
+  function animateCount(el, target, duration) {
+    duration = duration || 900;
+    const start = performance.now();
+    (function tick(now) {
+      const p = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(2, -10 * p);
+      el.textContent = Math.round(eased * target).toLocaleString("en-IN");
+      if (p < 1) requestAnimationFrame(tick);
+    })(start);
+  }
+
+  function initAnimations(root) {
+    root = root || container;
+    // Count-up for all [data-count-up] elements
+    root.querySelectorAll("[data-count-up]").forEach(function(el) {
+      animateCount(el, parseInt(el.dataset.countUp, 10) || 0);
+    });
+    // Animate progress bar fill
+    root.querySelectorAll("[data-progress]").forEach(function(el) {
+      requestAnimationFrame(function() {
+        el.style.width = el.dataset.progress + "%";
       });
     });
   }

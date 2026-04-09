@@ -28,11 +28,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   await connectDB();
 
   const formData = await request.formData();
   const data = Object.fromEntries(formData);
+  const widgetColor = String(data.widgetColor || "#5C6AC4");
 
   try {
     await Settings.findOneAndUpdate(
@@ -47,7 +48,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           socialShareBonus: Number(data.socialShareBonus) || 0,
           "pointsExpiry.enabled": data.pointsExpiryEnabled === "true",
           "pointsExpiry.daysToExpire": Number(data.pointsExpiryDays) || 365,
-          "widgetConfig.primaryColor": data.widgetColor || "#5C6AC4",
+          "widgetConfig.primaryColor": widgetColor,
           "widgetConfig.position": data.widgetPosition || "bottom-right",
           "widgetConfig.title": data.widgetTitle || "Rewards",
           currencySymbol: data.currencySymbol || "₹",
@@ -55,6 +56,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         },
       },
       { upsert: true },
+    );
+
+    // Sync primary color to shop metafield so Liquid template can read it
+    const shopRes = await admin.graphql(`#graphql
+      query { shop { id } }
+    `);
+    const shopData = await shopRes.json();
+    const shopGid = shopData.data.shop.id;
+
+    await admin.graphql(
+      `#graphql
+      mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          userErrors { field message }
+        }
+      }`,
+      {
+        variables: {
+          metafields: [
+            {
+              ownerId: shopGid,
+              namespace: "loyalty_widget",
+              key: "primary_color",
+              value: widgetColor,
+              type: "single_line_text_field",
+            },
+          ],
+        },
+      }
     );
 
     return json({ success: true });

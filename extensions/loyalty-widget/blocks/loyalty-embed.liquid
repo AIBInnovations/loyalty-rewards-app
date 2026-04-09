@@ -5,6 +5,8 @@
 {% endcomment %}
 
 {% if customer %}
+  {%- assign pc = shop.metafields.loyalty_widget.primary_color | default: block.settings.primary_color | default: '#5C6AC4' -%}
+
   <div
     id="loyalty-rewards-app"
     data-customer-id="{{ customer.id }}"
@@ -14,7 +16,7 @@
     data-referral-code="{{ customer.metafields.app--341573861377--loyalty.referral_code | default: '' }}"
     data-shop-domain="{{ shop.permanent_domain }}"
     data-currency="{{ shop.currency }}"
-    data-primary-color="{{ block.settings.primary_color }}"
+    data-primary-color="{{ pc }}"
     data-position="{{ block.settings.position }}"
     data-widget-title="{{ block.settings.title | escape }}"
     data-app-proxy-url="/apps/loyalty"
@@ -22,6 +24,9 @@
   ></div>
 
   {{ 'loyalty-widget.css' | asset_url | stylesheet_tag }}
+  <style>
+    :root { --loyalty-primary: {{ pc }}; }
+  </style>
   <script src="{{ 'loyalty-widget.js' | asset_url }}" defer></script>
 {% endif %}
 

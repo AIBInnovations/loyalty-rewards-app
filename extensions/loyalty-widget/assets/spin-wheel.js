@@ -13,7 +13,7 @@
   var overlayEl = null;
 
   // Fetch settings
-  fetch("/apps/loyalty/wheel-settings")
+  fetch("/apps/loyalty/wheel-settings?t=" + Date.now())
     .then(function (r) {
       if (!r.ok) throw new Error("fail");
       var ct = r.headers.get("content-type") || "";
@@ -81,12 +81,12 @@
       var startAngle = i * sliceAngle - Math.PI / 2;
       var endAngle = startAngle + sliceAngle;
 
-      // Draw slice
+      // Draw slice using color set in admin
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.arc(cx, cy, radius, startAngle, endAngle);
       ctx.closePath();
-      ctx.fillStyle = prizes[i].color || "#ccc";
+      ctx.fillStyle = prizes[i].color || "#5C6AC4";
       ctx.fill();
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 2;
