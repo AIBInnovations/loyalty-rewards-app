@@ -72,6 +72,11 @@
     if (!settings || !settings.enabled) return;
     if (dismissed && settings.showDismissButton) return;
 
+    // Apply colors from fetched settings (overrides data-attribute defaults)
+    if (settings.barBackgroundColor) document.documentElement.style.setProperty("--ct-bg", settings.barBackgroundColor);
+    if (settings.barTextColor) document.documentElement.style.setProperty("--ct-text", settings.barTextColor);
+    if (settings.timerDigitColor) document.documentElement.style.setProperty("--ct-digit", settings.timerDigitColor);
+
     // Check targeting
     if (!shouldShowOnCurrentPage()) return;
 

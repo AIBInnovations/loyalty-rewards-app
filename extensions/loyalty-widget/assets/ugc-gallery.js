@@ -4,12 +4,15 @@
   var root = document.getElementById("ugc-gallery-widget");
   if (!root) return;
 
-  fetch("/apps/loyalty/ugc-settings", {
-    headers: { "Content-Type": "application/json" },
-  })
+  // Apply primary color CSS variable from data attribute
+  var primaryColor = root.dataset.primaryColor || "#5C6AC4";
+  document.documentElement.style.setProperty("--ugc-primary", primaryColor);
+
+  fetch("/apps/loyalty/ugc-settings")
     .then(function (r) {
+      if (!r.ok) throw new Error("Failed");
       var ct = r.headers.get("content-type") || "";
-      if (!ct.includes("application/json")) throw new Error("proxy");
+      if (!ct.includes("application/json")) throw new Error("Not JSON");
       return r.json();
     })
     .then(function (data) {
@@ -21,7 +24,6 @@
   function renderGallery(data) {
     var section = document.createElement("div");
     section.id = "ugc-gallery-section";
-    section.style.cssText = root.style.cssText;
 
     var gridHtml = '<h2 class="ugc-title">' + (data.title || "As seen on Instagram") + '</h2><div class="ugc-grid">';
     data.photos.forEach(function (photo, idx) {
@@ -51,7 +53,20 @@
       '</div>';
 
     section.innerHTML = gridHtml;
-    root.parentNode.insertBefore(section, root.nextSibling);
+
+    // Inject before the footer so the gallery appears in the main content area,
+    // not after the footer (app embed blocks are appended at end of <body>).
+    var footer = document.querySelector("footer, #footer, .footer, .site-footer, [role='contentinfo']");
+    if (footer && footer.parentNode) {
+      footer.parentNode.insertBefore(section, footer);
+    } else {
+      var main = document.querySelector("main, #MainContent, [role='main'], .main-content");
+      if (main) {
+        main.appendChild(section);
+      } else {
+        document.body.appendChild(section);
+      }
+    }
 
     var lightbox = document.getElementById("ugc-lightbox");
     var lbImage  = document.getElementById("ugc-lb-image");

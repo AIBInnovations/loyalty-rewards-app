@@ -2,24 +2,26 @@ import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-r
 import { useLoaderData, useNavigation, useSubmit } from "@remix-run/react";
 import {
   Page, Layout, Card, BlockStack, Text, Button,
-  InlineStack, Badge, Checkbox, DataTable, Select, Banner,
+  InlineStack, Badge, Checkbox, DataTable, Select, Banner, TextField,
 } from "@shopify/polaris";
 import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { ReviewSettings, getOrCreateReviewSettings } from "../.server/models/review-settings.model";
-import { Review } from "../.server/models/review.model";
+import { Review, Question } from "../.server/models/review.model";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   await connectDB();
-  const settings = await getOrCreateReviewSettings(session.shop);
-  const pending  = await Review.find({ shopId: session.shop, status: "pending" }).sort({ createdAt: -1 }).limit(50).lean();
-  const approved = await Review.find({ shopId: session.shop, status: "approved" }).sort({ createdAt: -1 }).limit(20).lean();
+  const settings  = await getOrCreateReviewSettings(session.shop);
+  const pending   = await Review.find({ shopId: session.shop, status: "pending" }).sort({ createdAt: -1 }).limit(50).lean();
+  const approved  = await Review.find({ shopId: session.shop, status: "approved" }).sort({ createdAt: -1 }).limit(20).lean();
+  const questions = await Question.find({ shopId: session.shop }).sort({ createdAt: -1 }).limit(50).lean();
   return json({
-    settings: JSON.parse(JSON.stringify(settings)),
-    pending:  JSON.parse(JSON.stringify(pending)),
-    approved: JSON.parse(JSON.stringify(approved)),
+    settings:  JSON.parse(JSON.stringify(settings)),
+    pending:   JSON.parse(JSON.stringify(pending)),
+    approved:  JSON.parse(JSON.stringify(approved)),
+    questions: JSON.parse(JSON.stringify(questions)),
   });
 };
 
@@ -53,11 +55,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 
+  if (action === "answer_question") {
+    const questionId = String(fd.get("questionId"));
+    const answer     = String(fd.get("answer")).trim();
+    if (answer) {
+      await Question.findOneAndUpdate(
+        { _id: questionId, shopId: session.shop },
+        { $set: { answer, answered: true } },
+      );
+    }
+  }
+
   return json({ success: true });
 };
 
 export default function ReviewsSettingsPage() {
-  const { settings: s, pending, approved } = useLoaderData<typeof loader>();
+  const { settings: s, pending, approved, questions } = useLoaderData<typeof loader>();
   const nav    = useNavigation();
   const submit = useSubmit();
   const saving = nav.state === "submitting";
@@ -82,6 +95,18 @@ export default function ReviewsSettingsPage() {
     fd.set("_action",  "moderate");
     fd.set("reviewId", reviewId);
     fd.set("status",   status);
+    submit(fd, { method: "POST" });
+  };
+
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  const answerQuestion = (questionId: string) => {
+    const answer = answers[questionId] || "";
+    if (!answer.trim()) return;
+    const fd = new FormData();
+    fd.set("_action",    "answer_question");
+    fd.set("questionId", questionId);
+    fd.set("answer",     answer);
     submit(fd, { method: "POST" });
   };
 
@@ -170,6 +195,46 @@ export default function ReviewsSettingsPage() {
             {pending.length === 0 && approved.length === 0 && (
               <Banner tone="info">No reviews yet. Add the "Product Reviews & Q&A" block to your theme and customers will be able to submit reviews.</Banner>
             )}
+
+            <Card>
+              <BlockStack gap="300">
+                <InlineStack align="space-between">
+                  <Text variant="headingMd" as="h2">Customer Questions</Text>
+                  <Badge tone={(questions as any[]).filter((q) => !q.answered).length > 0 ? "warning" : "success"}>
+                    {(questions as any[]).filter((q) => !q.answered).length} unanswered
+                  </Badge>
+                </InlineStack>
+                {(questions as any[]).length === 0 && (
+                  <Text variant="bodySm" as="p" tone="subdued">No questions submitted yet.</Text>
+                )}
+                {(questions as any[]).map((q) => (
+                  <Card key={q._id}>
+                    <BlockStack gap="200">
+                      <Text variant="bodyMd" as="p" fontWeight="semibold">Q: {q.question}</Text>
+                      {q.answered ? (
+                        <Text variant="bodySm" as="p" tone="subdued">A: {q.answer}</Text>
+                      ) : (
+                        <BlockStack gap="200">
+                          <TextField
+                            label="Your Answer"
+                            value={answers[q._id] || ""}
+                            onChange={(v) => setAnswers({ ...answers, [q._id]: v })}
+                            multiline={2}
+                            autoComplete="off"
+                            placeholder="Type your answer…"
+                          />
+                          <InlineStack>
+                            <Button size="slim" variant="primary" onClick={() => answerQuestion(q._id)}>
+                              Publish Answer
+                            </Button>
+                          </InlineStack>
+                        </BlockStack>
+                      )}
+                    </BlockStack>
+                  </Card>
+                ))}
+              </BlockStack>
+            </Card>
           </BlockStack>
         </Layout.Section>
       </Layout>

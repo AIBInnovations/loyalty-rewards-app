@@ -21,6 +21,7 @@ import { Subscriber } from "../.server/models/subscriber.model";
 import { createRedemptionDiscount } from "../.server/services/discount.service";
 import { generateDiscountCode } from "../.server/utils/codes";
 import { PincodeSettings } from "../.server/models/pincode-settings.model";
+import { sendWheelPrizeEmail } from "../.server/utils/email";
 import { UpsellSettings } from "../.server/models/upsell-settings.model";
 import { UGCSettings } from "../.server/models/ugc-settings.model";
 import { ReviewSettings } from "../.server/models/review-settings.model";
@@ -264,6 +265,14 @@ async function handleWheelSpin(params: URLSearchParams, shop: string) {
     shopId: shop, email, source: "spin_wheel",
     prizeName: prize.label, discountCode, status: "active",
   });
+
+  // Send prize email (fire-and-forget — don't block the response)
+  sendWheelPrizeEmail({
+    to: email,
+    prizeName: prize.label,
+    discountCode,
+    shopName: shop,
+  }).catch((err) => console.error("Wheel prize email failed:", err));
 
   return json({
     prizeIndex: selectedIndex,

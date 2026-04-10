@@ -3,14 +3,15 @@
   Shows "Notify Me" form when a product variant is out of stock.
 {% endcomment %}
 
-{% if product.available == false %}
+{% assign selected_variant = product.selected_or_first_available_variant %}
+{% if selected_variant.available == false %}
   <div
     class="bis-container"
     id="bis-notify-form"
     data-product-id="{{ product.id }}"
     data-product-title="{{ product.title | escape }}"
-    data-variant-id="{{ product.selected_or_first_available_variant.id }}"
-    data-variant-title="{{ product.selected_or_first_available_variant.title | escape }}"
+    data-variant-id="{{ selected_variant.id }}"
+    data-variant-title="{{ selected_variant.title | escape }}"
     data-shop-domain="{{ shop.permanent_domain }}"
     style="--bis-color: {{ block.settings.button_color }};"
   >

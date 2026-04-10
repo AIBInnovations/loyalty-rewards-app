@@ -79,6 +79,7 @@
           state.settings = parsed;
           state.tiers = parsed.tiers || [];
           state.settingsLoaded = true;
+          if (parsed.primaryColor) document.documentElement.style.setProperty("--cd-primary", parsed.primaryColor);
           return;
         }
       } catch (e) {}
@@ -97,6 +98,7 @@
         state.settings = data;
         state.tiers = data.tiers || [];
         state.settingsLoaded = true;
+        if (data.primaryColor) document.documentElement.style.setProperty("--cd-primary", data.primaryColor);
         if (state.isOpen) render();
       })
       .catch(function (err) {
