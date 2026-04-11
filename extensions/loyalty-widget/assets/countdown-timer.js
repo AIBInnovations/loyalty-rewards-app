@@ -23,25 +23,12 @@
     digitColor: container.dataset.digitColor || "#ff4444",
   };
 
-  // ─── Inject colors via <style> tag ───────────────────────────
+  // ─── Apply colors via CSS custom properties ───────────────────
   function applyColors(bg, text, digit) {
-    console.log("[CT] applyColors →", bg, text, digit);
-    var styleTag = document.getElementById("ct-color-overrides");
-    if (!styleTag) {
-      styleTag = document.createElement("style");
-      styleTag.id = "ct-color-overrides";
-      document.head.appendChild(styleTag);
-    }
-    styleTag.textContent =
-      "#ct-announcement-bar { background: " + bg + " !important; color: " + text + " !important; }" +
-      "#ct-announcement-bar .ct-bar-message { color: " + text + " !important; }" +
-      "#ct-announcement-bar .ct-dismiss { color: " + text + " !important; }" +
-      "#ct-announcement-bar .ct-digit-box { color: " + digit + " !important; }" +
-      "#ct-announcement-bar .ct-separator { color: " + digit + " !important; }" +
-      "#ct-product-timer .ct-digit-box { color: " + digit + " !important; }" +
-      "#ct-product-timer .ct-separator { color: " + digit + " !important; }" +
-      "#ct-product-timer .ct-pulse-dot { background: " + digit + " !important; }" +
-      "#ct-product-timer { border-left-color: " + digit + " !important; }";
+    var root = document.documentElement;
+    if (bg) root.style.setProperty("--ct-bg", bg);
+    if (text) root.style.setProperty("--ct-text", text);
+    if (digit) root.style.setProperty("--ct-digit", digit);
   }
 
   applyColors(config.barBg, config.barText, config.digitColor);
