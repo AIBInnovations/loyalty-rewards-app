@@ -20,6 +20,19 @@
 ></div>
 
 {{ 'countdown-timer.css' | asset_url | stylesheet_tag }}
+
+<style id="ct-color-overrides">
+  #ct-announcement-bar { background: {{ block.settings.bar_background_color }} !important; color: {{ block.settings.bar_text_color }} !important; }
+  #ct-announcement-bar .ct-bar-message { color: {{ block.settings.bar_text_color }} !important; }
+  #ct-announcement-bar .ct-dismiss { color: {{ block.settings.bar_text_color }} !important; }
+  #ct-announcement-bar .ct-digit-box { color: {{ block.settings.timer_digit_color }} !important; }
+  #ct-announcement-bar .ct-separator { color: {{ block.settings.timer_digit_color }} !important; }
+  #ct-product-timer .ct-digit-box { color: {{ block.settings.timer_digit_color }} !important; }
+  #ct-product-timer .ct-separator { color: {{ block.settings.timer_digit_color }} !important; }
+  #ct-product-timer .ct-pulse-dot { background: {{ block.settings.timer_digit_color }} !important; }
+  #ct-product-timer { border-left-color: {{ block.settings.timer_digit_color }} !important; }
+</style>
+
 <script src="{{ 'countdown-timer.js' | asset_url }}" defer></script>
 
 {% schema %}
