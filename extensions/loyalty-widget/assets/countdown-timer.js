@@ -204,9 +204,29 @@
     barElement.innerHTML =
       '<div class="ct-bar-message">' + message + '</div>' + dismissBtn;
 
+    // Apply colors directly as inline styles (most reliable approach)
+    var bg = settings.barBackgroundColor || config.barBg;
+    var text = settings.barTextColor || config.barText;
+    var digit = settings.timerDigitColor || config.digitColor;
+
+    barElement.style.setProperty("background", bg, "important");
+    barElement.style.setProperty("color", text, "important");
+
+    var msgEl = barElement.querySelector(".ct-bar-message");
+    if (msgEl) msgEl.style.setProperty("color", text, "important");
+
+    barElement.querySelectorAll(".ct-digit-box").forEach(function (el) {
+      el.style.setProperty("color", digit, "important");
+      el.style.setProperty("background", "rgba(0,0,0,0.2)", "important");
+    });
+    barElement.querySelectorAll(".ct-separator").forEach(function (el) {
+      el.style.setProperty("color", digit, "important");
+    });
+
     // Attach dismiss handler
     var btn = barElement.querySelector('[data-action="ct-dismiss"]');
     if (btn) {
+      btn.style.setProperty("color", text, "important");
       btn.addEventListener("click", function () {
         dismissed = true;
         sessionStorage.setItem("ct_dismissed", "1");
@@ -259,6 +279,18 @@
     productElement.innerHTML =
       '<span class="ct-pulse-dot"></span>' +
       '<span class="ct-message-text">' + message + '</span>';
+
+    // Apply colors directly as inline styles
+    var digit = settings.timerDigitColor || config.digitColor;
+    productElement.style.setProperty("border-left-color", digit, "important");
+    productElement.querySelectorAll(".ct-digit-box").forEach(function (el) {
+      el.style.setProperty("color", digit, "important");
+    });
+    productElement.querySelectorAll(".ct-separator").forEach(function (el) {
+      el.style.setProperty("color", digit, "important");
+    });
+    var dot = productElement.querySelector(".ct-pulse-dot");
+    if (dot) dot.style.setProperty("background", digit, "important");
   }
 
   // ─── Render Expired ───────────────────────────────────────────
