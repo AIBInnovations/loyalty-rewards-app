@@ -90,6 +90,10 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
     return handleGetTimerSettings(shop);
   }
 
+  if (path === "timer-css") {
+    return handleGetTimerCSS(shop);
+  }
+
   if (path === "popup-settings") {
     return handleGetPopupSettings(shop);
   }
@@ -308,6 +312,19 @@ async function handleStockSubscribe(params: URLSearchParams, shop: string) {
 }
 
 // ─── Timer Settings ─────────────────────────────────────────────
+
+async function handleGetTimerCSS(shop: string) {
+  const settings = await TimerSettings.findOne({ shopId: shop }).lean();
+  const bg = (settings?.barBackgroundColor as string) || "#1a1a1a";
+  const text = (settings?.barTextColor as string) || "#ffffff";
+  const digit = (settings?.timerDigitColor as string) || "#ff4444";
+  const safeColor = (c: string) => /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : "#000";
+  const css = `:root{--ct-bg:${safeColor(bg)};--ct-text:${safeColor(text)};--ct-digit:${safeColor(digit)}}`;
+  return new Response(css, {
+    status: 200,
+    headers: { "Content-Type": "text/css; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
 
 async function handleGetTimerSettings(shop: string) {
   const settings = await TimerSettings.findOne({ shopId: shop }).lean();

@@ -20,6 +20,7 @@
 ></div>
 
 {{ 'countdown-timer.css' | asset_url | stylesheet_tag }}
+<link rel="stylesheet" href="/apps/loyalty/timer-css">
 
 <style>
   :root {
@@ -28,21 +29,6 @@
     --ct-digit: {{ block.settings.timer_digit_color }};
   }
 </style>
-
-<script>
-(function () {
-  fetch("/apps/loyalty/timer-settings")
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      if (!d.enabled) return;
-      var root = document.documentElement;
-      if (d.barBackgroundColor) root.style.setProperty("--ct-bg", d.barBackgroundColor);
-      if (d.barTextColor) root.style.setProperty("--ct-text", d.barTextColor);
-      if (d.timerDigitColor) root.style.setProperty("--ct-digit", d.timerDigitColor);
-    })
-    .catch(function () {});
-})();
-</script>
 
 <script src="{{ 'countdown-timer.js' | asset_url }}" defer></script>
 
