@@ -166,8 +166,8 @@
   // ─── Render Timer Digits ──────────────────────────────────────
   function renderTimerDigits(h, m, s) {
     var dc = settings && settings.timerDigitColor ? settings.timerDigitColor : "#ff4444";
-    var digitStyle = 'style="color:' + dc + '"';
-    var sepStyle   = 'style="color:' + dc + ';opacity:0.7"';
+    var digitStyle = 'style="color:' + dc + '!important"';
+    var sepStyle   = 'style="color:' + dc + '!important;opacity:0.7"';
     return '<span class="ct-timer">' +
       '<span class="ct-digit-group">' +
         '<span class="ct-digit-box" ' + digitStyle + '>' + pad(h) + '</span>' +
@@ -185,24 +185,33 @@
 
   // ─── Render Announcement Bar ──────────────────────────────────
   function renderBar(message) {
+    var bg   = settings.barBackgroundColor || "#1a1a1a";
+    var text = settings.barTextColor       || "#ffffff";
+
     if (!barElement) {
       barElement = document.createElement("div");
       barElement.className = "ct-bar";
       barElement.id = "ct-announcement-bar";
-      // Insert at very top of body
       document.body.insertBefore(barElement, document.body.firstChild);
     }
 
-    // Apply colors as inline styles directly — bypasses any theme CSS overrides
-    barElement.style.background = settings.barBackgroundColor || "#1a1a1a";
-    barElement.style.color      = settings.barTextColor       || "#ffffff";
-
     var dismissBtn = settings.showDismissButton
-      ? '<button class="ct-dismiss" data-action="ct-dismiss" aria-label="Dismiss">✕</button>'
+      ? '<button class="ct-dismiss" data-action="ct-dismiss" aria-label="Dismiss" style="color:' + text + '!important">✕</button>'
       : '';
 
+    // Inline styles on the wrapper AND the message div — belt and suspenders
     barElement.innerHTML =
-      '<div class="ct-bar-message">' + message + '</div>' + dismissBtn;
+      '<div class="ct-bar-message" style="color:' + text + '!important">' + message + '</div>' + dismissBtn;
+
+    // Apply AFTER innerHTML so nothing can reset them
+    barElement.setAttribute("style",
+      "background:" + bg + "!important;" +
+      "color:" + text + "!important;" +
+      "position:sticky;top:0;z-index:9997;width:100%;padding:10px 20px;" +
+      "display:flex;align-items:center;justify-content:center;gap:8px;" +
+      "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;" +
+      "font-size:14px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,0.15);"
+    );
 
     // Attach dismiss handler
     var btn = barElement.querySelector('[data-action="ct-dismiss"]');
@@ -257,7 +266,7 @@
     }
 
     var dc = settings && settings.timerDigitColor ? settings.timerDigitColor : "#ff4444";
-    productElement.style.borderLeftColor = dc;
+    productElement.style.setProperty("border-left-color", dc, "important");
     productElement.innerHTML =
       '<span class="ct-pulse-dot" style="background:' + dc + '"></span>' +
       '<span class="ct-message-text">' + message + '</span>';
