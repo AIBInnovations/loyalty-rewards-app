@@ -70,21 +70,6 @@
 
   // ─── Fetch Settings from App Proxy ────────────────────────────
   function fetchSettings() {
-    // Check sessionStorage cache
-    var cached = sessionStorage.getItem("cd_settings");
-    if (cached) {
-      try {
-        var parsed = JSON.parse(cached);
-        if (parsed._ts && Date.now() - parsed._ts < 300000) { // 5 min TTL
-          state.settings = parsed;
-          state.tiers = parsed.tiers || [];
-          state.settingsLoaded = true;
-          if (parsed.primaryColor) document.documentElement.style.setProperty("--cd-primary", parsed.primaryColor);
-          return;
-        }
-      } catch (e) {}
-    }
-
     fetch("/apps/loyalty/cart-settings")
       .then(function (r) {
         if (!r.ok) throw new Error("Failed");
@@ -93,8 +78,6 @@
         return r.json();
       })
       .then(function (data) {
-        data._ts = Date.now();
-        sessionStorage.setItem("cd_settings", JSON.stringify(data));
         state.settings = data;
         state.tiers = data.tiers || [];
         state.settingsLoaded = true;

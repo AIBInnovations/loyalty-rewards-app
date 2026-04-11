@@ -37,18 +37,6 @@
 
   // ─── Fetch Settings ───────────────────────────────────────────
   function fetchSettings() {
-    var cached = sessionStorage.getItem("ct_settings");
-    if (cached) {
-      try {
-        var parsed = JSON.parse(cached);
-        if (parsed._ts && Date.now() - parsed._ts < 300000) {
-          settings = parsed;
-          init();
-          return;
-        }
-      } catch (e) {}
-    }
-
     fetch("/apps/loyalty/timer-settings")
       .then(function (r) {
         if (!r.ok) throw new Error("Failed");
@@ -57,8 +45,6 @@
         return r.json();
       })
       .then(function (data) {
-        data._ts = Date.now();
-        sessionStorage.setItem("ct_settings", JSON.stringify(data));
         settings = data;
         init();
       })
