@@ -20,7 +20,6 @@
 ></div>
 
 {{ 'countdown-timer.css' | asset_url | stylesheet_tag }}
-<link rel="stylesheet" href="/apps/loyalty/timer-css">
 
 <style>
   :root {
@@ -29,6 +28,8 @@
     --ct-digit: {{ block.settings.timer_digit_color }};
   }
 </style>
+
+<link rel="stylesheet" href="https://loyalty-rewards-app-gxb7.onrender.com/timer-colors?shop={{ shop.permanent_domain }}" crossorigin="anonymous">
 
 <script src="{{ 'countdown-timer.js' | asset_url }}" defer></script>
 
