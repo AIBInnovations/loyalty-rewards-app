@@ -31,8 +31,6 @@
     if (digit) root.style.setProperty("--ct-digit", digit);
   }
 
-  applyColors(config.barBg, config.barText, config.digitColor);
-
   // ─── State ────────────────────────────────────────────────────
   var settings = null;
   var timerInterval = null;
