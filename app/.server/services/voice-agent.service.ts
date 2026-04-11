@@ -97,109 +97,28 @@ async function processCallQueue(): Promise<void> {
 async function attemptCall(cart: any): Promise<void> {
   LOG.call(`Attempting call → ${cart.customerName} (${cart.customerPhone}) | shop: ${cart.shopId}`);
 
-  // Step 1: Load settings
-  const settings = await VoiceAgentSettings.findOne({
-    shopId: cart.shopId,
-    enabled: true,
-  });
+  // Load settings (required for API keys)
+  const settings = await VoiceAgentSettings.findOne({ shopId: cart.shopId });
 
-  if (!settings) {
-    const reason = "No voice agent settings found for shop (or agent is disabled)";
-    LOG.skip(cart, reason);
+  if (!settings || !settings.elevenLabsApiKey || !settings.elevenLabsAgentId) {
+    LOG.error(`Cannot call — ElevenLabs API key or Agent ID missing for shop: ${cart.shopId}`);
     cart.status = "skipped";
-    cart.skipReason = reason;
+    cart.skipReason = "ElevenLabs not configured";
     await cart.save();
     return;
   }
 
-  if (!settings.elevenLabsApiKey) {
-    const reason = "ElevenLabs API key is missing — save it in Voice Agent settings";
-    LOG.skip(cart, reason);
-    cart.status = "skipped";
-    cart.skipReason = reason;
-    await cart.save();
-    return;
-  }
-
-  if (!settings.elevenLabsAgentId) {
-    const reason = "ElevenLabs Agent ID is missing — save it in Voice Agent settings";
-    LOG.skip(cart, reason);
-    cart.status = "skipped";
-    cart.skipReason = reason;
-    await cart.save();
-    return;
-  }
-
-  LOG.info(`Settings loaded | apiKey: ${settings.elevenLabsApiKey.slice(0, 10)}... | agentId: ${settings.elevenLabsAgentId} | window: ${settings.callWindowStart}:00–${settings.callWindowEnd}:00 IST | minCart: ₹${settings.minCartValue} | maxPerDay: ${settings.maxCallsPerDay}`);
-
-  // Step 2: Check daily call limit
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const callsToday = await AbandonedCart.countDocuments({
-    shopId: cart.shopId,
-    callMadeAt: { $gte: today },
-    status: { $in: ["calling", "called", "recovered", "declined", "no_answer"] },
-  });
-
-  LOG.info(`Daily calls so far: ${callsToday} / ${settings.maxCallsPerDay}`);
-
-  if (callsToday >= settings.maxCallsPerDay) {
-    const reason = `Daily call limit reached (${callsToday}/${settings.maxCallsPerDay})`;
-    LOG.skip(cart, reason);
-    cart.status = "skipped";
-    cart.skipReason = reason;
-    await cart.save();
-    return;
-  }
-
-  // Step 3: Check call window
-  const istHour = new Date().toLocaleString("en-US", {
-    timeZone: "Asia/Kolkata",
-    hour: "numeric",
-    hour12: false,
-  });
-  const currentHour = parseInt(istHour);
-
-  LOG.info(`Current IST hour: ${currentHour} | Call window: ${settings.callWindowStart}:00–${settings.callWindowEnd}:00`);
-
-  if (currentHour < settings.callWindowStart || currentHour >= settings.callWindowEnd) {
-    const nextWindow = new Date();
-    if (currentHour >= settings.callWindowEnd) {
-      nextWindow.setDate(nextWindow.getDate() + 1);
-    }
-    nextWindow.setHours(settings.callWindowStart, 0, 0, 0);
-    LOG.warn(`Outside call window (hour=${currentHour}) — rescheduling to ${nextWindow.toISOString()}`);
-    cart.callScheduledAt = nextWindow;
-    await cart.save();
-    return;
-  }
-
-  // Step 4: Check minimum cart value
-  const cartValueRupees = cart.cartTotal / 100;
-  LOG.info(`Cart value: ₹${cartValueRupees.toFixed(0)} | Minimum: ₹${settings.minCartValue}`);
-
-  if (cart.cartTotal < settings.minCartValue * 100) {
-    const reason = `Cart value ₹${cartValueRupees.toFixed(0)} below minimum ₹${settings.minCartValue}`;
-    LOG.skip(cart, reason);
-    cart.status = "skipped";
-    cart.skipReason = reason;
-    await cart.save();
-    return;
-  }
-
-  // Step 5: Check phone number
-  LOG.info(`Customer phone: ${cart.customerPhone || "MISSING"}`);
+  LOG.info(`Settings loaded | apiKey: ${settings.elevenLabsApiKey.slice(0, 10)}... | agentId: ${settings.elevenLabsAgentId}`);
 
   if (!cart.customerPhone) {
-    const reason = "No phone number on checkout";
-    LOG.skip(cart, reason);
+    LOG.warn(`No phone number on checkout ${cart.shopifyCheckoutId} — cannot call`);
     cart.status = "skipped";
-    cart.skipReason = reason;
+    cart.skipReason = "No phone number on checkout";
     await cart.save();
     return;
   }
 
-  // Step 6: Build call context
+  // Build call context
   const discountText = settings.offerDiscount
     ? settings.discountType === "percentage"
       ? `${settings.discountValue}% off`
@@ -208,11 +127,11 @@ async function attemptCall(cart: any): Promise<void> {
 
   const mainProduct = cart.cartItems[0]?.title || "your selected items";
   const brandName = cart.shopId.replace(".myshopify.com", "");
-  const cartAmountStr = `₹${cartValueRupees.toFixed(0)}`;
+  const cartAmountStr = `₹${(cart.cartTotal / 100).toFixed(0)}`;
 
   LOG.call(`All checks passed — triggering call | customer: ${cart.customerName} | product: ${mainProduct} | amount: ${cartAmountStr} | discount: ${discountText || "none"} | points: ${settings.bonusPoints}`);
 
-  // Step 7: Trigger call
+  // Trigger call
   cart.status = "calling";
   cart.callMadeAt = new Date();
   await cart.save();
