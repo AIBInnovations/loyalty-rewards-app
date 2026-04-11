@@ -25,6 +25,7 @@
 
   // ─── Inject colors via <style> tag ───────────────────────────
   function applyColors(bg, text, digit) {
+    console.log("[CT] applyColors →", bg, text, digit);
     var styleTag = document.getElementById("ct-color-overrides");
     if (!styleTag) {
       styleTag = document.createElement("style");
@@ -62,11 +63,12 @@
         return r.json();
       })
       .then(function (data) {
+        console.log("[CT] settings from API:", JSON.stringify(data));
         settings = data;
         init();
       })
-      .catch(function () {
-        // Silently fail
+      .catch(function (err) {
+        console.error("[CT] fetch failed:", err);
       });
   }
 
