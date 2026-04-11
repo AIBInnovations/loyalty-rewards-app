@@ -165,17 +165,20 @@
 
   // ─── Render Timer Digits ──────────────────────────────────────
   function renderTimerDigits(h, m, s) {
+    var dc = settings && settings.timerDigitColor ? settings.timerDigitColor : "#ff4444";
+    var digitStyle = 'style="color:' + dc + '"';
+    var sepStyle   = 'style="color:' + dc + ';opacity:0.7"';
     return '<span class="ct-timer">' +
       '<span class="ct-digit-group">' +
-        '<span class="ct-digit-box">' + pad(h) + '</span>' +
+        '<span class="ct-digit-box" ' + digitStyle + '>' + pad(h) + '</span>' +
       '</span>' +
-      '<span class="ct-separator">:</span>' +
+      '<span class="ct-separator" ' + sepStyle + '>:</span>' +
       '<span class="ct-digit-group">' +
-        '<span class="ct-digit-box">' + pad(m) + '</span>' +
+        '<span class="ct-digit-box" ' + digitStyle + '>' + pad(m) + '</span>' +
       '</span>' +
-      '<span class="ct-separator">:</span>' +
+      '<span class="ct-separator" ' + sepStyle + '>:</span>' +
       '<span class="ct-digit-group">' +
-        '<span class="ct-digit-box">' + pad(s) + '</span>' +
+        '<span class="ct-digit-box" ' + digitStyle + '>' + pad(s) + '</span>' +
       '</span>' +
     '</span>';
   }
@@ -189,6 +192,10 @@
       // Insert at very top of body
       document.body.insertBefore(barElement, document.body.firstChild);
     }
+
+    // Apply colors as inline styles directly — bypasses any theme CSS overrides
+    barElement.style.background = settings.barBackgroundColor || "#1a1a1a";
+    barElement.style.color      = settings.barTextColor       || "#ffffff";
 
     var dismissBtn = settings.showDismissButton
       ? '<button class="ct-dismiss" data-action="ct-dismiss" aria-label="Dismiss">✕</button>'
@@ -249,8 +256,10 @@
       }
     }
 
+    var dc = settings && settings.timerDigitColor ? settings.timerDigitColor : "#ff4444";
+    productElement.style.borderLeftColor = dc;
     productElement.innerHTML =
-      '<span class="ct-pulse-dot"></span>' +
+      '<span class="ct-pulse-dot" style="background:' + dc + '"></span>' +
       '<span class="ct-message-text">' + message + '</span>';
   }
 
