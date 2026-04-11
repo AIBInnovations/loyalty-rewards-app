@@ -142,6 +142,11 @@
       if (remaining <= 0) {
         // Timer expired
         clearInterval(timerInterval);
+        // For evergreen timers: clear the stored start time so next page load starts fresh
+        if (settings.timerType === "evergreen") {
+          var storageKey = "ct_start_" + config.shopDomain;
+          sessionStorage.removeItem(storageKey);
+        }
         if (settings.hideWhenExpired) {
           removeElements();
         } else {
