@@ -23,10 +23,27 @@
     digitColor: container.dataset.digitColor || "#ff4444",
   };
 
-  // Apply CSS variables
-  document.documentElement.style.setProperty("--ct-bg", config.barBg);
-  document.documentElement.style.setProperty("--ct-text", config.barText);
-  document.documentElement.style.setProperty("--ct-digit", config.digitColor);
+  // ─── Inject colors via <style> tag ───────────────────────────
+  function applyColors(bg, text, digit) {
+    var styleTag = document.getElementById("ct-color-overrides");
+    if (!styleTag) {
+      styleTag = document.createElement("style");
+      styleTag.id = "ct-color-overrides";
+      document.head.appendChild(styleTag);
+    }
+    styleTag.textContent =
+      "#ct-announcement-bar { background: " + bg + " !important; color: " + text + " !important; }" +
+      "#ct-announcement-bar .ct-bar-message { color: " + text + " !important; }" +
+      "#ct-announcement-bar .ct-dismiss { color: " + text + " !important; }" +
+      "#ct-announcement-bar .ct-digit-box { color: " + digit + " !important; }" +
+      "#ct-announcement-bar .ct-separator { color: " + digit + " !important; }" +
+      "#ct-product-timer .ct-digit-box { color: " + digit + " !important; }" +
+      "#ct-product-timer .ct-separator { color: " + digit + " !important; }" +
+      "#ct-product-timer .ct-pulse-dot { background: " + digit + " !important; }" +
+      "#ct-product-timer { border-left-color: " + digit + " !important; }";
+  }
+
+  applyColors(config.barBg, config.barText, config.digitColor);
 
   // ─── State ────────────────────────────────────────────────────
   var settings = null;
@@ -58,10 +75,12 @@
     if (!settings || !settings.enabled) return;
     if (dismissed && settings.showDismissButton) return;
 
-    // Apply colors from fetched settings (overrides data-attribute defaults)
-    if (settings.barBackgroundColor) document.documentElement.style.setProperty("--ct-bg", settings.barBackgroundColor);
-    if (settings.barTextColor) document.documentElement.style.setProperty("--ct-text", settings.barTextColor);
-    if (settings.timerDigitColor) document.documentElement.style.setProperty("--ct-digit", settings.timerDigitColor);
+    // Re-apply colors from fetched settings (overrides theme CSS with !important)
+    applyColors(
+      settings.barBackgroundColor || config.barBg,
+      settings.barTextColor       || config.barText,
+      settings.timerDigitColor    || config.digitColor
+    );
 
     // Check targeting
     if (!shouldShowOnCurrentPage()) return;
@@ -165,29 +184,23 @@
 
   // ─── Render Timer Digits ──────────────────────────────────────
   function renderTimerDigits(h, m, s) {
-    var dc = settings && settings.timerDigitColor ? settings.timerDigitColor : "#ff4444";
-    var digitStyle = 'style="color:' + dc + '!important"';
-    var sepStyle   = 'style="color:' + dc + '!important;opacity:0.7"';
     return '<span class="ct-timer">' +
       '<span class="ct-digit-group">' +
-        '<span class="ct-digit-box" ' + digitStyle + '>' + pad(h) + '</span>' +
+        '<span class="ct-digit-box">' + pad(h) + '</span>' +
       '</span>' +
-      '<span class="ct-separator" ' + sepStyle + '>:</span>' +
+      '<span class="ct-separator">:</span>' +
       '<span class="ct-digit-group">' +
-        '<span class="ct-digit-box" ' + digitStyle + '>' + pad(m) + '</span>' +
+        '<span class="ct-digit-box">' + pad(m) + '</span>' +
       '</span>' +
-      '<span class="ct-separator" ' + sepStyle + '>:</span>' +
+      '<span class="ct-separator">:</span>' +
       '<span class="ct-digit-group">' +
-        '<span class="ct-digit-box" ' + digitStyle + '>' + pad(s) + '</span>' +
+        '<span class="ct-digit-box">' + pad(s) + '</span>' +
       '</span>' +
     '</span>';
   }
 
   // ─── Render Announcement Bar ──────────────────────────────────
   function renderBar(message) {
-    var bg   = settings.barBackgroundColor || "#1a1a1a";
-    var text = settings.barTextColor       || "#ffffff";
-
     if (!barElement) {
       barElement = document.createElement("div");
       barElement.className = "ct-bar";
@@ -196,22 +209,11 @@
     }
 
     var dismissBtn = settings.showDismissButton
-      ? '<button class="ct-dismiss" data-action="ct-dismiss" aria-label="Dismiss" style="color:' + text + '!important">✕</button>'
+      ? '<button class="ct-dismiss" data-action="ct-dismiss" aria-label="Dismiss">✕</button>'
       : '';
 
-    // Inline styles on the wrapper AND the message div — belt and suspenders
     barElement.innerHTML =
-      '<div class="ct-bar-message" style="color:' + text + '!important">' + message + '</div>' + dismissBtn;
-
-    // Apply AFTER innerHTML so nothing can reset them
-    barElement.setAttribute("style",
-      "background:" + bg + "!important;" +
-      "color:" + text + "!important;" +
-      "position:sticky;top:0;z-index:9997;width:100%;padding:10px 20px;" +
-      "display:flex;align-items:center;justify-content:center;gap:8px;" +
-      "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;" +
-      "font-size:14px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,0.15);"
-    );
+      '<div class="ct-bar-message">' + message + '</div>' + dismissBtn;
 
     // Attach dismiss handler
     var btn = barElement.querySelector('[data-action="ct-dismiss"]');
@@ -265,10 +267,8 @@
       }
     }
 
-    var dc = settings && settings.timerDigitColor ? settings.timerDigitColor : "#ff4444";
-    productElement.style.setProperty("border-left-color", dc, "important");
     productElement.innerHTML =
-      '<span class="ct-pulse-dot" style="background:' + dc + '"></span>' +
+      '<span class="ct-pulse-dot"></span>' +
       '<span class="ct-message-text">' + message + '</span>';
   }
 
