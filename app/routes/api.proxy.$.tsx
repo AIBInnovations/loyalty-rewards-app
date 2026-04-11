@@ -313,7 +313,7 @@ async function handleGetTimerSettings(shop: string) {
   const settings = await TimerSettings.findOne({ shopId: shop }).lean();
 
   if (!settings?.enabled) {
-    return json({ enabled: false });
+    return json({ enabled: false }, { headers: { "Cache-Control": "no-store" } });
   }
 
   return json({
@@ -333,7 +333,7 @@ async function handleGetTimerSettings(shop: string) {
     specificTags: settings.specificTags,
     hideWhenExpired: settings.hideWhenExpired,
     showDismissButton: settings.showDismissButton,
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }
 
 async function handleGetCartSettings(shop: string) {
