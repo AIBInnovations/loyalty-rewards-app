@@ -237,24 +237,24 @@ export default function TimerSettingsPage() {
                 />
                 <Divider />
                 <InlineGrid columns={3} gap="300">
-                  {[
-                    { label: "Bar Background",  value: barBgColor,      set: setBarBgColor },
-                    { label: "Text Color",       value: barTextColor,    set: setBarTextColor },
-                    { label: "Timer Digit Color",value: timerDigitColor, set: setTimerDigitColor },
-                  ].map(({ label, value, set }) => (
-                    <div key={label}>
-                      <Text variant="bodySm" as="p" tone="subdued">{label}</Text>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                        <input
-                          type="color"
-                          value={value || "#000000"}
-                          onChange={(e) => set(e.target.value)}
-                          style={{ width: 40, height: 36, border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", padding: 2 }}
-                        />
-                        <span style={{ fontSize: 13, color: "#555", fontFamily: "monospace" }}>{value}</span>
-                      </div>
-                    </div>
-                  ))}
+                  <TextField
+                    label="Bar Background"
+                    value={barBgColor}
+                    onChange={setBarBgColor}
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Text Color"
+                    value={barTextColor}
+                    onChange={setBarTextColor}
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Timer Digit Color"
+                    value={timerDigitColor}
+                    onChange={setTimerDigitColor}
+                    autoComplete="off"
+                  />
                 </InlineGrid>
               </BlockStack>
             </Card>
