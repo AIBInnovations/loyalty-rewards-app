@@ -147,11 +147,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const nothingIndexed = (prev?.totalIndexed ?? 0) === 0;
     if (nowEnabled && (!wasEnabled || nothingIndexed)) {
       // Kick off background sync — fire and forget so save_settings returns fast
-      const token = session.accessToken;
       const shop = session.shop;
+      const boundGraphql = admin.graphql.bind(admin) as unknown as import("../.server/services/image-index-jobs.service").AdminGraphQL;
       import("../.server/services/image-index-jobs.service")
         .then(({ triggerFullCatalogSyncForShop }) =>
-          triggerFullCatalogSyncForShop(shop, token),
+          triggerFullCatalogSyncForShop(shop, boundGraphql),
         )
         .catch((e) => console.error("[ImageSearch] bg sync failed:", e));
     }
@@ -160,19 +160,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // sync_batch: index ONE page of products, return cursor for next page
   // The UI calls this repeatedly until done=true — each call is fast (< 20s)
   if (actionType === "sync_batch") {
-    const { syncBatch, getShopAccessToken } = await import(
+    const { syncBatch } = await import(
       "../.server/services/image-index-jobs.service"
     );
     const cursor = String(fd.get("cursor") || "") || undefined;
 
-    // Prefer session token, fall back to stored token
-    const accessToken = session.accessToken || (await getShopAccessToken(session.shop));
-    if (!accessToken) {
-      return json({ error: "No access token — please reload this page." }, { status: 400 });
-    }
-
     try {
-      const result = await syncBatch(session.shop, accessToken, cursor);
+      const result = await syncBatch(
+        admin.graphql.bind(admin) as unknown as import("../.server/services/image-index-jobs.service").AdminGraphQL,
+        session.shop,
+        cursor,
+      );
       const totalIndexed = await (await import("../.server/models/image-embedding.model"))
         .ImageEmbedding.countDocuments({ shopId: session.shop, isActive: true });
       return json({ success: true, ...result, totalIndexed });
@@ -185,11 +183,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (actionType === "trigger_sync") {
     // Just trigger background sync and return immediately
-    const token = session.accessToken;
     const shop = session.shop;
+    const boundGraphql = admin.graphql.bind(admin) as unknown as import("../.server/services/image-index-jobs.service").AdminGraphQL;
     import("../.server/services/image-index-jobs.service")
       .then(({ triggerFullCatalogSyncForShop }) =>
-        triggerFullCatalogSyncForShop(shop, token),
+        triggerFullCatalogSyncForShop(shop, boundGraphql),
       )
       .catch((e) => console.error("[ImageSearch] bg sync failed:", e));
     return json({ success: true, syncing: true });

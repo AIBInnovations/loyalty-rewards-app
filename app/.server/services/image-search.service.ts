@@ -82,14 +82,9 @@ export async function searchByImage(
         autoIndexing.add(shopId);
         console.log(`[ImageSearch] Auto-indexing triggered for ${shopId}`);
         import("./image-index-jobs.service")
-          .then(({ triggerFullCatalogSyncForShop, getShopAccessToken }) =>
-            getShopAccessToken(shopId).then((token) => {
-              if (!token) {
-                console.error("[ImageSearch] Auto-index: no token for", shopId);
-                return;
-              }
-              return triggerFullCatalogSyncForShop(shopId, token);
-            }),
+          .then(({ triggerFullCatalogSyncForShop }) =>
+            // No callerAdmin — falls back to unauthenticated.admin (offline session)
+            triggerFullCatalogSyncForShop(shopId),
           )
           .catch((err) => console.error("[ImageSearch] Auto-index failed:", err))
           .finally(() => autoIndexing.delete(shopId));

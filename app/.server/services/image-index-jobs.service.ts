@@ -1,127 +1,107 @@
 /**
- * Image Index Jobs Service — Batch-safe, timeout-proof
+ * Image Index Jobs Service
  *
- * Uses Shopify REST API directly with access token from MongoDB session,
- * exactly like abandoned-cart-poller.service.ts.
+ * Uses admin.graphql() to fetch products — the correct Shopify App Remix v3 API.
+ * session.accessToken is NOT used (it may be null with unstable_newEmbeddedAuthStrategy).
  *
- * Key design decisions:
- * - syncBatch(shopId, accessToken, cursor?): indexes ONE PAGE of products and returns.
- *   Callers can loop over batches. Each batch takes ~10–20s (safe for Render).
- * - No cron, no job queue.
+ * syncBatch(admin, shopId, cursor?) — indexes one page of 10 products, returns cursor.
+ * Call repeatedly until done=true.
  */
 
-import mongoose from "mongoose";
 import { createHash } from "crypto";
 import { connectDB } from "../../db.server";
 import { ImageEmbedding } from "../models/image-embedding.model";
 import { ImageSearchSettings } from "../models/image-search-settings.model";
 import { generateEmbedding } from "./embedding.service";
 
-const MAX_IMAGES_PER_PRODUCT = 1; // Only first image — fast and still useful
+export type AdminGraphQL = (
+  query: string,
+  opts?: { variables?: Record<string, unknown> },
+) => Promise<Response>;
+
 const MODEL_VERSION = "sharp-visual-v1";
-const API = "2025-01";
-const PAGE_SIZE = 10; // 10 products × 1 image = ~10s per batch
 
 export function initImageSearchJobs(): void {
-  console.log("[ImageSearch] Batch indexing mode ready.");
+  console.log("[ImageSearch] Ready.");
 }
 
-// ─── Access token lookup ──────────────────────────────────────────────────────
+// ─── GraphQL query: 10 products per page ─────────────────────────────────────
 
-export async function getShopAccessToken(shopId: string): Promise<string | null> {
-  await connectDB();
-
-  // 1. Check cached token in ImageSearchSettings (saved on every admin visit)
-  const settings = await ImageSearchSettings.findOne({ shopId })
-    .select("_accessToken")
-    .lean();
-  if (settings?._accessToken) {
-    return settings._accessToken as string;
+const PRODUCTS_QUERY = `
+  query GetProducts($cursor: String) {
+    products(first: 10, after: $cursor, query: "status:active") {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        id
+        title
+        handle
+        priceRange { minVariantPrice { amount } }
+        images(first: 1) { nodes { url } }
+      }
+    }
   }
+`;
 
-  // 2. Fallback: shopify_sessions collection (offline session)
-  const db = mongoose.connection.db;
-  if (!db) return null;
-  const col = db.collection("shopify_sessions");
+// ─── Fetch one page of products via admin.graphql ────────────────────────────
 
-  // Try offline first, then any session
-  const session =
-    (await col.findOne({ shop: shopId, isOnline: false, accessToken: { $exists: true, $ne: "" } })) ||
-    (await col.findOne({ shop: shopId, accessToken: { $exists: true, $ne: "" } }));
-
-  if (!session?.accessToken) {
-    console.error(`[ImageSearch] No access token for ${shopId}. Visit Image Search Settings to refresh.`);
-    return null;
-  }
-  return session.accessToken as string;
-}
-
-// ─── Fetch one page of products from Shopify REST API ────────────────────────
-
-export async function fetchProductsPage(
-  shopId: string,
-  accessToken: string,
-  pageInfo?: string,
-): Promise<{ products: any[]; nextPageInfo?: string }> {
-  const url = new URL(`https://${shopId}/admin/api/${API}/products.json`);
-  if (pageInfo) {
-    url.searchParams.set("page_info", pageInfo);
-    url.searchParams.set("limit", String(PAGE_SIZE));
-  } else {
-    url.searchParams.set("limit", String(PAGE_SIZE));
-    url.searchParams.set("status", "active");
-    url.searchParams.set("fields", "id,title,handle,images,variants");
-  }
-
-  const res = await fetch(url.toString(), {
-    headers: { "X-Shopify-Access-Token": accessToken },
-    signal: AbortSignal.timeout(15_000),
+async function fetchProductsGraphQL(
+  admin: AdminGraphQL,
+  cursor?: string,
+): Promise<{ products: any[]; nextCursor?: string }> {
+  const resp = await admin(PRODUCTS_QUERY, {
+    variables: { cursor: cursor ?? null },
   });
+  const json = await resp.json() as any;
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Shopify ${res.status}: ${body.slice(0, 300)}`);
+  if (json.errors) {
+    throw new Error(`GraphQL errors: ${JSON.stringify(json.errors)}`);
   }
 
-  const data = (await res.json()) as { products: any[] };
-  const link = res.headers.get("Link") || "";
-  const next = link.match(/<[^>]*[?&]page_info=([^>&"]+)[^>]*>;\s*rel="next"/)?.[1];
+  const page = json?.data?.products;
+  if (!page) throw new Error("No products data in GraphQL response");
 
-  console.log(`[ImageSearch] Fetched ${data.products?.length ?? 0} products, hasNext=${!!next}`);
-  return { products: data.products || [], nextPageInfo: next };
+  const products = page.nodes ?? [];
+  const nextCursor = page.pageInfo?.hasNextPage ? page.pageInfo.endCursor : undefined;
+
+  console.log(`[ImageSearch] GraphQL: ${products.length} products, hasNext=${!!nextCursor}`);
+  return { products, nextCursor };
 }
 
-// ─── Index a list of products (embed first image only) ───────────────────────
+// ─── Embed a list of products (first image only) ─────────────────────────────
 
 async function embedProducts(products: any[], shopId: string): Promise<number> {
   let n = 0;
   for (const product of products) {
-    const imageUrl: string | undefined = product.images?.[0]?.src;
-    if (!imageUrl) continue;
+    const imageUrl: string | undefined = product.images?.nodes?.[0]?.url;
+    if (!imageUrl) {
+      console.log(`[ImageSearch] No image for "${product.title}", skipping`);
+      continue;
+    }
 
-    const productId = String(product.id);
-    const price = Math.round(parseFloat(product.variants?.[0]?.price || "0") * 100);
+    const productId = String(product.id).split("/").pop() ?? String(product.id);
+    const price = Math.round(
+      parseFloat(product.priceRange?.minVariantPrice?.amount ?? "0") * 100,
+    );
 
     try {
       const imgRes = await fetch(imageUrl, {
         headers: { "User-Agent": "ShopifyImageSearch/1.0" },
-        signal: AbortSignal.timeout(8_000),
+        signal: AbortSignal.timeout(10_000),
       });
       if (!imgRes.ok) {
-        console.warn(`[ImageSearch] Image ${imgRes.status} for "${product.title}"`);
+        console.warn(`[ImageSearch] Image HTTP ${imgRes.status} for "${product.title}"`);
         continue;
       }
 
       const buffer = Buffer.from(await imgRes.arrayBuffer());
       const imageHash = createHash("sha256").update(buffer).digest("hex");
 
-      // Skip if hash unchanged
       const existing = await ImageEmbedding.findOne({ shopId, imageUrl })
         .select("imageHash")
         .lean();
       if (existing && (existing as any).imageHash === imageHash) {
         n++;
-        continue;
+        continue; // unchanged
       }
 
       const embedding = await generateEmbedding(buffer);
@@ -130,8 +110,8 @@ async function embedProducts(products: any[], shopId: string): Promise<number> {
         {
           $set: {
             productId,
-            productTitle: product.title || "",
-            productHandle: product.handle || "",
+            productTitle: product.title ?? "",
+            productHandle: product.handle ?? "",
             price,
             imageHash,
             embedding,
@@ -152,82 +132,96 @@ async function embedProducts(products: any[], shopId: string): Promise<number> {
   return n;
 }
 
-// ─── Sync ONE batch and return cursor for next batch ─────────────────────────
+// ─── Public: sync one batch ──────────────────────────────────────────────────
 
 export async function syncBatch(
+  admin: AdminGraphQL,
   shopId: string,
-  accessToken: string,
   cursor?: string,
-): Promise<{ indexed: number; nextCursor?: string; done: boolean }> {
+): Promise<{ indexed: number; nextCursor?: string; done: boolean; totalIndexed: number }> {
   await connectDB();
 
-  const { products, nextPageInfo } = await fetchProductsPage(shopId, accessToken, cursor);
+  const { products, nextCursor } = await fetchProductsGraphQL(admin, cursor);
+
   if (!products.length) {
-    return { indexed: 0, done: true };
+    const total = await ImageEmbedding.countDocuments({ shopId, isActive: true });
+    await ImageSearchSettings.findOneAndUpdate(
+      { shopId },
+      { $set: { totalIndexed: total, lastSyncedAt: new Date() } },
+    );
+    return { indexed: 0, done: true, totalIndexed: total };
   }
 
-  const indexed = await embedProducts(products, shopId);
+  await embedProducts(products, shopId);
 
-  // Update running count
   const total = await ImageEmbedding.countDocuments({ shopId, isActive: true });
   await ImageSearchSettings.findOneAndUpdate(
     { shopId },
     { $set: { totalIndexed: total, lastSyncedAt: new Date() } },
   );
 
-  return { indexed, nextCursor: nextPageInfo, done: !nextPageInfo };
+  return {
+    indexed: products.length,
+    nextCursor,
+    done: !nextCursor,
+    totalIndexed: total,
+  };
 }
 
-// ─── Full sync (for background use — no HTTP timeout concern) ─────────────────
+// ─── Background full sync (for storefront auto-index) ────────────────────────
+// Uses offline session fallback since no request-bound admin is available.
+
+import mongoose from "mongoose";
+import { unauthenticated } from "../../shopify.server";
 
 export async function triggerFullCatalogSyncForShop(
   shopId: string,
-  tokenOrAdmin?: string | object,
+  callerAdmin?: AdminGraphQL,
 ): Promise<number> {
   await connectDB();
 
-  // Resolve token
-  const accessToken =
-    typeof tokenOrAdmin === "string"
-      ? tokenOrAdmin
-      : await getShopAccessToken(shopId);
-
-  if (!accessToken) {
-    console.error(`[ImageSearch] triggerFullCatalogSyncForShop: no token for ${shopId}`);
-    return 0;
+  let admin: AdminGraphQL;
+  if (callerAdmin) {
+    // Use the admin passed by the caller (authenticated request context)
+    admin = callerAdmin;
+  } else {
+    // Fall back to offline session (background/cron context)
+    try {
+      const result = await unauthenticated.admin(shopId);
+      admin = result.admin.graphql.bind(result.admin) as unknown as AdminGraphQL;
+    } catch (e) {
+      console.error("[ImageSearch] unauthenticated.admin failed:", e);
+      return 0;
+    }
   }
 
   let cursor: string | undefined;
-  let totalIndexed = 0;
-
   do {
     try {
-      const result = await syncBatch(shopId, accessToken, cursor);
-      totalIndexed += result.indexed;
-      cursor = result.nextCursor;
-      if (result.done) break;
-    } catch (err) {
-      console.error("[ImageSearch] Batch failed:", err);
+      const batch = await syncBatch(admin, shopId, cursor);
+      cursor = batch.nextCursor;
+      if (batch.done) break;
+    } catch (e) {
+      console.error("[ImageSearch] Background sync batch error:", e);
       break;
     }
   } while (cursor);
 
-  const finalCount = await ImageEmbedding.countDocuments({ shopId, isActive: true });
-  console.log(`[ImageSearch] Full sync done: ${finalCount} embeddings`);
-  return finalCount;
+  const total = await ImageEmbedding.countDocuments({ shopId, isActive: true });
+  console.log(`[ImageSearch] Background sync done: ${total} embeddings`);
+  return total;
 }
 
 export async function triggerFullCatalogSync(): Promise<void> {
-  await connectDB();
   const shops = await ImageSearchSettings.find({ enabled: true }).select("shopId").lean();
   for (const shop of shops) {
     await triggerFullCatalogSyncForShop(shop.shopId).catch((e) =>
-      console.error(`[ImageSearch] Sync failed for ${shop.shopId}:`, e),
+      console.error(`[ImageSearch] sync failed for ${shop.shopId}:`, e),
     );
   }
 }
 
-// ─── Webhook: single product index/delete ────────────────────────────────────
+// ─── Webhook: single product ─────────────────────────────────────────────────
 
 export async function enqueueProductForIndexing(
   shopId: string,
@@ -244,21 +238,30 @@ export async function enqueueProductForIndexing(
     return;
   }
 
-  const accessToken = await getShopAccessToken(shopId);
-  if (!accessToken) return;
-
   try {
-    const res = await fetch(
-      `https://${shopId}/admin/api/${API}/products/${productId}.json?fields=id,title,handle,images,variants`,
-      { headers: { "X-Shopify-Access-Token": accessToken }, signal: AbortSignal.timeout(10_000) },
+    const { admin } = await unauthenticated.admin(shopId);
+    const gid = productId.startsWith("gid://")
+      ? productId
+      : `gid://shopify/Product/${productId}`;
+
+    const resp = await admin.graphql(
+      `query($id:ID!){product(id:$id){id title handle priceRange{minVariantPrice{amount}} images(first:1){nodes{url}}}}`,
+      { variables: { id: gid } },
     );
-    if (!res.ok) return;
-    const { product } = (await res.json()) as { product: any };
+    const json = await resp.json() as any;
+    const product = json?.data?.product;
     if (!product) return;
+
     await embedProducts([product], shopId);
     const count = await ImageEmbedding.countDocuments({ shopId, isActive: true });
     await ImageSearchSettings.findOneAndUpdate({ shopId }, { $set: { totalIndexed: count } });
   } catch (e) {
     console.error(`[ImageSearch] Webhook index failed for product ${productId}:`, e);
   }
+}
+
+// ─── Legacy exports (keep search service imports working) ─────────────────────
+
+export async function getShopAccessToken(_shopId: string): Promise<string | null> {
+  return null; // No longer used — admin.graphql() is used instead
 }
