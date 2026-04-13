@@ -460,11 +460,12 @@
   function formatPrice(priceCents) {
     // price is stored in cents (integer)
     if (!priceCents) return "";
-    var amount = (priceCents / 100).toFixed(2);
-    // Use Shopify's store money format if available (e.g. "Rs. 629.95")
-    var fmt = (window.Shopify && window.Shopify.money_format) || "Rs. {{amount}}";
-    return fmt.replace("{{amount}}", amount)
-              .replace("{{amount_no_decimals}}", Math.round(priceCents / 100))
-              .replace("{{amount_with_comma_separator}}", amount.replace(".", ","));
+    var rupees = priceCents / 100;
+    // Format with 2 decimal places, e.g. 629.95
+    var formatted = rupees.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    return "Rs. " + formatted;
   }
 })();
