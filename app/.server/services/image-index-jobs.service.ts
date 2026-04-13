@@ -19,7 +19,7 @@ export type AdminGraphQL = (
   opts?: { variables?: Record<string, unknown> },
 ) => Promise<Response>;
 
-const MODEL_VERSION = "sharp-visual-v1";
+const MODEL_VERSION = "clip-vit-base-patch32-v1";
 
 export function initImageSearchJobs(): void {
   console.log("[ImageSearch] Ready.");
