@@ -7,12 +7,11 @@
  *
  * Entry points:
  *   triggerFullCatalogSyncForShop(shopId, admin)
- *     — Called from the image-search-settings loader whenever totalIndexed===0.
  *     — Paginates all active products, downloads their images, generates
  *       512-dim visual embeddings with sharp, and upserts to image_embeddings.
- *     — Fire-and-forget (caller does not await).
+ *     — Returns count of indexed embeddings.
  *
- *   enqueueProductForIndexing / processWebhookJob
+ *   enqueueProductForIndexing
  *     — Used for webhook-triggered single-product updates (create/update/delete).
  */
 
@@ -23,7 +22,7 @@ import { ImageEmbedding } from "../models/image-embedding.model";
 import { ImageSearchSettings } from "../models/image-search-settings.model";
 import { generateEmbedding } from "./embedding.service";
 
-const MAX_IMAGES_PER_PRODUCT = 5;
+const MAX_IMAGES_PER_PRODUCT = 3; // Reduced from 5 to speed up sync
 const MODEL_VERSION = "sharp-visual-v1";
 
 // ─── Init (no-op — cron removed, indexing is now inline) ─────────────────────
@@ -32,22 +31,90 @@ export function initImageSearchJobs(): void {
   console.log("[ImageSearch] Inline indexing mode — no cron jobs needed.");
 }
 
-// ─── Full Catalog Sync (inline, immediate) ────────────────────────────────────
+// ─── GraphQL query ────────────────────────────────────────────────────────────
 
 const PRODUCTS_QUERY = `
   query listProducts($cursor: String) {
-    products(first: 50, after: $cursor, query: "status:active") {
+    products(first: 20, after: $cursor, query: "status:active") {
       pageInfo { hasNextPage endCursor }
       nodes {
         id
         title
         handle
         priceRange { minVariantPrice { amount } }
-        images(first: 5) { nodes { url } }
+        images(first: 3) { nodes { url } }
       }
     }
   }
 `;
+
+// ─── Core indexing: index one page of products ────────────────────────────────
+
+async function indexProductPage(
+  products: any[],
+  shopId: string,
+): Promise<number> {
+  let count = 0;
+  for (const product of products) {
+    const productId = extractNumericId(product.id);
+    const imageUrls: string[] = (product.images?.nodes || []).map(
+      (n: any) => n.url as string,
+    );
+    const price = Math.round(
+      parseFloat(product.priceRange?.minVariantPrice?.amount || "0") * 100,
+    );
+
+    for (const imageUrl of imageUrls.slice(0, MAX_IMAGES_PER_PRODUCT)) {
+      try {
+        const res = await fetch(imageUrl, {
+          headers: { "User-Agent": "ShopifyImageSearch/1.0" },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) continue;
+
+        const buffer = Buffer.from(await res.arrayBuffer());
+
+        const imageHash = createHash("sha256").update(buffer).digest("hex");
+        const existing = await ImageEmbedding.findOne({ shopId, imageUrl })
+          .select("imageHash")
+          .lean();
+        if (existing && (existing as any).imageHash === imageHash) {
+          count++;
+          continue;
+        }
+
+        const embedding = await generateEmbedding(buffer);
+
+        await ImageEmbedding.findOneAndUpdate(
+          { shopId, imageUrl },
+          {
+            $set: {
+              productId,
+              productTitle: product.title || "",
+              productHandle: product.handle || "",
+              price,
+              imageHash,
+              embedding,
+              modelVersion: MODEL_VERSION,
+              isActive: true,
+              indexedAt: new Date(),
+            },
+            $setOnInsert: { shopId, variantId: "" },
+          },
+          { upsert: true },
+        );
+
+        count++;
+        console.log(`[ImageSearch] Indexed "${product.title}"`);
+      } catch (imgErr) {
+        console.error(`[ImageSearch] Error indexing image ${imageUrl}:`, imgErr);
+      }
+    }
+  }
+  return count;
+}
+
+// ─── Full Catalog Sync ────────────────────────────────────────────────────────
 
 export async function triggerFullCatalogSyncForShop(
   shopId: string,
@@ -55,13 +122,19 @@ export async function triggerFullCatalogSyncForShop(
 ): Promise<number> {
   await connectDB();
 
-  const admin = authenticatedAdmin ?? (await unauthenticated.admin(shopId)).admin;
+  let admin: { graphql: (query: string, opts?: any) => Promise<any> };
+  try {
+    admin = authenticatedAdmin ?? (await unauthenticated.admin(shopId)).admin;
+  } catch (authErr) {
+    console.error("[ImageSearch] Failed to get admin session:", authErr);
+    return 0;
+  }
 
   let cursor: string | null = null;
   let hasNextPage = true;
-  let totalIndexed = 0;
+  let pagesIndexed = 0;
 
-  console.log(`[ImageSearch] Starting inline catalog sync for ${shopId}`);
+  console.log(`[ImageSearch] Starting catalog sync for ${shopId}`);
 
   while (hasNextPage) {
     let productsData: any;
@@ -69,85 +142,35 @@ export async function triggerFullCatalogSyncForShop(
       const response: any = await admin.graphql(PRODUCTS_QUERY, {
         variables: { cursor },
       });
-      const data: any = await response.json();
-      productsData = data?.data?.products;
+      const json: any = await response.json();
+
+      // Log the raw response for debugging
+      if (pagesIndexed === 0) {
+        console.log(
+          "[ImageSearch] First page GraphQL response:",
+          JSON.stringify(json).slice(0, 500),
+        );
+      }
+
+      productsData = json?.data?.products;
     } catch (err) {
       console.error("[ImageSearch] Failed to fetch products page:", err);
       break;
     }
 
-    if (!productsData) break;
+    if (!productsData) {
+      console.error("[ImageSearch] productsData is null/undefined — GraphQL may have failed");
+      break;
+    }
 
     hasNextPage = productsData.pageInfo?.hasNextPage ?? false;
     cursor = productsData.pageInfo?.endCursor ?? null;
 
     const products: any[] = productsData.nodes || [];
+    console.log(`[ImageSearch] Page ${pagesIndexed + 1}: ${products.length} products`);
 
-    for (const product of products) {
-      const productId = extractNumericId(product.id);
-      const imageUrls: string[] = (product.images?.nodes || []).map(
-        (n: any) => n.url as string,
-      );
-      const price = Math.round(
-        parseFloat(product.priceRange?.minVariantPrice?.amount || "0") * 100,
-      );
-
-      for (const imageUrl of imageUrls.slice(0, MAX_IMAGES_PER_PRODUCT)) {
-        try {
-          // Download image
-          const res = await fetch(imageUrl, {
-            headers: { "User-Agent": "ShopifyImageSearch/1.0" },
-            signal: AbortSignal.timeout(15_000),
-          });
-          if (!res.ok) continue;
-
-          const buffer = Buffer.from(await res.arrayBuffer());
-
-          // Skip if image bytes are unchanged
-          const imageHash = createHash("sha256").update(buffer).digest("hex");
-          const existing = await ImageEmbedding.findOne({ shopId, imageUrl })
-            .select("imageHash")
-            .lean();
-          if (existing && (existing as any).imageHash === imageHash) {
-            totalIndexed++;
-            continue;
-          }
-
-          // Generate 512-dim visual embedding
-          const embedding = await generateEmbedding(buffer);
-
-          // Upsert embedding document
-          await ImageEmbedding.findOneAndUpdate(
-            { shopId, imageUrl },
-            {
-              $set: {
-                productId,
-                productTitle: product.title || "",
-                productHandle: product.handle || "",
-                price,
-                imageHash,
-                embedding,
-                modelVersion: MODEL_VERSION,
-                isActive: true,
-                indexedAt: new Date(),
-              },
-              $setOnInsert: { shopId, variantId: "" },
-            },
-            { upsert: true },
-          );
-
-          totalIndexed++;
-          console.log(
-            `[ImageSearch] Indexed ${product.title} — ${imageUrl.slice(-40)}`,
-          );
-        } catch (imgErr) {
-          console.error(
-            `[ImageSearch] Error indexing image ${imageUrl}:`,
-            imgErr,
-          );
-        }
-      }
-    }
+    await indexProductPage(products, shopId);
+    pagesIndexed++;
   }
 
   // Persist final count
@@ -160,13 +183,11 @@ export async function triggerFullCatalogSyncForShop(
     { $set: { totalIndexed: finalCount, lastSyncedAt: new Date() } },
   );
 
-  console.log(
-    `[ImageSearch] Sync complete — ${finalCount} embeddings for ${shopId}`,
-  );
+  console.log(`[ImageSearch] Sync complete — ${finalCount} embeddings for ${shopId}`);
   return finalCount;
 }
 
-// ─── Full Catalog Sync (all enabled shops — nightly convenience) ──────────────
+// ─── Full Catalog Sync (all enabled shops) ────────────────────────────────────
 
 export async function triggerFullCatalogSync(): Promise<void> {
   await connectDB();
@@ -193,27 +214,20 @@ export async function enqueueProductForIndexing(
   productTitle: string,
   jobType: "index" | "reindex" | "delete",
 ): Promise<void> {
-  // For delete: soft-delete all embeddings for this product
   if (jobType === "delete") {
     await ImageEmbedding.updateMany(
       { shopId, productId },
       { $set: { isActive: false } },
     );
-    const count = await ImageEmbedding.countDocuments({
-      shopId,
-      isActive: true,
-    });
+    const count = await ImageEmbedding.countDocuments({ shopId, isActive: true });
     await ImageSearchSettings.findOneAndUpdate(
       { shopId },
       { $set: { totalIndexed: count } },
     );
-    console.log(
-      `[ImageSearch] Deleted embeddings for product ${productId} (${shopId})`,
-    );
+    console.log(`[ImageSearch] Deleted embeddings for product ${productId} (${shopId})`);
     return;
   }
 
-  // For index/reindex: fetch fresh images via offline session and embed
   try {
     const { admin } = await unauthenticated.admin(shopId);
     const gid = productId.startsWith("gid://")
@@ -221,65 +235,22 @@ export async function enqueueProductForIndexing(
       : `gid://shopify/Product/${productId}`;
 
     const res: any = await admin.graphql(
-      `query($id:ID!){product(id:$id){title handle priceRange{minVariantPrice{amount}} images(first:5){nodes{url}}}}`,
+      `query($id:ID!){product(id:$id){title handle priceRange{minVariantPrice{amount}} images(first:3){nodes{url}}}}`,
       { variables: { id: gid } },
     );
     const data: any = await res.json();
     const product = data?.data?.product;
     if (!product) return;
 
-    const imageUrls: string[] = (product.images?.nodes || []).map(
-      (n: any) => n.url as string,
-    );
-    const price = Math.round(
-      parseFloat(product.priceRange?.minVariantPrice?.amount || "0") * 100,
-    );
+    await indexProductPage([product], shopId);
 
-    for (const imageUrl of imageUrls.slice(0, MAX_IMAGES_PER_PRODUCT)) {
-      try {
-        const imgRes = await fetch(imageUrl, {
-          signal: AbortSignal.timeout(15_000),
-        });
-        if (!imgRes.ok) continue;
-        const buffer = Buffer.from(await imgRes.arrayBuffer());
-        const imageHash = createHash("sha256").update(buffer).digest("hex");
-        const embedding = await generateEmbedding(buffer);
-        await ImageEmbedding.findOneAndUpdate(
-          { shopId, imageUrl },
-          {
-            $set: {
-              productId,
-              productTitle: product.title,
-              productHandle: product.handle || "",
-              price,
-              imageHash,
-              embedding,
-              modelVersion: MODEL_VERSION,
-              isActive: true,
-              indexedAt: new Date(),
-            },
-            $setOnInsert: { shopId, variantId: "" },
-          },
-          { upsert: true },
-        );
-      } catch (e) {
-        console.error(`[ImageSearch] Webhook index error for ${imageUrl}:`, e);
-      }
-    }
-
-    const count = await ImageEmbedding.countDocuments({
-      shopId,
-      isActive: true,
-    });
+    const count = await ImageEmbedding.countDocuments({ shopId, isActive: true });
     await ImageSearchSettings.findOneAndUpdate(
       { shopId },
       { $set: { totalIndexed: count } },
     );
   } catch (err) {
-    console.error(
-      `[ImageSearch] Webhook index failed for product ${productId}:`,
-      err,
-    );
+    console.error(`[ImageSearch] Webhook index failed for product ${productId}:`, err);
   }
 }
 

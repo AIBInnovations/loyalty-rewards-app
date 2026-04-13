@@ -3,7 +3,7 @@ import {
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "@remix-run/node";
-import { useLoaderData, useNavigation, useSubmit } from "@remix-run/react";
+import { useLoaderData, useNavigation, useSubmit, useActionData } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -68,17 +68,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const pendingJobs = 0;
   const failedJobs = 0;
 
-  // If image search is enabled but nothing is indexed,
-  // kick off an inline catalog sync immediately using the authenticated admin session.
-  if (settings.enabled && totalIndexed === 0) {
-    import("../.server/services/image-index-jobs.service")
-      .then(({ triggerFullCatalogSyncForShop }) =>
-        triggerFullCatalogSyncForShop(session.shop, admin),
-      )
-      .catch((err) =>
-        console.error("[ImageSearch] Loader auto-sync failed:", err),
-      );
-  }
+  // Nothing to auto-trigger from loader — sync is now driven by the action
+  // (either save_settings when enabling, or trigger_sync button).
 
   // Fetch active (main) theme ID to build the theme editor deeplink
   let themeEditorUrl = `https://${session.shop}/admin/themes`;
@@ -147,27 +138,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       { upsert: true },
     );
 
-    // Auto-trigger a catalog sync when image search is enabled for the first time
-    // or re-enabled after being off, so products are indexed immediately.
+    // If enabling for the first time (or re-enabling with nothing indexed),
+    // run a full sync synchronously so products are indexed before we return.
     const wasEnabled = prev?.enabled ?? false;
     const nothingIndexed = (prev?.totalIndexed ?? 0) === 0;
     if (nowEnabled && (!wasEnabled || nothingIndexed)) {
-      import("../.server/services/image-index-jobs.service")
-        .then(({ triggerFullCatalogSyncForShop }) =>
-          triggerFullCatalogSyncForShop(session.shop, admin),
-        )
-        .catch((err) =>
-          console.error("[ImageSearch] Auto-sync on enable failed:", err),
-        );
+      const { triggerFullCatalogSyncForShop } = await import(
+        "../.server/services/image-index-jobs.service"
+      );
+      const indexed = await triggerFullCatalogSyncForShop(session.shop, admin);
+      return json({ success: true, indexed });
     }
   }
 
   if (actionType === "trigger_sync") {
-    import("../.server/services/image-index-jobs.service")
-      .then(({ triggerFullCatalogSyncForShop }) =>
-        triggerFullCatalogSyncForShop(session.shop, admin),
-      )
-      .catch((err) => console.error("[ImageSearch] Manual sync failed:", err));
+    // Run sync synchronously so the UI gets the real indexed count back
+    const { triggerFullCatalogSyncForShop } = await import(
+      "../.server/services/image-index-jobs.service"
+    );
+    const indexed = await triggerFullCatalogSyncForShop(session.shop, admin);
+    return json({ success: true, indexed });
   }
 
   if (actionType === "clear_index") {
@@ -185,9 +175,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function ImageSearchSettingsPage() {
   const { settings: s, totalIndexed, pendingJobs, failedJobs, themeEditorUrl } =
     useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const nav = useNavigation();
   const submit = useSubmit();
   const saving = nav.state === "submitting";
+  const syncingNow =
+    saving &&
+    (nav.formData?.get("_action") === "trigger_sync" ||
+      nav.formData?.get("_action") === "save_settings");
 
   const [enabled, setEnabled] = useState(s.enabled);
   const [maxResults, setMaxResults] = useState(String(s.maxResults));
@@ -263,6 +258,32 @@ export default function ImageSearchSettingsPage() {
       }}
     >
       <Layout>
+
+        {/* ── Sync result banner ──────────────────────────────── */}
+        {actionData && "indexed" in actionData && (
+          <Layout.Section>
+            <Banner
+              tone={(actionData as any).indexed > 0 ? "success" : "warning"}
+              title={
+                (actionData as any).indexed > 0
+                  ? `Sync complete — ${(actionData as any).indexed} products indexed`
+                  : "Sync complete — no products were indexed. Make sure your store has active products with images."
+              }
+            />
+          </Layout.Section>
+        )}
+
+        {/* ── Syncing in progress ─────────────────────────────── */}
+        {syncingNow && (
+          <Layout.Section>
+            <Banner tone="info" title="Syncing your product catalog…">
+              <Text as="p" variant="bodyMd">
+                This may take a minute depending on the size of your catalog.
+                Please wait.
+              </Text>
+            </Banner>
+          </Layout.Section>
+        )}
 
         {/* ── Theme Activation Guide (shown when enabled) ─────── */}
         {showThemeGuide && (
@@ -348,8 +369,11 @@ export default function ImageSearchSettingsPage() {
                 <Button
                   onClick={handleTriggerSync}
                   loading={saving && nav.formData?.get("_action") === "trigger_sync"}
+                  disabled={saving}
                 >
-                  Trigger Full Catalog Sync
+                  {saving && nav.formData?.get("_action") === "trigger_sync"
+                    ? "Syncing… (may take 1–2 min)"
+                    : "Sync Products Now"}
                 </Button>
                 <Button
                   url={themeEditorUrl}
