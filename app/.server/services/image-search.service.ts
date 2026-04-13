@@ -80,39 +80,55 @@ export async function searchByImage(
     // 2. Generate CLIP embedding (512 floats)
     const queryEmbedding = await generateEmbedding(processed);
 
-    // 3. Atlas Vector Search — shopId pre-filter is the tenant isolation guard
-    const rawResults = await (ImageEmbedding as any).aggregate([
-      {
-        $vectorSearch: {
-          index: "image_vector_index",
-          path: "embedding",
-          queryVector: queryEmbedding,
-          numCandidates: Math.max(100, settings.maxResults * 10),
-          limit: settings.maxResults * 3, // over-fetch before dedup
-          filter: {
-            shopId: { $eq: shopId }, // ← CRITICAL: tenant isolation
-            isActive: { $eq: true },
+    // 3. Vector search — try Atlas $vectorSearch first, fall back to in-memory
+    //    cosine similarity if the index doesn't exist yet (e.g. free M0 tier
+    //    before the index is created in the Atlas UI).
+    let rawResults: any[] = [];
+    try {
+      rawResults = await (ImageEmbedding as any).aggregate([
+        {
+          $vectorSearch: {
+            index: "image_vector_index",
+            path: "embedding",
+            queryVector: queryEmbedding,
+            numCandidates: Math.max(100, settings.maxResults * 10),
+            limit: settings.maxResults * 3,
+            filter: {
+              shopId: { $eq: shopId },
+              isActive: { $eq: true },
+            },
           },
         },
-      },
-      {
-        $addFields: { score: { $meta: "vectorSearchScore" } },
-      },
-      {
-        $match: { score: { $gte: settings.minScore } },
-      },
-      {
-        $project: {
-          productId: 1,
-          productTitle: 1,
-          productHandle: 1,
-          imageUrl: 1,
-          price: 1,
-          score: 1,
-          _id: 0,
+        { $addFields: { score: { $meta: "vectorSearchScore" } } },
+        { $match: { score: { $gte: settings.minScore } } },
+        {
+          $project: {
+            productId: 1, productTitle: 1, productHandle: 1,
+            imageUrl: 1, price: 1, score: 1, _id: 0,
+          },
         },
-      },
-    ]);
+      ]);
+    } catch (vectorErr) {
+      // Atlas Vector Search index not ready — fall back to brute-force cosine
+      console.warn("[ImageSearch] $vectorSearch unavailable, using fallback:", (vectorErr as Error).message);
+      const allDocs = await ImageEmbedding.find(
+        { shopId, isActive: true },
+        { productId: 1, productTitle: 1, productHandle: 1, imageUrl: 1, price: 1, embedding: 1 },
+      ).lean();
+
+      // Cosine similarity in JS (vectors are already L2-normalized unit vectors)
+      rawResults = allDocs
+        .map((doc) => {
+          const dot = (doc.embedding as number[]).reduce(
+            (sum, v, i) => sum + v * queryEmbedding[i],
+            0,
+          );
+          return { ...doc, score: dot };
+        })
+        .filter((d) => d.score >= settings.minScore)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, settings.maxResults * 3);
+    }
 
     // 4. Deduplicate at product level — keep only the highest-scoring image per product
     const seen = new Map<string, SearchResult>();

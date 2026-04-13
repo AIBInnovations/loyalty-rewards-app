@@ -100,13 +100,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const actionType = fd.get("_action");
 
   if (actionType === "save_settings") {
+    const nowEnabled = fd.get("enabled") === "true";
+
+    // Check previous enabled state before updating
+    const prev = await ImageSearchSettings.findOne({ shopId: session.shop }).select("enabled totalIndexed").lean();
+
     await ImageSearchSettings.findOneAndUpdate(
       { shopId: session.shop },
       {
         $set: {
-          enabled: fd.get("enabled") === "true",
+          enabled: nowEnabled,
           maxResults: parseInt(String(fd.get("maxResults") || "8"), 10),
-          minScore: parseFloat(String(fd.get("minScore") || "65")) / 100,
+          minScore: parseFloat(String(fd.get("minScore") || "50")) / 100,
           showPrice: fd.get("showPrice") === "true",
           showAddToCart: fd.get("showAddToCart") === "true",
           primaryColor: String(fd.get("primaryColor") || "#5C6AC4"),
@@ -118,6 +123,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
       { upsert: true },
     );
+
+    // Auto-trigger a catalog sync when image search is enabled for the first time
+    // or re-enabled after being off, so products are indexed immediately.
+    const wasEnabled = prev?.enabled ?? false;
+    const nothingIndexed = (prev?.totalIndexed ?? 0) === 0;
+    if (nowEnabled && (!wasEnabled || nothingIndexed)) {
+      import("../.server/services/image-index-jobs.service")
+        .then(({ triggerFullCatalogSyncForShop }) =>
+          triggerFullCatalogSyncForShop(session.shop),
+        )
+        .catch((err) =>
+          console.error("[ImageSearch] Auto-sync on enable failed:", err),
+        );
+    }
   }
 
   if (actionType === "trigger_sync") {
