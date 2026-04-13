@@ -18,6 +18,8 @@ import {
   TextField,
   RangeSlider,
   Divider,
+  Link,
+  Box,
 } from "@shopify/polaris";
 import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
@@ -31,8 +33,14 @@ import { ImageSyncJob } from "../.server/models/image-sync-job.model";
 import { triggerFullCatalogSyncForShop } from "../.server/services/image-index-jobs.service";
 import { clearShopIndex } from "../.server/services/image-search.service";
 
+// Extension UUID from shopify.extension.toml  →  uid field
+const EXTENSION_UUID = "63dc22e1-27da-358d-1f2a-1e6d9b60e4b66a03a917";
+const BLOCK_HANDLE = "image-search";
+
+// ─── Loader ──────────────────────────────────────────────────────
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   await connectDB();
 
   const settings = await getOrCreateImageSearchSettings(session.shop);
@@ -49,13 +57,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     status: "failed",
   });
 
+  // Fetch active (main) theme ID to build the theme editor deeplink
+  let themeEditorUrl = `https://${session.shop}/admin/themes`;
+  try {
+    const themesRes = await admin.graphql(`#graphql
+      query {
+        themes(first: 5, roles: [MAIN]) {
+          nodes {
+            id
+            role
+          }
+        }
+      }
+    `);
+    const themesData = await themesRes.json();
+    const mainTheme = themesData?.data?.themes?.nodes?.[0];
+    if (mainTheme?.id) {
+      // GID → numeric ID:  "gid://shopify/Theme/12345" → "12345"
+      const themeNumericId = String(mainTheme.id).split("/").pop();
+      // Deeplink that opens Theme Editor → App Embeds → activates our block
+      themeEditorUrl = `https://${session.shop}/admin/themes/${themeNumericId}/editor?context=apps&activateAppId=${EXTENSION_UUID}/${BLOCK_HANDLE}`;
+    }
+  } catch {
+    // Non-fatal — fall back to generic themes link
+  }
+
   return json({
     settings: JSON.parse(JSON.stringify(settings)),
     totalIndexed,
     pendingJobs,
     failedJobs,
+    themeEditorUrl,
+    shop: session.shop,
   });
 };
+
+// ─── Action ──────────────────────────────────────────────────────
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -71,8 +108,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         $set: {
           enabled: fd.get("enabled") === "true",
           maxResults: parseInt(String(fd.get("maxResults") || "8"), 10),
-          minScore:
-            parseFloat(String(fd.get("minScore") || "0.65")) / 100,
+          minScore: parseFloat(String(fd.get("minScore") || "65")) / 100,
           showPrice: fd.get("showPrice") === "true",
           showAddToCart: fd.get("showAddToCart") === "true",
           primaryColor: String(fd.get("primaryColor") || "#5C6AC4"),
@@ -87,7 +123,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (actionType === "trigger_sync") {
-    // Fire-and-forget — don't await in action (would timeout)
     triggerFullCatalogSyncForShop(session.shop).catch((err) =>
       console.error("[ImageSearch] Manual sync failed:", err),
     );
@@ -100,8 +135,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return json({ success: true });
 };
 
+// ─── Page ─────────────────────────────────────────────────────────
+
 export default function ImageSearchSettingsPage() {
-  const { settings: s, totalIndexed, pendingJobs, failedJobs } =
+  const { settings: s, totalIndexed, pendingJobs, failedJobs, themeEditorUrl } =
     useLoaderData<typeof loader>();
   const nav = useNavigation();
   const submit = useSubmit();
@@ -118,6 +155,17 @@ export default function ImageSearchSettingsPage() {
   const [buttonText, setButtonText] = useState(s.buttonText);
   const [modalTitle, setModalTitle] = useState(s.modalTitle);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  // Track if enabled was just toggled on this session (to show the setup guide)
+  const [justEnabled, setJustEnabled] = useState(false);
+
+  const handleEnableChange = useCallback(
+    (val: boolean) => {
+      setEnabled(val);
+      if (val && !s.enabled) setJustEnabled(true);
+      if (!val) setJustEnabled(false);
+    },
+    [s.enabled],
+  );
 
   const handleSave = useCallback(() => {
     const fd = new FormData();
@@ -132,15 +180,8 @@ export default function ImageSearchSettingsPage() {
     fd.append("modalTitle", modalTitle);
     submit(fd, { method: "post" });
   }, [
-    enabled,
-    maxResults,
-    minScorePct,
-    showPrice,
-    showAddToCart,
-    primaryColor,
-    buttonText,
-    modalTitle,
-    submit,
+    enabled, maxResults, minScorePct, showPrice, showAddToCart,
+    primaryColor, buttonText, modalTitle, submit,
   ]);
 
   const handleTriggerSync = useCallback(() => {
@@ -150,10 +191,7 @@ export default function ImageSearchSettingsPage() {
   }, [submit]);
 
   const handleClearIndex = useCallback(() => {
-    if (!showClearConfirm) {
-      setShowClearConfirm(true);
-      return;
-    }
+    if (!showClearConfirm) { setShowClearConfirm(true); return; }
     const fd = new FormData();
     fd.append("_action", "clear_index");
     submit(fd, { method: "post" });
@@ -163,6 +201,11 @@ export default function ImageSearchSettingsPage() {
   const lastSynced = s.lastSyncedAt
     ? new Date(s.lastSyncedAt).toLocaleString()
     : "Never";
+
+  // Show the theme setup guide when:
+  // 1. Feature is currently enabled AND we just toggled it on, OR
+  // 2. Feature is already enabled in DB (so merchant may not have activated in theme yet)
+  const showThemeGuide = enabled && (justEnabled || s.enabled);
 
   return (
     <Page
@@ -175,10 +218,48 @@ export default function ImageSearchSettingsPage() {
       }}
     >
       <Layout>
+
+        {/* ── Theme Activation Guide (shown when enabled) ─────── */}
+        {showThemeGuide && (
+          <Layout.Section>
+            <Banner
+              title="One more step: activate the widget in your theme"
+              tone="info"
+              action={{
+                content: "Open Theme Editor",
+                url: themeEditorUrl,
+                target: "_blank",
+              }}
+            >
+              <BlockStack gap="200">
+                <Text as="p" variant="bodyMd">
+                  Image Search is <strong>enabled</strong> in settings. To make
+                  the camera button appear on your storefront, you need to
+                  activate the widget in your theme once:
+                </Text>
+                <ol style={{ paddingLeft: 20, margin: 0 }}>
+                  <li>Click <strong>Open Theme Editor</strong> below</li>
+                  <li>
+                    In the left panel, find{" "}
+                    <strong>App Embeds</strong> → look for{" "}
+                    <strong>Image Search</strong>
+                  </li>
+                  <li>Toggle it <strong>ON</strong> and click Save</li>
+                </ol>
+                <Text as="p" tone="subdued" variant="bodySm">
+                  You only need to do this once. After that, enabling/disabling
+                  here controls whether the widget is visible — no theme changes
+                  needed.
+                </Text>
+              </BlockStack>
+            </Banner>
+          </Layout.Section>
+        )}
+
         {/* ── Status ─────────────────────────────────────────── */}
         <Layout.AnnotatedSection
           title="Status"
-          description="Enable or disable image search on your storefront. Products are indexed automatically after enabling."
+          description="Enable or disable image search. Products are indexed automatically in the background after enabling."
         >
           <Card>
             <BlockStack gap="400">
@@ -186,21 +267,23 @@ export default function ImageSearchSettingsPage() {
                 <Text variant="headingMd" as="h3">
                   Image Search
                 </Text>
-                <Badge tone={enabled ? "success" : "enabled"}>
+                <Badge tone={enabled ? "success" : "critical"}>
                   {enabled ? "Enabled" : "Disabled"}
                 </Badge>
               </InlineStack>
 
               <Checkbox
-                label="Enable Image Search"
+                label="Enable Image Search on storefront"
+                helpText="When disabled, the widget hides itself automatically — no theme changes needed."
                 checked={enabled}
-                onChange={setEnabled}
+                onChange={handleEnableChange}
               />
 
               <Divider />
 
+              {/* Index Stats */}
               <BlockStack gap="200">
-                <InlineStack gap="400">
+                <InlineStack gap="400" wrap>
                   <Text as="p" variant="bodyMd">
                     <strong>{totalIndexed}</strong> products indexed
                   </Text>
@@ -216,12 +299,21 @@ export default function ImageSearchSettingsPage() {
                 </Text>
               </BlockStack>
 
-              <Button
-                onClick={handleTriggerSync}
-                loading={saving && nav.formData?.get("_action") === "trigger_sync"}
-              >
-                Trigger Full Catalog Sync
-              </Button>
+              <InlineStack gap="300">
+                <Button
+                  onClick={handleTriggerSync}
+                  loading={saving && nav.formData?.get("_action") === "trigger_sync"}
+                >
+                  Trigger Full Catalog Sync
+                </Button>
+                <Button
+                  url={themeEditorUrl}
+                  target="_blank"
+                  variant="plain"
+                >
+                  Open Theme Editor →
+                </Button>
+              </InlineStack>
             </BlockStack>
           </Card>
         </Layout.AnnotatedSection>
@@ -240,7 +332,7 @@ export default function ImageSearchSettingsPage() {
                 onChange={setMaxResults}
                 min={1}
                 max={20}
-                helpText="Maximum number of similar products to show (1–20)"
+                helpText="Number of similar products to show per search (1–20)"
                 autoComplete="off"
               />
 
@@ -259,8 +351,7 @@ export default function ImageSearchSettingsPage() {
                   output
                 />
                 <Text as="p" tone="subdued" variant="bodySm">
-                  Products below this visual similarity threshold are filtered out.
-                  Lower = more results, higher = more precise.
+                  Lower = more results (less strict). Higher = more precise matches.
                 </Text>
               </BlockStack>
 
@@ -291,7 +382,7 @@ export default function ImageSearchSettingsPage() {
                 value={buttonText}
                 onChange={setButtonText}
                 placeholder="Find Similar Products"
-                helpText="Text shown on the camera icon button"
+                helpText="Tooltip on the camera button"
                 autoComplete="off"
               />
 
@@ -300,32 +391,90 @@ export default function ImageSearchSettingsPage() {
                 value={modalTitle}
                 onChange={setModalTitle}
                 placeholder="Visually Similar Products"
-                helpText="Heading shown at the top of the search results modal"
+                helpText="Heading shown inside the search results modal"
                 autoComplete="off"
               />
 
-              <TextField
-                label="Primary Color"
-                value={primaryColor}
-                onChange={setPrimaryColor}
-                placeholder="#5C6AC4"
-                helpText="Hex color code for the widget button and accents"
-                autoComplete="off"
-                prefix="#"
-                connectedRight={
+              <BlockStack gap="200">
+                <TextField
+                  label="Primary Color (hex)"
+                  value={primaryColor}
+                  onChange={setPrimaryColor}
+                  placeholder="5C6AC4"
+                  helpText="Accent color for the button and result cards"
+                  autoComplete="off"
+                  prefix="#"
+                />
+                <Box>
                   <div
                     style={{
-                      width: 36,
-                      height: 36,
+                      width: 40,
+                      height: 40,
                       background: primaryColor.startsWith("#")
                         ? primaryColor
                         : `#${primaryColor}`,
-                      border: "1px solid #ccc",
-                      borderRadius: 4,
+                      borderRadius: 6,
+                      border: "1px solid #e0e0e0",
+                      display: "inline-block",
                     }}
                   />
-                }
-              />
+                </Box>
+              </BlockStack>
+            </BlockStack>
+          </Card>
+        </Layout.AnnotatedSection>
+
+        {/* ── How It Works ────────────────────────────────────── */}
+        <Layout.AnnotatedSection
+          title="How It Works"
+          description="Overview of the full setup flow."
+        >
+          <Card>
+            <BlockStack gap="300">
+              {[
+                { step: "1", text: "Enable Image Search here and save." },
+                {
+                  step: "2",
+                  text: 'Click "Open Theme Editor" \u2192 App Embeds \u2192 toggle Image Search ON \u2192 Save. (One-time only.)',
+                },
+                {
+                  step: "3",
+                  text: "Trigger a catalog sync so product images are indexed. This runs automatically every night.",
+                },
+                {
+                  step: "4",
+                  text: "Customers will see a 📷 camera button on the storefront. They upload a photo and get visually similar products.",
+                },
+                {
+                  step: "5",
+                  text: 'To hide the widget temporarily, uncheck "Enable" here and save \u2014 no theme changes needed.',
+                },
+              ].map(({ step, text }) => (
+                <InlineStack key={step} gap="300" align="start">
+                  <Box>
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        background: "#5C6AC4",
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {step}
+                    </div>
+                  </Box>
+                  <Text as="p" variant="bodyMd">
+                    {text}
+                  </Text>
+                </InlineStack>
+              ))}
             </BlockStack>
           </Card>
         </Layout.AnnotatedSection>
@@ -333,34 +482,34 @@ export default function ImageSearchSettingsPage() {
         {/* ── Danger Zone ─────────────────────────────────────── */}
         <Layout.AnnotatedSection
           title="Danger Zone"
-          description="Permanently remove all indexed image embeddings for your store. You will need to re-sync to use image search again."
+          description="Remove all indexed embeddings. Image search returns no results until you re-sync."
         >
           <Card>
             <BlockStack gap="400">
               {showClearConfirm && (
                 <Banner tone="warning">
                   <p>
-                    This will delete all <strong>{totalIndexed}</strong> indexed
-                    product embeddings. Image search will return no results until
-                    you trigger a full catalog sync. Are you sure?
+                    This deletes all <strong>{totalIndexed}</strong> indexed
+                    product embeddings. Are you sure?
                   </p>
                 </Banner>
               )}
-              <Button
-                tone="critical"
-                onClick={handleClearIndex}
-                loading={saving && nav.formData?.get("_action") === "clear_index"}
-              >
-                {showClearConfirm ? "Yes, Clear Index" : "Clear Index"}
-              </Button>
-              {showClearConfirm && (
-                <Button onClick={() => setShowClearConfirm(false)}>
-                  Cancel
+              <InlineStack gap="300">
+                <Button
+                  tone="critical"
+                  onClick={handleClearIndex}
+                  loading={saving && nav.formData?.get("_action") === "clear_index"}
+                >
+                  {showClearConfirm ? "Yes, Clear Index" : "Clear Index"}
                 </Button>
-              )}
+                {showClearConfirm && (
+                  <Button onClick={() => setShowClearConfirm(false)}>Cancel</Button>
+                )}
+              </InlineStack>
             </BlockStack>
           </Card>
         </Layout.AnnotatedSection>
+
       </Layout>
     </Page>
   );
