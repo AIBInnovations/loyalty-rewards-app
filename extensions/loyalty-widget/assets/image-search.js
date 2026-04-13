@@ -377,11 +377,11 @@
           state.phase = "error";
           state.errorMessage = data.error;
         } else if (data.indexing) {
-          // Catalog is being indexed for the first time — retry after 60s
+          // Catalog not yet indexed — admin needs to run sync first
           state.phase = "error";
           state.errorMessage =
-            "We are indexing your product catalog for the first time. " +
-            "Please try again in about 1 minute.";
+            "Product catalog not indexed yet. " +
+            "Please ask the store admin to go to Image Search settings and click \"Sync Products Now\".";
         } else {
           state.phase = "results";
           state.results = data.results || [];
