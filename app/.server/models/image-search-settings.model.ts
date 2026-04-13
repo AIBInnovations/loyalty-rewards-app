@@ -12,6 +12,7 @@ export interface IImageSearchSettings extends Document {
   modalTitle: string;
   lastSyncedAt: Date | null;
   totalIndexed: number;
+  _accessToken: string; // cached for background sync
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +30,7 @@ const imageSearchSettingsSchema = new Schema<IImageSearchSettings>(
     modalTitle: { type: String, default: "Visually Similar Products" },
     lastSyncedAt: { type: Date, default: null },
     totalIndexed: { type: Number, default: 0 },
+    _accessToken: { type: String, default: "" },
   },
   { timestamps: true },
 );

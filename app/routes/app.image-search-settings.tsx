@@ -43,15 +43,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const settings = await getOrCreateImageSearchSettings(session.shop);
 
-  // Ensure existing shops with legacy high minScore get a lower threshold
-  // (sharp visual vectors produce lower cosine scores than CLIP — 0.45 is too high)
-  if (settings.minScore > 0.3) {
-    await ImageSearchSettings.findOneAndUpdate(
-      { shopId: session.shop },
-      { $set: { minScore: 0.25 } },
-    );
-    settings.minScore = 0.25;
-  }
+  // Cache the access token so background sync can use it without needing the
+  // offline session (avoids unauthenticated.admin issues).
+  // Also migrate legacy high minScore.
+  const needsMigration = settings.minScore > 0.3;
+  await ImageSearchSettings.findOneAndUpdate(
+    { shopId: session.shop },
+    {
+      $set: {
+        ...(needsMigration ? { minScore: 0.25 } : {}),
+        _accessToken: session.accessToken,
+      },
+    },
+  );
+  if (needsMigration) settings.minScore = 0.25;
 
   const totalIndexed = await ImageEmbedding.countDocuments({
     shopId: session.shop,
@@ -146,17 +151,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const { triggerFullCatalogSyncForShop } = await import(
         "../.server/services/image-index-jobs.service"
       );
-      const indexed = await triggerFullCatalogSyncForShop(session.shop, admin);
+      // Pass access token directly — always valid, no offline session lookup needed
+      const indexed = await triggerFullCatalogSyncForShop(session.shop, session.accessToken);
       return json({ success: true, indexed });
     }
   }
 
   if (actionType === "trigger_sync") {
-    // Run sync synchronously so the UI gets the real indexed count back
     const { triggerFullCatalogSyncForShop } = await import(
       "../.server/services/image-index-jobs.service"
     );
-    const indexed = await triggerFullCatalogSyncForShop(session.shop, admin);
+    const indexed = await triggerFullCatalogSyncForShop(session.shop, session.accessToken);
     return json({ success: true, indexed });
   }
 
