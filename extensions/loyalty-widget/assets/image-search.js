@@ -44,10 +44,9 @@
     btn.setAttribute("aria-label", state.config.buttonText || "Find Similar Products");
     btn.title = state.config.buttonText || "Find Similar Products";
     btn.innerHTML =
-      '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
-        '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>' +
-        '<circle cx="20" cy="4" r="3" fill="#fff" opacity="0.8"/>' +
-        '<path d="M19 2.5h2M20 1.5v2" stroke="#5C6AC4" stroke-width="1" stroke-linecap="round"/>' +
+      '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M9 3L7.17 5H4C2.9 5 2 5.9 2 7v13c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2h-3.17L15 3H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z" fill="white"/>' +
+        '<circle cx="12" cy="13" r="3" fill="white"/>' +
       '</svg>';
 
     // Apply primary color from config
