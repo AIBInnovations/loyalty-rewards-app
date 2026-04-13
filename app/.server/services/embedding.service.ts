@@ -29,6 +29,12 @@ export async function getEmbeddingPipeline(): Promise<any> {
     return pipelineInstance;
   })();
 
+  // Attach a no-op catch so Node.js never treats this as an unhandled rejection
+  // (callers that await the promise still receive the real error).
+  loadPromise.catch(() => {
+    loadPromise = null; // Reset so future calls can retry after a transient failure
+  });
+
   return loadPromise;
 }
 

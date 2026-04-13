@@ -1,6 +1,11 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
+
+# Install build tools needed for native addons (sharp, onnxruntime-node)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies (including devDependencies for build)
 COPY package*.json ./

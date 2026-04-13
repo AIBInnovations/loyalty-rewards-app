@@ -1,11 +1,9 @@
 services:
   - type: web
     name: loyalty-rewards-app
-    runtime: node
+    runtime: docker
     region: singapore  # Closest to India
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
     envVars:
       - key: NODE_ENV
         value: production
