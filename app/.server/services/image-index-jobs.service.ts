@@ -21,7 +21,6 @@
  */
 
 import cron from "node-cron";
-import sharp from "sharp";
 import { createHash } from "crypto";
 import { connectDB } from "../../db.server";
 import { unauthenticated } from "../../shopify.server";
@@ -193,6 +192,7 @@ async function processIndexJob(job: any): Promise<void> {
       }
 
       // Preprocess: resize to 224×224, normalize to PNG
+      const { default: sharp } = await import("sharp");
       const processed = await sharp(rawBuffer)
         .resize(224, 224, { fit: "cover", position: "centre" })
         .png()

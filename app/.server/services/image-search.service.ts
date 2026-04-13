@@ -14,7 +14,6 @@
  * so Store A's vectors are structurally unreachable from Store B's queries.
  */
 
-import sharp from "sharp";
 import { createHash } from "crypto";
 import { ImageEmbedding } from "../models/image-embedding.model";
 import {
@@ -72,6 +71,7 @@ export async function searchByImage(
     }
 
     // 1. Preprocess: resize to 224×224, convert to PNG (CLIP input format)
+    const { default: sharp } = await import("sharp");
     const processed = await sharp(rawBuffer)
       .resize(224, 224, { fit: "cover", position: "centre" })
       .png()

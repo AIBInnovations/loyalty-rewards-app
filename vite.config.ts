@@ -50,7 +50,4 @@ export default defineConfig({
   build: {
     assetsInlineLimit: 0,
   },
-  ssr: {
-    external: ["sharp", "@xenova/transformers", "node-cron", "busboy"],
-  },
 });
