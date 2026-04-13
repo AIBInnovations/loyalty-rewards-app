@@ -30,17 +30,30 @@ import { ImageSearchSettings } from "../models/image-search-settings.model";
 import { generateEmbedding } from "./embedding.service";
 
 const MAX_IMAGES_PER_PRODUCT = 5;
-const MAX_JOBS_PER_RUN = 10;
+const MAX_JOBS_PER_RUN = 50;  // increased from 10 — faster indexing for typical store sizes
 const MAX_ATTEMPTS = 3;
-const MODEL_VERSION = "clip-vit-base-patch32-v1";
+const MODEL_VERSION = "sharp-visual-v1";
 
 // ─── Init ─────────────────────────────────────────────────────────
 
 export function initImageSearchJobs(): void {
   console.log("Initializing image search indexing jobs...");
 
-  // Every 15 min: process pending index jobs
-  cron.schedule("*/15 * * * *", async () => {
+  // On startup: auto-sync any shop that has image search enabled but 0 indexed
+  // products (handles first-time setup without requiring manual intervention).
+  // 15-second delay to let the DB connection settle before querying.
+  setTimeout(async () => {
+    try {
+      await connectDB();
+      await autoSyncEmptyShops();
+      await processPendingIndexJobs();
+    } catch (err) {
+      console.error("[ImageSearch] Startup auto-sync failed:", err);
+    }
+  }, 15_000);
+
+  // Every 5 min: process pending index jobs (reduced from 15 min)
+  cron.schedule("*/5 * * * *", async () => {
     try {
       await connectDB();
       await processPendingIndexJobs();
@@ -50,7 +63,6 @@ export function initImageSearchJobs(): void {
   });
 
   // 3:30 AM nightly: enqueue full catalog sync for all enabled shops
-  // (offset from 2AM points expiry + 3AM birthday jobs in jobs.service.ts)
   cron.schedule("30 3 * * *", async () => {
     try {
       await connectDB();
@@ -61,6 +73,36 @@ export function initImageSearchJobs(): void {
   });
 
   console.log("Image search indexing jobs initialized.");
+}
+
+// ─── Startup Auto-Sync ────────────────────────────────────────────
+
+/**
+ * Called once at server startup. Finds every shop that has image search
+ * enabled but totalIndexed === 0 and enqueues a full catalog sync so that
+ * products are indexed without any manual "Trigger Sync" click.
+ */
+async function autoSyncEmptyShops(): Promise<void> {
+  const shops = await ImageSearchSettings.find(
+    { enabled: true, totalIndexed: 0 },
+    { shopId: 1 },
+  ).lean();
+
+  if (shops.length === 0) return;
+
+  console.log(
+    `[ImageSearch] Auto-syncing ${shops.length} shop(s) with 0 indexed products`,
+  );
+  for (const shop of shops) {
+    try {
+      await triggerFullCatalogSyncForShop(shop.shopId);
+    } catch (err) {
+      console.error(
+        `[ImageSearch] Auto-sync failed for shop ${shop.shopId}:`,
+        err,
+      );
+    }
+  }
 }
 
 // ─── Process Pending Jobs ─────────────────────────────────────────
