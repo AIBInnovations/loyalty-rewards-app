@@ -55,6 +55,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     status: "failed",
   });
 
+  // If image search is enabled but nothing is indexed and no jobs are pending,
+  // kick off a catalog sync immediately using the authenticated admin session.
+  // This guarantees indexing starts the first time the settings page is opened,
+  // without relying on the offline session scope or waiting for a cron tick.
+  if (settings.enabled && totalIndexed === 0 && pendingJobs === 0) {
+    import("../.server/services/image-index-jobs.service")
+      .then(({ triggerFullCatalogSyncForShop }) =>
+        triggerFullCatalogSyncForShop(session.shop, admin),
+      )
+      .catch((err) =>
+        console.error("[ImageSearch] Loader auto-sync failed:", err),
+      );
+  }
+
   // Fetch active (main) theme ID to build the theme editor deeplink
   let themeEditorUrl = `https://${session.shop}/admin/themes`;
   try {
@@ -71,9 +85,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const themesData = await themesRes.json();
     const mainTheme = themesData?.data?.themes?.nodes?.[0];
     if (mainTheme?.id) {
-      // GID → numeric ID:  "gid://shopify/Theme/12345" → "12345"
       const themeNumericId = String(mainTheme.id).split("/").pop();
-      // Deeplink that opens Theme Editor → App Embeds → activates our block
       themeEditorUrl = `https://${session.shop}/admin/themes/${themeNumericId}/editor?context=apps&activateAppId=${EXTENSION_UUID}/${BLOCK_HANDLE}`;
     }
   } catch {

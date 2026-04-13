@@ -399,6 +399,10 @@ export async function triggerFullCatalogSync(): Promise<void> {
 
 export async function triggerFullCatalogSyncForShop(
   shopId: string,
+  /** Pass the already-authenticated admin client from a request context to
+   *  avoid relying on the stored offline session (which may lack read_products).
+   *  When omitted the function falls back to unauthenticated.admin(shopId). */
+  authenticatedAdmin?: { graphql: (query: string, opts?: any) => Promise<any> },
 ): Promise<number> {
   let cursor: string | null = null;
   let totalEnqueued = 0;
@@ -419,7 +423,7 @@ export async function triggerFullCatalogSyncForShop(
     }
   `;
 
-  const { admin } = await unauthenticated.admin(shopId);
+  const admin = authenticatedAdmin ?? (await unauthenticated.admin(shopId)).admin;
 
   while (hasNextPage) {
     const response: any = await admin.graphql(PRODUCTS_QUERY, {
