@@ -166,7 +166,7 @@
         previewHtml +
         '<div class="is-empty-state">' +
           '<span class="is-empty-icon">🔍</span>' +
-          '<p class="is-empty-text">No similar products found.<br>Try a clearer photo or a different angle.</p>' +
+          '<p class="is-empty-text">No similar products found.</p>' +
           '<button class="is-retry-btn" id="is-retry-btn">Try Another Image</button>' +
         '</div>'
       );

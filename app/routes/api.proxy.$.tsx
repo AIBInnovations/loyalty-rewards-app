@@ -147,6 +147,22 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
     return handleGetImageSearchConfig(shop);
   }
 
+  if (path === "image-search/status") {
+    const { connectDB } = await import("../db.server");
+    const { ImageEmbedding } = await import("../.server/models/image-embedding.model");
+    const { ImageSearchSettings } = await import("../.server/models/image-search-settings.model");
+    await connectDB();
+    const count = await ImageEmbedding.countDocuments({ shopId: shop, isActive: true });
+    const settings = await ImageSearchSettings.findOne({ shopId: shop }).lean();
+    return json({
+      shop,
+      totalIndexed: count,
+      enabled: settings?.enabled ?? false,
+      minScore: settings?.minScore ?? 0.25,
+      lastSyncedAt: settings?.lastSyncedAt ?? null,
+    });
+  }
+
   if (!shopifyCustomerId) {
     return json({ error: "Not logged in" }, { status: 401 });
   }

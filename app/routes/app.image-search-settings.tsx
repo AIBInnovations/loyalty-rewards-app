@@ -57,20 +57,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shopId: session.shop,
     isActive: true,
   });
-  const pendingJobs = await ImageSyncJob.countDocuments({
+
+  // Clear stale ImageSyncJob records left over from old cron-based implementation
+  // (we no longer use the job queue — all indexing is inline)
+  await ImageSyncJob.deleteMany({
     shopId: session.shop,
     status: { $in: ["pending", "processing"] },
-  });
-  const failedJobs = await ImageSyncJob.countDocuments({
-    shopId: session.shop,
-    status: "failed",
-  });
+  }).catch(() => {});
 
-  // If image search is enabled but nothing is indexed and no jobs are pending,
-  // kick off a catalog sync immediately using the authenticated admin session.
-  // This guarantees indexing starts the first time the settings page is opened,
-  // without relying on the offline session scope or waiting for a cron tick.
-  if (settings.enabled && totalIndexed === 0 && pendingJobs === 0) {
+  const pendingJobs = 0;
+  const failedJobs = 0;
+
+  // If image search is enabled but nothing is indexed,
+  // kick off an inline catalog sync immediately using the authenticated admin session.
+  if (settings.enabled && totalIndexed === 0) {
     import("../.server/services/image-index-jobs.service")
       .then(({ triggerFullCatalogSyncForShop }) =>
         triggerFullCatalogSyncForShop(session.shop, admin),

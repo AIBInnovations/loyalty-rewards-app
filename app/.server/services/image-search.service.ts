@@ -100,7 +100,7 @@ export async function searchByImage(
           },
         },
         { $addFields: { score: { $meta: "vectorSearchScore" } } },
-        { $match: { score: { $gte: settings.minScore } } },
+        // No minScore post-filter — return top N and let dedup handle it
         {
           $project: {
             productId: 1, productTitle: 1, productHandle: 1,
@@ -116,7 +116,13 @@ export async function searchByImage(
         { productId: 1, productTitle: 1, productHandle: 1, imageUrl: 1, price: 1, embedding: 1 },
       ).lean();
 
+      console.log(`[ImageSearch] Brute-force fallback: ${allDocs.length} docs for shop ${shopId}`);
+      if (allDocs.length === 0) {
+        throw new Error("No products indexed yet. Please open Image Search Settings and click 'Trigger Sync'.");
+      }
+
       // Cosine similarity in JS (vectors are already L2-normalized unit vectors)
+      // No minScore filter in brute-force mode — just return the top N results
       rawResults = allDocs
         .map((doc) => {
           const dot = (doc.embedding as number[]).reduce(
@@ -125,7 +131,6 @@ export async function searchByImage(
           );
           return { ...doc, score: dot };
         })
-        .filter((d) => d.score >= settings.minScore)
         .sort((a, b) => b.score - a.score)
         .slice(0, settings.maxResults * 3);
     }
