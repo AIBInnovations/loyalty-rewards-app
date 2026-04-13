@@ -54,6 +54,8 @@ async function fetchProductsGraphQL(
   });
   const json = await resp.json() as any;
 
+  console.log(`[ImageSearch] GraphQL raw response: ${JSON.stringify(json).slice(0, 500)}`);
+
   if (json.errors) {
     throw new Error(`GraphQL errors: ${JSON.stringify(json.errors)}`);
   }
@@ -72,7 +74,10 @@ async function fetchProductsGraphQL(
 
 async function embedProducts(products: any[], shopId: string): Promise<number> {
   let n = 0;
+  console.log(`[ImageSearch] embedProducts: ${products.length} products to process`);
   for (const product of products) {
+    console.log(`[ImageSearch] Processing: "${product.title}", status=${product.status}, imageUrl=${product.images?.nodes?.[0]?.url}`);
+
     // Skip draft and archived products — only index published (ACTIVE) products
     if (product.status && product.status !== "ACTIVE") {
       console.log(`[ImageSearch] Skipping "${product.title}" (status: ${product.status})`);
