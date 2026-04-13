@@ -12,8 +12,6 @@
  *  - MIME type is not jpeg / png / webp
  */
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const busboy = require("busboy");
 import { createHash } from "crypto";
 import { Readable } from "stream";
 
@@ -31,6 +29,8 @@ export async function parseMultipartImage(
 ): Promise<ParsedImage | null> {
   const contentType = request.headers.get("content-type") ?? "";
   if (!contentType.includes("multipart/form-data")) return null;
+
+  const { default: busboy } = await import("busboy");
 
   return new Promise((resolve, reject) => {
     const bb = busboy({
