@@ -1,6 +1,6 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "d83cfca6af1fd5b9b485559348bd9746"
+client_id = "b63a3efb51482133917069cad999bef3"
 name = "Loyalty and Rewards App"
 application_url = "https://loyalty-rewards-app-gxb7.onrender.com"
 embedded = true
