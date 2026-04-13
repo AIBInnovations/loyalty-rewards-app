@@ -77,18 +77,23 @@ export async function searchByImage(
     const indexedCount = await ImageEmbedding.countDocuments({ shopId, isActive: true });
 
     if (indexedCount === 0) {
-      // Trigger background indexing if not already running
+      // Trigger full background sync if not already running
       if (!autoIndexing.has(shopId)) {
         autoIndexing.add(shopId);
         console.log(`[ImageSearch] Auto-indexing triggered for ${shopId}`);
         import("./image-index-jobs.service")
-          .then(({ triggerFullCatalogSyncForShop }) =>
-            triggerFullCatalogSyncForShop(shopId),
+          .then(({ triggerFullCatalogSyncForShop, getShopAccessToken }) =>
+            getShopAccessToken(shopId).then((token) => {
+              if (!token) {
+                console.error("[ImageSearch] Auto-index: no token for", shopId);
+                return;
+              }
+              return triggerFullCatalogSyncForShop(shopId, token);
+            }),
           )
           .catch((err) => console.error("[ImageSearch] Auto-index failed:", err))
           .finally(() => autoIndexing.delete(shopId));
       }
-      // Return indexing status — widget will show "please wait" message
       return {
         results: [],
         searchId: "",

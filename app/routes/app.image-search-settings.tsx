@@ -143,26 +143,56 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       { upsert: true },
     );
 
-    // If enabling for the first time (or re-enabling with nothing indexed),
-    // run a full sync synchronously so products are indexed before we return.
     const wasEnabled = prev?.enabled ?? false;
     const nothingIndexed = (prev?.totalIndexed ?? 0) === 0;
     if (nowEnabled && (!wasEnabled || nothingIndexed)) {
-      const { triggerFullCatalogSyncForShop } = await import(
-        "../.server/services/image-index-jobs.service"
-      );
-      // Pass access token directly — always valid, no offline session lookup needed
-      const indexed = await triggerFullCatalogSyncForShop(session.shop, session.accessToken);
-      return json({ success: true, indexed });
+      // Kick off background sync — fire and forget so save_settings returns fast
+      const token = session.accessToken;
+      const shop = session.shop;
+      import("../.server/services/image-index-jobs.service")
+        .then(({ triggerFullCatalogSyncForShop }) =>
+          triggerFullCatalogSyncForShop(shop, token),
+        )
+        .catch((e) => console.error("[ImageSearch] bg sync failed:", e));
+    }
+  }
+
+  // sync_batch: index ONE page of products, return cursor for next page
+  // The UI calls this repeatedly until done=true — each call is fast (< 20s)
+  if (actionType === "sync_batch") {
+    const { syncBatch, getShopAccessToken } = await import(
+      "../.server/services/image-index-jobs.service"
+    );
+    const cursor = String(fd.get("cursor") || "") || undefined;
+
+    // Prefer session token, fall back to stored token
+    const accessToken = session.accessToken || (await getShopAccessToken(session.shop));
+    if (!accessToken) {
+      return json({ error: "No access token — please reload this page." }, { status: 400 });
+    }
+
+    try {
+      const result = await syncBatch(session.shop, accessToken, cursor);
+      const totalIndexed = await (await import("../.server/models/image-embedding.model"))
+        .ImageEmbedding.countDocuments({ shopId: session.shop, isActive: true });
+      return json({ success: true, ...result, totalIndexed });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[ImageSearch] sync_batch failed:", msg);
+      return json({ error: msg }, { status: 500 });
     }
   }
 
   if (actionType === "trigger_sync") {
-    const { triggerFullCatalogSyncForShop } = await import(
-      "../.server/services/image-index-jobs.service"
-    );
-    const indexed = await triggerFullCatalogSyncForShop(session.shop, session.accessToken);
-    return json({ success: true, indexed });
+    // Just trigger background sync and return immediately
+    const token = session.accessToken;
+    const shop = session.shop;
+    import("../.server/services/image-index-jobs.service")
+      .then(({ triggerFullCatalogSyncForShop }) =>
+        triggerFullCatalogSyncForShop(shop, token),
+      )
+      .catch((e) => console.error("[ImageSearch] bg sync failed:", e));
+    return json({ success: true, syncing: true });
   }
 
   if (actionType === "clear_index") {
@@ -229,11 +259,49 @@ export default function ImageSearchSettingsPage() {
     primaryColor, buttonText, modalTitle, submit,
   ]);
 
+  // ── Batched sync state ──────────────────────────────────────────
+  const [syncState, setSyncState] = useState<
+    "idle" | "running" | "done" | "error"
+  >("idle");
+  const [syncIndexed, setSyncIndexed] = useState(0);
+  const [syncError, setSyncError] = useState("");
+
+  const runSyncBatch = useCallback(
+    async (cursor?: string, accumulated = 0) => {
+      setSyncState("running");
+      try {
+        const fd = new FormData();
+        fd.append("_action", "sync_batch");
+        if (cursor) fd.append("cursor", cursor);
+        // Use fetch directly so we can handle the JSON response ourselves
+        const res = await fetch("?index", { method: "POST", body: fd });
+        const data = (await res.json()) as any;
+        if (data.error) {
+          setSyncError(data.error);
+          setSyncState("error");
+          return;
+        }
+        const nowTotal = data.totalIndexed ?? accumulated + (data.indexed ?? 0);
+        setSyncIndexed(nowTotal);
+        if (data.done || !data.nextCursor) {
+          setSyncState("done");
+        } else {
+          // Continue with next batch automatically
+          await runSyncBatch(data.nextCursor, nowTotal);
+        }
+      } catch (e: any) {
+        setSyncError(e?.message || "Unknown error");
+        setSyncState("error");
+      }
+    },
+    [],
+  );
+
   const handleTriggerSync = useCallback(() => {
-    const fd = new FormData();
-    fd.append("_action", "trigger_sync");
-    submit(fd, { method: "post" });
-  }, [submit]);
+    setSyncIndexed(0);
+    setSyncError("");
+    runSyncBatch();
+  }, [runSyncBatch]);
 
   const handleClearIndex = useCallback(() => {
     if (!showClearConfirm) { setShowClearConfirm(true); return; }
@@ -356,15 +424,25 @@ export default function ImageSearchSettingsPage() {
               <BlockStack gap="200">
                 <InlineStack gap="400" wrap>
                   <Text as="p" variant="bodyMd">
-                    <strong>{totalIndexed}</strong> products indexed
+                    <strong>
+                      {syncState === "running" || syncState === "done"
+                        ? syncIndexed
+                        : totalIndexed}
+                    </strong>{" "}
+                    products indexed
+                    {syncState === "running" && (
+                      <Badge tone="attention"> Syncing…</Badge>
+                    )}
+                    {syncState === "done" && (
+                      <Badge tone="success"> Done!</Badge>
+                    )}
                   </Text>
-                  {pendingJobs > 0 && (
-                    <Badge tone="attention">{`${pendingJobs} jobs pending`}</Badge>
-                  )}
-                  {failedJobs > 0 && (
-                    <Badge tone="critical">{`${failedJobs} jobs failed`}</Badge>
-                  )}
                 </InlineStack>
+                {syncState === "error" && (
+                  <Text as="p" tone="critical" variant="bodySm">
+                    Sync error: {syncError}
+                  </Text>
+                )}
                 <Text as="p" tone="subdued" variant="bodySm">
                   Last synced: {lastSynced}
                 </Text>
@@ -373,18 +451,14 @@ export default function ImageSearchSettingsPage() {
               <InlineStack gap="300">
                 <Button
                   onClick={handleTriggerSync}
-                  loading={saving && nav.formData?.get("_action") === "trigger_sync"}
-                  disabled={saving}
+                  loading={syncState === "running"}
+                  disabled={syncState === "running"}
                 >
-                  {saving && nav.formData?.get("_action") === "trigger_sync"
-                    ? "Syncing… (may take 1–2 min)"
+                  {syncState === "running"
+                    ? `Syncing… (${syncIndexed} indexed)`
                     : "Sync Products Now"}
                 </Button>
-                <Button
-                  url={themeEditorUrl}
-                  target="_blank"
-                  variant="plain"
-                >
+                <Button url={themeEditorUrl} target="_blank" variant="plain">
                   Open Theme Editor →
                 </Button>
               </InlineStack>
