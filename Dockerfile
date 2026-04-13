@@ -2,12 +2,13 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install build tools needed for native addons (sharp, onnxruntime-node)
+# sharp requires libvips; the npm package ships prebuilt binaries for linux-x64
+# but apt-get ensures dependencies are present if a source build is needed.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ \
+    libvips-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies (including devDependencies for build)
+# Install all dependencies (devDeps needed for the Remix build step)
 COPY package*.json ./
 RUN npm ci
 
@@ -15,7 +16,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Remove devDependencies after build
+# Drop devDependencies to shrink the final image
 RUN npm prune --omit=dev
 
 EXPOSE 3000
