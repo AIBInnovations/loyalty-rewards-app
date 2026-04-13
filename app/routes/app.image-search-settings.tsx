@@ -42,6 +42,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   await connectDB();
 
   const settings = await getOrCreateImageSearchSettings(session.shop);
+
+  // Ensure existing shops with legacy high minScore get a lower threshold
+  // (sharp visual vectors produce lower cosine scores than CLIP — 0.45 is too high)
+  if (settings.minScore > 0.3) {
+    await ImageSearchSettings.findOneAndUpdate(
+      { shopId: session.shop },
+      { $set: { minScore: 0.25 } },
+    );
+    settings.minScore = 0.25;
+  }
+
   const totalIndexed = await ImageEmbedding.countDocuments({
     shopId: session.shop,
     isActive: true,
@@ -105,7 +116,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ─── Action ──────────────────────────────────────────────────────
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   await connectDB();
 
   const fd = await request.formData();
@@ -143,7 +154,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (nowEnabled && (!wasEnabled || nothingIndexed)) {
       import("../.server/services/image-index-jobs.service")
         .then(({ triggerFullCatalogSyncForShop }) =>
-          triggerFullCatalogSyncForShop(session.shop),
+          triggerFullCatalogSyncForShop(session.shop, admin),
         )
         .catch((err) =>
           console.error("[ImageSearch] Auto-sync on enable failed:", err),
@@ -154,7 +165,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (actionType === "trigger_sync") {
     import("../.server/services/image-index-jobs.service")
       .then(({ triggerFullCatalogSyncForShop }) =>
-        triggerFullCatalogSyncForShop(session.shop),
+        triggerFullCatalogSyncForShop(session.shop, admin),
       )
       .catch((err) => console.error("[ImageSearch] Manual sync failed:", err));
   }

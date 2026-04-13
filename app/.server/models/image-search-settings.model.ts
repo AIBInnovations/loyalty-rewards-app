@@ -21,7 +21,7 @@ const imageSearchSettingsSchema = new Schema<IImageSearchSettings>(
     shopId: { type: String, required: true, unique: true },
     enabled: { type: Boolean, default: false },
     maxResults: { type: Number, default: 8, min: 1, max: 20 },
-    minScore: { type: Number, default: 0.45, min: 0, max: 1 },
+    minScore: { type: Number, default: 0.25, min: 0, max: 1 },
     showPrice: { type: Boolean, default: true },
     showAddToCart: { type: Boolean, default: true },
     primaryColor: { type: String, default: "#5C6AC4" },
