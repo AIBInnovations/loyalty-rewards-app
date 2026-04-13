@@ -186,12 +186,14 @@ async function processDeleteJob(job: any): Promise<void> {
 // ─── Index Job ────────────────────────────────────────────────────
 
 async function processIndexJob(job: any): Promise<void> {
-  // Fetch product images from Shopify
-  const imageUrls = await fetchProductImageUrls(
-    job.shopId,
-    job.productId,
-    job,
-  );
+  // Use image URLs already stored on the job (set during catalog sync).
+  // Fall back to a fresh Shopify API fetch only for webhook-triggered jobs
+  // that were enqueued before the sync had a chance to store URLs.
+  let imageUrls: string[] = Array.isArray(job.imageUrls) ? job.imageUrls : [];
+
+  if (imageUrls.length === 0) {
+    imageUrls = await fetchProductImageUrls(job.shopId, job.productId, job);
+  }
 
   if (!imageUrls || imageUrls.length === 0) {
     // Product has no images — mark complete with 0 processed
@@ -408,9 +410,11 @@ export async function triggerFullCatalogSyncForShop(
   let totalEnqueued = 0;
   let hasNextPage = true;
 
+  // Fetch image URLs in the same query so processing never needs to call
+  // the Shopify API again (avoids offline-session scope issues at process time).
   const PRODUCTS_QUERY = `
     query listProducts($cursor: String) {
-      products(first: 250, after: $cursor, query: "status:active") {
+      products(first: 50, after: $cursor, query: "status:active") {
         pageInfo {
           hasNextPage
           endCursor
@@ -418,6 +422,13 @@ export async function triggerFullCatalogSyncForShop(
         nodes {
           id
           title
+          handle
+          priceRange {
+            minVariantPrice { amount }
+          }
+          images(first: 5) {
+            nodes { url }
+          }
         }
       }
     }
@@ -438,28 +449,37 @@ export async function triggerFullCatalogSyncForShop(
     hasNextPage = productsData.pageInfo?.hasNextPage ?? false;
     cursor = productsData.pageInfo?.endCursor ?? null;
 
-    // Batch-upsert jobs (ordered:false allows partial success on dup keys)
-    const jobDocs = nodes.map((p: { id: string; title: string }) => ({
-      updateOne: {
-        filter: { shopId, productId: extractNumericId(p.id), status: "pending" },
-        update: {
-          $set: {
-            jobType: "index",
-            productTitle: p.title,
-            triggeredBy: "cron",
-            updatedAt: new Date(),
+    // Batch-upsert jobs, storing image URLs now so processing requires no API call
+    const jobDocs = nodes.map((p: any) => {
+      const imageUrls: string[] = (p.images?.nodes || []).map((n: any) => n.url);
+      const price = Math.round(
+        parseFloat(p.priceRange?.minVariantPrice?.amount || "0") * 100,
+      );
+      return {
+        updateOne: {
+          filter: { shopId, productId: extractNumericId(p.id) },
+          update: {
+            $set: {
+              jobType: "index",
+              productTitle: p.title,
+              productHandle: p.handle || "",
+              price,
+              imageUrls,          // ← stored upfront, no second API call needed
+              triggeredBy: "cron",
+              status: "pending",
+              updatedAt: new Date(),
+            },
+            $setOnInsert: {
+              shopId,
+              productId: extractNumericId(p.id),
+              attempts: 0,
+              processedImages: 0,
+            },
           },
-          $setOnInsert: {
-            shopId,
-            productId: extractNumericId(p.id),
-            attempts: 0,
-            imageUrls: [],
-            processedImages: 0,
-          },
+          upsert: true,
         },
-        upsert: true,
-      },
-    }));
+      };
+    });
 
     if (jobDocs.length > 0) {
       await ImageSyncJob.bulkWrite(jobDocs, { ordered: false });
