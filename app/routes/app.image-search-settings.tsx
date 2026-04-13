@@ -3,7 +3,7 @@ import {
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "@remix-run/node";
-import { useLoaderData, useNavigation, useSubmit, useActionData } from "@remix-run/react";
+import { useLoaderData, useNavigation, useSubmit, useActionData, useFetcher } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -21,7 +21,7 @@ import {
   Link,
   Box,
 } from "@shopify/polaris";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import {
@@ -259,49 +259,54 @@ export default function ImageSearchSettingsPage() {
     primaryColor, buttonText, modalTitle, submit,
   ]);
 
-  // ── Batched sync state ──────────────────────────────────────────
-  const [syncState, setSyncState] = useState<
-    "idle" | "running" | "done" | "error"
-  >("idle");
+  // ── Batched sync — uses useFetcher so Remix handles auth correctly ──
+  const batchFetcher = useFetcher<{
+    success?: boolean;
+    indexed?: number;
+    totalIndexed?: number;
+    nextCursor?: string;
+    done?: boolean;
+    error?: string;
+    syncing?: boolean;
+  }>();
+
+  const [syncState, setSyncState] = useState<"idle" | "running" | "done" | "error">("idle");
   const [syncIndexed, setSyncIndexed] = useState(0);
   const [syncError, setSyncError] = useState("");
 
-  const runSyncBatch = useCallback(
-    async (cursor?: string, accumulated = 0) => {
-      setSyncState("running");
-      try {
-        const fd = new FormData();
-        fd.append("_action", "sync_batch");
-        if (cursor) fd.append("cursor", cursor);
-        // Use fetch directly so we can handle the JSON response ourselves
-        const res = await fetch("?index", { method: "POST", body: fd });
-        const data = (await res.json()) as any;
-        if (data.error) {
-          setSyncError(data.error);
-          setSyncState("error");
-          return;
-        }
-        const nowTotal = data.totalIndexed ?? accumulated + (data.indexed ?? 0);
-        setSyncIndexed(nowTotal);
-        if (data.done || !data.nextCursor) {
-          setSyncState("done");
-        } else {
-          // Continue with next batch automatically
-          await runSyncBatch(data.nextCursor, nowTotal);
-        }
-      } catch (e: any) {
-        setSyncError(e?.message || "Unknown error");
-        setSyncState("error");
-      }
-    },
-    [],
-  );
+  // Chain batches: whenever a batch finishes, submit the next one
+  useEffect(() => {
+    if (batchFetcher.state !== "idle") return;
+    const data = batchFetcher.data;
+    if (!data) return;
+
+    if (data.error) {
+      setSyncError(data.error);
+      setSyncState("error");
+      return;
+    }
+
+    if (data.totalIndexed !== undefined) {
+      setSyncIndexed(data.totalIndexed);
+    }
+
+    if (data.done || !data.nextCursor) {
+      setSyncState("done");
+    } else {
+      // Submit next batch with cursor
+      batchFetcher.submit(
+        { _action: "sync_batch", cursor: data.nextCursor },
+        { method: "post" },
+      );
+    }
+  }, [batchFetcher.state, batchFetcher.data]);
 
   const handleTriggerSync = useCallback(() => {
     setSyncIndexed(0);
     setSyncError("");
-    runSyncBatch();
-  }, [runSyncBatch]);
+    setSyncState("running");
+    batchFetcher.submit({ _action: "sync_batch" }, { method: "post" });
+  }, [batchFetcher]);
 
   const handleClearIndex = useCallback(() => {
     if (!showClearConfirm) { setShowClearConfirm(true); return; }
@@ -451,10 +456,10 @@ export default function ImageSearchSettingsPage() {
               <InlineStack gap="300">
                 <Button
                   onClick={handleTriggerSync}
-                  loading={syncState === "running"}
-                  disabled={syncState === "running"}
+                  loading={syncState === "running" || batchFetcher.state !== "idle"}
+                  disabled={syncState === "running" || batchFetcher.state !== "idle"}
                 >
-                  {syncState === "running"
+                  {syncState === "running" || batchFetcher.state !== "idle"
                     ? `Syncing… (${syncIndexed} indexed)`
                     : "Sync Products Now"}
                 </Button>
