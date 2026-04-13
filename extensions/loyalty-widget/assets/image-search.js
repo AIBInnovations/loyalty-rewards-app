@@ -462,6 +462,6 @@
     // price is stored in cents (integer)
     if (!priceCents) return "";
     var sym = "₹";
-    return sym + (priceCents / 100).toFixed(0);
+    return sym + (priceCents / 100).toFixed(2);
   }
 })();
