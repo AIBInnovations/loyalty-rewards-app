@@ -30,8 +30,6 @@ import {
 } from "../.server/models/image-search-settings.model";
 import { ImageEmbedding } from "../.server/models/image-embedding.model";
 import { ImageSyncJob } from "../.server/models/image-sync-job.model";
-import { triggerFullCatalogSyncForShop } from "../.server/services/image-index-jobs.service";
-import { clearShopIndex } from "../.server/services/image-search.service";
 
 // Extension UUID from shopify.extension.toml  →  uid field
 const EXTENSION_UUID = "63dc22e1-27da-358d-1f2a-1e6d9b60e4b66a03a917";
@@ -123,12 +121,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (actionType === "trigger_sync") {
-    triggerFullCatalogSyncForShop(session.shop).catch((err) =>
-      console.error("[ImageSearch] Manual sync failed:", err),
-    );
+    import("../.server/services/image-index-jobs.service")
+      .then(({ triggerFullCatalogSyncForShop }) =>
+        triggerFullCatalogSyncForShop(session.shop),
+      )
+      .catch((err) => console.error("[ImageSearch] Manual sync failed:", err));
   }
 
   if (actionType === "clear_index") {
+    const { clearShopIndex } = await import(
+      "../.server/services/image-search.service"
+    );
     await clearShopIndex(session.shop);
   }
 

@@ -26,6 +26,7 @@ export default function App() {
         <Link to="/app/customers">Customers</Link>
         <Link to="/app/transactions">Transactions</Link>
         <Link to="/app/referrals">Referrals</Link>
+        <Link to="/app/image-search-settings">Image Search</Link>
         <Link to="/app/cart-settings">Cart Drawer</Link>
         <Link to="/app/timer-settings">Timer</Link>
         <Link to="/app/popup-settings">Exit Popup</Link>
@@ -37,7 +38,6 @@ export default function App() {
         <Link to="/app/ugc-settings">UGC Gallery</Link>
         <Link to="/app/cod-settings">COD WhatsApp</Link>
         <Link to="/app/reviews-settings">Reviews & Q&A</Link>
-        <Link to="/app/image-search-settings">Image Search</Link>
         <Link to="/app/settings">Settings</Link>
       </NavMenu>
       <Outlet />
