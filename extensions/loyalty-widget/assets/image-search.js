@@ -377,6 +377,12 @@
         if (data.error) {
           state.phase = "error";
           state.errorMessage = data.error;
+        } else if (data.indexing) {
+          // Catalog is being indexed for the first time — retry after 60s
+          state.phase = "error";
+          state.errorMessage =
+            "We are indexing your product catalog for the first time. " +
+            "Please try again in about 1 minute.";
         } else {
           state.phase = "results";
           state.results = data.results || [];

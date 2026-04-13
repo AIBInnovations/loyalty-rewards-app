@@ -52,12 +52,15 @@ export interface SearchResponse {
  * 4. Deduplicate at product level (keep best score per product)
  * 5. Log analytics and return results
  */
+// Track shops currently being auto-indexed (in-memory, per process)
+const autoIndexing = new Set<string>();
+
 export async function searchByImage(
   rawBuffer: Buffer,
   shopId: string,
   sessionId: string = "",
   customerId: string = "",
-): Promise<SearchResponse> {
+): Promise<SearchResponse & { indexing?: boolean }> {
   const startMs = Date.now();
   const queryHash = createHash("sha256").update(rawBuffer).digest("hex");
   let logId = "";
@@ -70,70 +73,56 @@ export async function searchByImage(
       throw new Error("Image search is not enabled for this shop");
     }
 
-    // 1. Preprocess: resize to 224×224, convert to PNG (CLIP input format)
+    // Check if catalog has been indexed yet
+    const indexedCount = await ImageEmbedding.countDocuments({ shopId, isActive: true });
+
+    if (indexedCount === 0) {
+      // Trigger background indexing if not already running
+      if (!autoIndexing.has(shopId)) {
+        autoIndexing.add(shopId);
+        console.log(`[ImageSearch] Auto-indexing triggered for ${shopId}`);
+        import("./image-index-jobs.service")
+          .then(({ triggerFullCatalogSyncForShop }) =>
+            triggerFullCatalogSyncForShop(shopId),
+          )
+          .catch((err) => console.error("[ImageSearch] Auto-index failed:", err))
+          .finally(() => autoIndexing.delete(shopId));
+      }
+      // Return indexing status — widget will show "please wait" message
+      return {
+        results: [],
+        searchId: "",
+        durationMs: Date.now() - startMs,
+        indexing: true,
+      };
+    }
+
+    // 1. Preprocess: resize to 224×224, convert to PNG
     const { default: sharp } = await import("sharp");
     const processed = await sharp(rawBuffer)
       .resize(224, 224, { fit: "cover", position: "centre" })
       .png()
       .toBuffer();
 
-    // 2. Generate CLIP embedding (512 floats)
+    // 2. Generate 512-dim visual embedding
     const queryEmbedding = await generateEmbedding(processed);
 
-    // 3. Vector search — try Atlas $vectorSearch first, fall back to in-memory
-    //    cosine similarity if the index doesn't exist yet (e.g. free M0 tier
-    //    before the index is created in the Atlas UI).
-    let rawResults: any[] = [];
-    try {
-      rawResults = await (ImageEmbedding as any).aggregate([
-        {
-          $vectorSearch: {
-            index: "image_vector_index",
-            path: "embedding",
-            queryVector: queryEmbedding,
-            numCandidates: Math.max(100, settings.maxResults * 10),
-            limit: settings.maxResults * 3,
-            filter: {
-              shopId: { $eq: shopId },
-              isActive: { $eq: true },
-            },
-          },
-        },
-        { $addFields: { score: { $meta: "vectorSearchScore" } } },
-        // No minScore post-filter — return top N and let dedup handle it
-        {
-          $project: {
-            productId: 1, productTitle: 1, productHandle: 1,
-            imageUrl: 1, price: 1, score: 1, _id: 0,
-          },
-        },
-      ]);
-    } catch (vectorErr) {
-      // Atlas Vector Search index not ready — fall back to brute-force cosine
-      console.warn("[ImageSearch] $vectorSearch unavailable, using fallback:", (vectorErr as Error).message);
-      const allDocs = await ImageEmbedding.find(
-        { shopId, isActive: true },
-        { productId: 1, productTitle: 1, productHandle: 1, imageUrl: 1, price: 1, embedding: 1 },
-      ).lean();
+    // 3. Brute-force cosine similarity (no Atlas Vector Search index needed)
+    const allDocs = await ImageEmbedding.find(
+      { shopId, isActive: true },
+      { productId: 1, productTitle: 1, productHandle: 1, imageUrl: 1, price: 1, embedding: 1 },
+    ).lean();
 
-      console.log(`[ImageSearch] Brute-force fallback: ${allDocs.length} docs for shop ${shopId}`);
-      if (allDocs.length === 0) {
-        throw new Error("No products indexed yet. Please open Image Search Settings and click 'Trigger Sync'.");
-      }
+    console.log(`[ImageSearch] Searching ${allDocs.length} embeddings for shop ${shopId}`);
 
-      // Cosine similarity in JS (vectors are already L2-normalized unit vectors)
-      // No minScore filter in brute-force mode — just return the top N results
-      rawResults = allDocs
-        .map((doc) => {
-          const dot = (doc.embedding as number[]).reduce(
-            (sum, v, i) => sum + v * queryEmbedding[i],
-            0,
-          );
-          return { ...doc, score: dot };
-        })
-        .sort((a, b) => b.score - a.score)
-        .slice(0, settings.maxResults * 3);
-    }
+    const rawResults: any[] = allDocs
+      .map((doc) => {
+        const emb = doc.embedding as number[];
+        const dot = emb.reduce((sum, v, i) => sum + v * queryEmbedding[i], 0);
+        return { ...doc, score: dot };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, settings.maxResults * 3);
 
     // 4. Deduplicate at product level — keep only the highest-scoring image per product
     const seen = new Map<string, SearchResult>();
