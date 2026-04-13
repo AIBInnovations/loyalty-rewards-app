@@ -35,6 +35,7 @@ const PRODUCTS_QUERY = `
         id
         title
         handle
+        status
         priceRange { minVariantPrice { amount } }
         images(first: 1) { nodes { url } }
       }
@@ -72,6 +73,12 @@ async function fetchProductsGraphQL(
 async function embedProducts(products: any[], shopId: string): Promise<number> {
   let n = 0;
   for (const product of products) {
+    // Skip draft and archived products — only index published (ACTIVE) products
+    if (product.status && product.status !== "ACTIVE") {
+      console.log(`[ImageSearch] Skipping "${product.title}" (status: ${product.status})`);
+      continue;
+    }
+
     const imageUrl: string | undefined = product.images?.nodes?.[0]?.url;
     if (!imageUrl) {
       console.log(`[ImageSearch] No image for "${product.title}", skipping`);
@@ -245,12 +252,21 @@ export async function enqueueProductForIndexing(
       : `gid://shopify/Product/${productId}`;
 
     const resp = await admin.graphql(
-      `query($id:ID!){product(id:$id){id title handle priceRange{minVariantPrice{amount}} images(first:1){nodes{url}}}}`,
+      `query($id:ID!){product(id:$id){id title handle status priceRange{minVariantPrice{amount}} images(first:1){nodes{url}}}}`,
       { variables: { id: gid } },
     );
     const json = await resp.json() as any;
     const product = json?.data?.product;
     if (!product) return;
+
+    // If product is no longer active (draft/archived), remove it from index
+    if (product.status !== "ACTIVE") {
+      await ImageEmbedding.updateMany({ shopId, productId }, { $set: { isActive: false } });
+      console.log(`[ImageSearch] Product "${product.title}" is ${product.status} — removed from index`);
+      const count = await ImageEmbedding.countDocuments({ shopId, isActive: true });
+      await ImageSearchSettings.findOneAndUpdate({ shopId }, { $set: { totalIndexed: count } });
+      return;
+    }
 
     await embedProducts([product], shopId);
     const count = await ImageEmbedding.countDocuments({ shopId, isActive: true });
