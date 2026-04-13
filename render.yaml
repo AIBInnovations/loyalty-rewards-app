@@ -18,6 +18,10 @@ services:
       - key: SHOPIFY_APP_URL
         sync: false  # Set to your Render URL after first deploy
       - key: SCOPES
-        value: read_customers,write_customers,read_orders,write_discounts,read_discounts
+        value: read_customers,write_customers,read_orders,write_discounts,read_discounts,read_products
       - key: PORT
         value: 3000
+      - key: HF_HOME
+        value: /tmp/hf_cache
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=400

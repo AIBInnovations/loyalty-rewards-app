@@ -1,0 +1,65 @@
+{% comment %}
+  Image Search Widget Block
+  Adds a floating camera button to the storefront. When clicked, opens a
+  modal where the customer can upload an image to find visually similar products.
+
+  All API calls go through /apps/loyalty/image-search/* (Shopify App Proxy).
+  Each shop only ever searches its own indexed product images.
+{% endcomment %}
+
+<div
+  id="is-root"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-customer-id="{{ customer.id | default: '' }}"
+  style="--is-primary: {{ block.settings.primary_color }};"
+></div>
+
+{{ 'image-search.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'image-search.js' | asset_url }}" defer="defer"></script>
+
+{% schema %}
+{
+  "name": "Image Search",
+  "target": "body",
+  "settings": [
+    {
+      "type": "color",
+      "id": "primary_color",
+      "label": "Primary Color",
+      "default": "#5C6AC4"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_collection",
+      "label": "Show on collection pages",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_search",
+      "label": "Show on search results page",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "fab_bottom",
+      "label": "Button bottom offset (px)",
+      "min": 60,
+      "max": 200,
+      "step": 10,
+      "default": 100,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "fab_right",
+      "label": "Button right offset (px)",
+      "min": 16,
+      "max": 80,
+      "step": 4,
+      "default": 20,
+      "unit": "px"
+    }
+  ]
+}
+{% endschema %}

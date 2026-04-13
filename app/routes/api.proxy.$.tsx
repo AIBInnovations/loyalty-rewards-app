@@ -5,6 +5,12 @@ import {
   verifyAppProxySignature,
   getCustomerIdFromProxy,
 } from "../.server/utils/proxy-auth";
+import { parseMultipartImage } from "../.server/utils/multipart";
+import {
+  searchByImage,
+  getPublicSearchConfig,
+  trackSearchEvent,
+} from "../.server/services/image-search.service";
 import { getBalance, redeemPoints } from "../.server/services/points.service";
 import { Customer } from "../.server/models/customer.model";
 import { Reward } from "../.server/models/reward.model";
@@ -132,6 +138,13 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
 
   if (path === "reviews/questions") {
     return handleGetQuestions(params, shop);
+  }
+
+  if (path === "image-search/config") {
+    if (!checkRateLimit(`image-search-config:${shop}`, 60)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetImageSearchConfig(shop);
   }
 
   if (!shopifyCustomerId) {
@@ -580,12 +593,25 @@ export const action = async ({ request, params: routeParams }: ActionFunctionArg
   const shopifyCustomerId = getCustomerIdFromProxy(params);
   const shop = params.get("shop") || "";
 
+  // Extract sub-route from the catch-all: /api/proxy/redeem -> "redeem"
+  const route = routeParams["*"] || "";
+
+  // ─── Image search endpoints (no customer auth required) ─────────
+  if (route === "image-search/search") {
+    if (!checkRateLimit(`image-search:${shop}`, 10)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleImageSearch(request, shop, shopifyCustomerId || "");
+  }
+
+  if (route === "image-search/event") {
+    return handleImageSearchEvent(request, shop);
+  }
+
+  // ─── Customer-auth required routes ──────────────────────────────
   if (!shopifyCustomerId) {
     return json({ error: "Not logged in" }, { status: 401 });
   }
-
-  // Extract sub-route from the catch-all: /api/proxy/redeem -> "redeem"
-  const route = routeParams["*"] || "";
 
   switch (route) {
     case "redeem":
@@ -907,4 +933,81 @@ async function handleSubmitQuestion(request: Request, shop: string) {
 
   await Question.create({ shopId: shop, productId, question, answered: false });
   return json({ success: true });
+}
+
+// ─── Image Search Handlers ────────────────────────────────────────
+
+async function handleGetImageSearchConfig(shop: string) {
+  const config = await getPublicSearchConfig(shop);
+  return json(config, { headers: { "Cache-Control": "no-store" } });
+}
+
+async function handleImageSearch(
+  request: Request,
+  shop: string,
+  customerId: string,
+) {
+  const parsed = await parseMultipartImage(request);
+
+  if (!parsed) {
+    return json(
+      {
+        error:
+          "Invalid image. Please upload a JPEG, PNG, or WebP file under 5 MB.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const url = new URL(request.url);
+  const sessionId = url.searchParams.get("session_id") || "";
+
+  try {
+    const response = await searchByImage(
+      parsed.buffer,
+      shop,
+      sessionId,
+      customerId,
+    );
+    return json(response, { headers: { "Cache-Control": "no-store" } });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Image search failed";
+    return json({ error: message }, { status: 500 });
+  }
+}
+
+async function handleImageSearchEvent(request: Request, shop: string) {
+  let body: Record<string, any> = {};
+  try {
+    const ct = request.headers.get("content-type") || "";
+    body = ct.includes("application/json")
+      ? await request.json()
+      : Object.fromEntries(await request.formData());
+  } catch {
+    return json({ error: "Invalid body" }, { status: 400 });
+  }
+
+  const { searchId, event, productId, position } = body;
+  if (!searchId || !event || !productId) {
+    return json({ error: "searchId, event, and productId are required" }, { status: 400 });
+  }
+
+  const validEvents = ["click", "add_to_cart"];
+  if (!validEvents.includes(event)) {
+    return json({ error: "Invalid event type" }, { status: 400 });
+  }
+
+  try {
+    await trackSearchEvent(
+      String(searchId),
+      shop,
+      event as "click" | "add_to_cart",
+      String(productId),
+      Number(position) || 0,
+    );
+    return json({ success: true });
+  } catch {
+    return json({ success: false });
+  }
 }

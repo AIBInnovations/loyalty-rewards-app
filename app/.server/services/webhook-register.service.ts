@@ -46,6 +46,9 @@ export async function registerWebhooksOnStartup(): Promise<void> {
       "CHECKOUTS_CREATE",
       "CHECKOUTS_UPDATE",
       "APP_UNINSTALLED",
+      "PRODUCTS_CREATE",
+      "PRODUCTS_UPDATE",
+      "PRODUCTS_DELETE",
     ];
 
     for (const session of sessions) {

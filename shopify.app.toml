@@ -9,7 +9,7 @@ embedded = true
 automatically_update_urls_on_dev = true
 
 [access_scopes]
-scopes = "read_customers,write_customers,read_orders,write_discounts,read_discounts"
+scopes = "read_customers,write_customers,read_orders,write_discounts,read_discounts,read_products"
 
 [auth]
 redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
@@ -22,6 +22,10 @@ api_version = "2025-01"
   # after protected customer data access is approved.
   [[webhooks.subscriptions]]
   topics = ["app/uninstalled"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["products/create", "products/update", "products/delete"]
   uri = "/webhooks"
 
 [app_proxy]

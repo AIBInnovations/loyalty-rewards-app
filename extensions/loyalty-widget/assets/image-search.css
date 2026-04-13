@@ -1,0 +1,317 @@
+/* Image Search Widget — scoped with .is- prefix to avoid theme conflicts */
+
+/* ── CSS Variables ───────────────────────────────────────────────── */
+:root {
+  --is-primary: #5c6ac4;
+  --is-radius: 12px;
+  --is-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+  --is-overlay: rgba(0, 0, 0, 0.55);
+  --is-card-gap: 10px;
+}
+
+/* ── Floating Action Button ──────────────────────────────────────── */
+.is-fab {
+  position: fixed;
+  bottom: 100px;
+  right: 20px;
+  z-index: 9990;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--is-primary);
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--is-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.is-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+}
+.is-fab svg {
+  width: 24px;
+  height: 24px;
+  fill: #fff;
+}
+
+/* ── Modal Overlay ───────────────────────────────────────────────── */
+.is-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9995;
+  background: var(--is-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: is-fade-in 0.2s ease;
+}
+@keyframes is-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Modal Container ─────────────────────────────────────────────── */
+.is-modal {
+  background: #fff;
+  border-radius: var(--is-radius);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--is-shadow);
+  animation: is-slide-up 0.22s ease;
+  display: flex;
+  flex-direction: column;
+}
+@keyframes is-slide-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── Modal Header ────────────────────────────────────────────────── */
+.is-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.is-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+.is-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #666;
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+.is-modal-close:hover {
+  color: #000;
+}
+
+/* ── Modal Body ──────────────────────────────────────────────────── */
+.is-modal-body {
+  padding: 20px;
+  flex: 1;
+}
+
+/* ── Dropzone ────────────────────────────────────────────────────── */
+.is-dropzone {
+  border: 2px dashed #d0d0d0;
+  border-radius: 10px;
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.is-dropzone.is-drag-over {
+  border-color: var(--is-primary);
+  background: rgba(92, 106, 196, 0.05);
+}
+.is-dropzone-icon {
+  font-size: 36px;
+  margin-bottom: 10px;
+  display: block;
+}
+.is-dropzone-text {
+  font-size: 14px;
+  color: #555;
+  margin: 0 0 8px;
+}
+.is-dropzone-hint {
+  font-size: 12px;
+  color: #999;
+  margin: 0;
+}
+.is-upload-btn {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 8px 20px;
+  background: var(--is-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.is-upload-btn:hover {
+  opacity: 0.88;
+}
+
+/* ── Preview ─────────────────────────────────────────────────────── */
+.is-preview-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.is-preview-img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+.is-preview-info {
+  flex: 1;
+}
+.is-preview-change {
+  font-size: 12px;
+  color: var(--is-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* ── Spinner ─────────────────────────────────────────────────────── */
+.is-searching {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 0;
+}
+.is-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #eee;
+  border-top-color: var(--is-primary);
+  border-radius: 50%;
+  animation: is-spin 0.7s linear infinite;
+}
+@keyframes is-spin {
+  to { transform: rotate(360deg); }
+}
+.is-searching-text {
+  font-size: 14px;
+  color: #555;
+}
+
+/* ── Results ─────────────────────────────────────────────────────── */
+.is-results-header {
+  font-size: 13px;
+  color: #777;
+  margin: 0 0 14px;
+}
+.is-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: var(--is-card-gap);
+}
+.is-product-card {
+  border: 1px solid #ebebeb;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: box-shadow 0.18s, transform 0.18s;
+}
+.is-product-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+.is-product-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  background: #f5f5f5;
+}
+.is-product-info {
+  padding: 8px;
+}
+.is-product-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1a1a1a;
+  margin: 0 0 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.is-product-price {
+  font-size: 12px;
+  color: #444;
+  margin: 0 0 6px;
+}
+.is-atc-btn {
+  width: 100%;
+  padding: 6px 0;
+  background: var(--is-primary);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.is-atc-btn:hover {
+  opacity: 0.85;
+}
+
+/* ── Empty / Error States ────────────────────────────────────────── */
+.is-empty-state,
+.is-error-state {
+  text-align: center;
+  padding: 32px 20px;
+}
+.is-empty-icon,
+.is-error-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+  display: block;
+}
+.is-empty-text,
+.is-error-text {
+  font-size: 14px;
+  color: #555;
+  margin: 0 0 16px;
+}
+.is-retry-btn {
+  padding: 8px 20px;
+  background: var(--is-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ── Mobile ──────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .is-modal {
+    max-height: 96vh;
+    border-radius: var(--is-radius) var(--is-radius) 0 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+  .is-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .is-results-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

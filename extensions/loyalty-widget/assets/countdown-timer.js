@@ -62,12 +62,24 @@
     if (!settings || !settings.enabled) return;
     if (dismissed && settings.showDismissButton) return;
 
-    // Re-apply colors from fetched settings (overrides theme CSS with !important)
-    applyColors(
-      settings.barBackgroundColor || config.barBg,
-      settings.barTextColor       || config.barText,
-      settings.timerDigitColor    || config.digitColor
-    );
+    // Inject a <style> tag with DB colors — most reliable override method
+    var bg    = settings.barBackgroundColor || config.barBg    || "#1a1a1a";
+    var text  = settings.barTextColor       || config.barText  || "#ffffff";
+    var digit = settings.timerDigitColor    || config.digitColor || "#ff4444";
+    var styleEl = document.getElementById("ct-color-override");
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = "ct-color-override";
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent =
+      ".ct-bar{background:" + bg + "!important;color:" + text + "!important}" +
+      ".ct-bar .ct-digit-box,.ct-bar .ct-separator{color:" + digit + "!important}" +
+      ".ct-bar .ct-dismiss{color:" + text + "!important}" +
+      ".ct-product{border-left-color:" + digit + "!important}" +
+      ".ct-product .ct-digit-box,.ct-product .ct-separator{color:" + digit + "!important}" +
+      ".ct-product .ct-pulse-dot{background:" + digit + "!important}";
+    applyColors(bg, text, digit);
 
     // Check targeting
     if (!shouldShowOnCurrentPage()) return;

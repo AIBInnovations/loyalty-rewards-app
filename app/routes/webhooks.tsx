@@ -13,6 +13,11 @@ import {
 } from "../.server/services/webhook.service";
 import { handleCheckoutWebhook } from "../.server/services/abandoned-cart-poller.service";
 import { sendCodConfirmation } from "../.server/services/cod-whatsapp.service";
+import {
+  handleProductCreate,
+  handleProductUpdate,
+  handleProductDelete,
+} from "../.server/services/image-search.service";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, shop, session, admin, payload } =
@@ -59,6 +64,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       case "CHECKOUTS_CREATE":
       case "CHECKOUTS_UPDATE":
         await handleCheckoutWebhook(shop, payload);
+        break;
+
+      case "PRODUCTS_CREATE":
+        // Fire-and-forget — must return 200 quickly
+        handleProductCreate(shop, payload).catch((err) =>
+          console.error("[ImageSearch] PRODUCTS_CREATE error:", err),
+        );
+        break;
+
+      case "PRODUCTS_UPDATE":
+        handleProductUpdate(shop, payload).catch((err) =>
+          console.error("[ImageSearch] PRODUCTS_UPDATE error:", err),
+        );
+        break;
+
+      case "PRODUCTS_DELETE":
+        handleProductDelete(shop, payload).catch((err) =>
+          console.error("[ImageSearch] PRODUCTS_DELETE error:", err),
+        );
         break;
 
       case "APP_UNINSTALLED":

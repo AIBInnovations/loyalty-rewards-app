@@ -11,6 +11,8 @@ import { connectDB } from "./db.server";
 import { initBackgroundJobs } from "./.server/services/jobs.service";
 import { registerWebhooksOnStartup } from "./.server/services/webhook-register.service";
 import { initVoiceAgentService } from "./.server/services/voice-agent.service";
+import { initImageSearchJobs } from "./.server/services/image-index-jobs.service";
+import { warmupEmbeddingPipeline } from "./.server/services/embedding.service";
 
 // Connect to MongoDB, start background jobs, and auto-register webhooks
 connectDB()
@@ -18,6 +20,8 @@ connectDB()
     initBackgroundJobs();
     registerWebhooksOnStartup();
     initVoiceAgentService();
+    initImageSearchJobs();
+    warmupEmbeddingPipeline(); // fire-and-forget — pre-loads CLIP model weights
   })
   .catch(console.error);
 
