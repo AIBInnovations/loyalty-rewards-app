@@ -43,20 +43,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const settings = await getOrCreateImageSearchSettings(session.shop);
 
-  // Cache the access token so background sync can use it without needing the
-  // offline session (avoids unauthenticated.admin issues).
-  // Also migrate legacy high minScore.
-  const needsMigration = settings.minScore > 0.3;
+  // Cache the access token so background sync can use it without needing the offline session.
   await ImageSearchSettings.findOneAndUpdate(
     { shopId: session.shop },
-    {
-      $set: {
-        ...(needsMigration ? { minScore: 0.25 } : {}),
-        _accessToken: session.accessToken,
-      },
-    },
+    { $set: { _accessToken: session.accessToken } },
   );
-  if (needsMigration) settings.minScore = 0.25;
 
   const totalIndexed = await ImageEmbedding.countDocuments({
     shopId: session.shop,
