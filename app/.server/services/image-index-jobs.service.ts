@@ -119,13 +119,12 @@ async function embedProducts(products: any[], shopId: string): Promise<number> {
         .select("imageHash isActive")
         .lean();
       if (existing && (existing as any).imageHash === imageHash) {
-        // Same image — but restore isActive if it was soft-deleted (e.g. after "Clear Index")
-        if (!(existing as any).isActive) {
-          await ImageEmbedding.updateOne(
-            { shopId, imageUrl },
-            { $set: { isActive: true, indexedAt: new Date() } },
-          );
-        }
+        // Same image — always update indexedAt so mark-and-sweep can detect stale entries,
+        // and restore isActive in case it was soft-deleted (e.g. after "Clear Index")
+        await ImageEmbedding.updateOne(
+          { shopId, imageUrl },
+          { $set: { isActive: true, indexedAt: new Date() } },
+        );
         n++;
         continue; // unchanged — skip re-embedding
       }
@@ -168,18 +167,31 @@ export async function syncBatch(
   admin: AdminGraphQL,
   shopId: string,
   cursor?: string,
-): Promise<{ indexed: number; nextCursor?: string; done: boolean; totalIndexed: number }> {
+  syncStartedAt?: Date,
+): Promise<{ indexed: number; nextCursor?: string; done: boolean; totalIndexed: number; syncStartedAt: string }> {
   await connectDB();
+
+  // Record start time on the first batch (no cursor = first call)
+  const syncStart = syncStartedAt ?? new Date();
 
   const { products, nextCursor } = await fetchProductsGraphQL(admin, cursor);
 
   if (!products.length) {
+    // Final batch — run mark-and-sweep: deactivate embeddings not touched in this sync
+    const deactivated = await ImageEmbedding.updateMany(
+      { shopId, isActive: true, indexedAt: { $lt: syncStart } },
+      { $set: { isActive: false } },
+    );
+    if (deactivated.modifiedCount > 0) {
+      console.log(`[ImageSearch] Swept ${deactivated.modifiedCount} stale/unpublished embeddings`);
+    }
+
     const total = await ImageEmbedding.countDocuments({ shopId, isActive: true });
     await ImageSearchSettings.findOneAndUpdate(
       { shopId },
       { $set: { totalIndexed: total, lastSyncedAt: new Date() } },
     );
-    return { indexed: 0, done: true, totalIndexed: total };
+    return { indexed: 0, done: true, totalIndexed: total, syncStartedAt: syncStart.toISOString() };
   }
 
   const indexed = await embedProducts(products, shopId);
@@ -195,6 +207,7 @@ export async function syncBatch(
     nextCursor,
     done: !nextCursor,
     totalIndexed: total,
+    syncStartedAt: syncStart.toISOString(),
   };
 }
 

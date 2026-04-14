@@ -164,12 +164,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       "../.server/services/image-index-jobs.service"
     );
     const cursor = String(fd.get("cursor") || "") || undefined;
+    const syncStartedAtRaw = fd.get("syncStartedAt");
+    const syncStartedAt = syncStartedAtRaw ? new Date(String(syncStartedAtRaw)) : undefined;
 
     try {
       const result = await syncBatch(
         admin.graphql.bind(admin) as unknown as import("../.server/services/image-index-jobs.service").AdminGraphQL,
         session.shop,
         cursor,
+        syncStartedAt,
       );
       const totalIndexed = await (await import("../.server/models/image-embedding.model"))
         .ImageEmbedding.countDocuments({ shopId: session.shop, isActive: true });
@@ -266,6 +269,7 @@ export default function ImageSearchSettingsPage() {
     done?: boolean;
     error?: string;
     syncing?: boolean;
+    syncStartedAt?: string;
   }>();
 
   const [syncState, setSyncState] = useState<"idle" | "running" | "done" | "error">("idle");
@@ -291,9 +295,13 @@ export default function ImageSearchSettingsPage() {
     if (data.done || !data.nextCursor) {
       setSyncState("done");
     } else {
-      // Submit next batch with cursor
+      // Submit next batch with cursor, carrying syncStartedAt through the chain
       batchFetcher.submit(
-        { _action: "sync_batch", cursor: data.nextCursor },
+        {
+          _action: "sync_batch",
+          cursor: data.nextCursor,
+          ...(data.syncStartedAt ? { syncStartedAt: data.syncStartedAt } : {}),
+        },
         { method: "post" },
       );
     }
