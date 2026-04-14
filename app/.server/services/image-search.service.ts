@@ -121,6 +121,7 @@ export async function searchByImage(
         const dot = emb.reduce((sum, v, i) => sum + v * queryEmbedding[i], 0);
         return { ...doc, score: dot };
       })
+      .filter((r) => r.score >= settings.minScore)   // ← apply similarity threshold
       .sort((a, b) => b.score - a.score)
       .slice(0, settings.maxResults * 3);
 
