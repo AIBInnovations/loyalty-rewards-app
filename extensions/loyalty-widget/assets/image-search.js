@@ -459,14 +459,12 @@
   }
 
   function formatPrice(priceCents) {
-    // price is stored in cents (integer)
     if (!priceCents) return "";
     var rupees = priceCents / 100;
-    // Format with 2 decimal places, e.g. 629.95
     var formatted = rupees.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).replace(/,/g, ".");
     return "Rs. " + formatted;
   }
 })();
