@@ -29,13 +29,14 @@ export function initImageSearchJobs(): void {
 
 const PRODUCTS_QUERY = `
   query GetProducts($cursor: String) {
-    products(first: 10, after: $cursor, query: "status:active") {
+    products(first: 10, after: $cursor, query: "status:active published_status:published") {
       pageInfo { hasNextPage endCursor }
       nodes {
         id
         title
         handle
         status
+        publishedAt
         priceRange { minVariantPrice { amount } }
         images(first: 1) { nodes { url } }
       }
@@ -74,13 +75,18 @@ async function fetchProductsGraphQL(
 
 async function embedProducts(products: any[], shopId: string): Promise<number> {
   let n = 0;
+  let failures = 0;
   console.log(`[ImageSearch] embedProducts: ${products.length} products to process`);
   for (const product of products) {
     console.log(`[ImageSearch] Processing: "${product.title}", status=${product.status}, imageUrl=${product.images?.nodes?.[0]?.url}`);
 
-    // Skip draft and archived products — only index published (ACTIVE) products
+    // Only index products that are active AND published to the Online Store
     if (product.status && product.status !== "ACTIVE") {
       console.log(`[ImageSearch] Skipping "${product.title}" (status: ${product.status})`);
+      continue;
+    }
+    if (!product.publishedAt) {
+      console.log(`[ImageSearch] Skipping "${product.title}" (not published to Online Store)`);
       continue;
     }
 
@@ -98,10 +104,11 @@ async function embedProducts(products: any[], shopId: string): Promise<number> {
     try {
       const imgRes = await fetch(imageUrl, {
         headers: { "User-Agent": "ShopifyImageSearch/1.0" },
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(15_000),
       });
       if (!imgRes.ok) {
         console.warn(`[ImageSearch] Image HTTP ${imgRes.status} for "${product.title}"`);
+        failures++;
         continue;
       }
 
@@ -109,11 +116,18 @@ async function embedProducts(products: any[], shopId: string): Promise<number> {
       const imageHash = createHash("sha256").update(buffer).digest("hex");
 
       const existing = await ImageEmbedding.findOne({ shopId, imageUrl })
-        .select("imageHash")
+        .select("imageHash isActive")
         .lean();
       if (existing && (existing as any).imageHash === imageHash) {
+        // Same image — but restore isActive if it was soft-deleted (e.g. after "Clear Index")
+        if (!(existing as any).isActive) {
+          await ImageEmbedding.updateOne(
+            { shopId, imageUrl },
+            { $set: { isActive: true, indexedAt: new Date() } },
+          );
+        }
         n++;
-        continue; // unchanged
+        continue; // unchanged — skip re-embedding
       }
 
       const embedding = await generateEmbedding(buffer);
@@ -138,8 +152,12 @@ async function embedProducts(products: any[], shopId: string): Promise<number> {
       n++;
       console.log(`[ImageSearch] Indexed "${product.title}"`);
     } catch (e) {
+      failures++;
       console.error(`[ImageSearch] Failed to embed "${product.title}":`, e);
     }
+  }
+  if (failures > 0) {
+    console.warn(`[ImageSearch] embedProducts: ${failures} products failed, ${n} succeeded`);
   }
   return n;
 }
@@ -164,7 +182,7 @@ export async function syncBatch(
     return { indexed: 0, done: true, totalIndexed: total };
   }
 
-  await embedProducts(products, shopId);
+  const indexed = await embedProducts(products, shopId);
 
   const total = await ImageEmbedding.countDocuments({ shopId, isActive: true });
   await ImageSearchSettings.findOneAndUpdate(
@@ -173,7 +191,7 @@ export async function syncBatch(
   );
 
   return {
-    indexed: products.length,
+    indexed,
     nextCursor,
     done: !nextCursor,
     totalIndexed: total,
@@ -257,17 +275,17 @@ export async function enqueueProductForIndexing(
       : `gid://shopify/Product/${productId}`;
 
     const resp = await admin.graphql(
-      `query($id:ID!){product(id:$id){id title handle status priceRange{minVariantPrice{amount}} images(first:1){nodes{url}}}}`,
+      `query($id:ID!){product(id:$id){id title handle status publishedAt priceRange{minVariantPrice{amount}} images(first:1){nodes{url}}}}`,
       { variables: { id: gid } },
     );
     const json = await resp.json() as any;
     const product = json?.data?.product;
     if (!product) return;
 
-    // If product is no longer active (draft/archived), remove it from index
-    if (product.status !== "ACTIVE") {
+    // Remove from index if not active OR not published to Online Store
+    if (product.status !== "ACTIVE" || !product.publishedAt) {
       await ImageEmbedding.updateMany({ shopId, productId }, { $set: { isActive: false } });
-      console.log(`[ImageSearch] Product "${product.title}" is ${product.status} — removed from index`);
+      console.log(`[ImageSearch] Product "${product.title}" is ${product.status}/unpublished — removed from index`);
       const count = await ImageEmbedding.countDocuments({ shopId, isActive: true });
       await ImageSearchSettings.findOneAndUpdate({ shopId }, { $set: { totalIndexed: count } });
       return;
