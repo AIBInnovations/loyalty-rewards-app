@@ -10,7 +10,8 @@
  */
 
 const HF_MODEL = "openai/clip-vit-base-patch32";
-const HF_API_URL = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
+// HuggingFace migrated from api-inference.huggingface.co → router.huggingface.co
+const HF_API_URL = `https://router.huggingface.co/hf-inference/models/${HF_MODEL}`;
 
 // ── CLIP via Hugging Face Inference API ───────────────────────────────────────
 
@@ -69,37 +70,53 @@ function extractEmbedding(data: any): number[] {
   return norm > 0 ? raw.map((v) => v / norm) : raw;
 }
 
-// ── Sharp fallback (color histogram + pixel grid) ─────────────────────────────
+// ── Sharp fallback: spatial color histogram ───────────────────────────────────
+//
+// Divides the image into a 4×4 grid (16 cells) and computes a 32-bin color
+// histogram per cell → 512 dims total. This is far more discriminative than a
+// global histogram because it captures WHERE colours appear in the image.
+//
+// Why this matters:
+//   • Studio product photos (white background) → white in corners, colour in centre.
+//   • Food/landscape/random images → colours distributed uniformly across all cells.
+// A global histogram loses this spatial signal entirely; per-cell does not.
 
 async function generateEmbeddingSharp(imageBuffer: Buffer): Promise<number[]> {
   const { default: sharp } = await import("sharp");
 
-  const grayData = await sharp(imageBuffer)
-    .resize(16, 16, { fit: "fill" })
-    .grayscale()
-    .raw()
-    .toBuffer();
-  const structural = Array.from(grayData).map((v) => v / 255.0);
+  const SIZE = 64;   // resize target (64×64 px)
+  const GRID = 4;    // 4×4 spatial grid  →  16 cells
+  const BINS = 32;   // 32 colour bins per cell  (4 R × 4 G × 2 B)
+  const CELL = SIZE / GRID; // 16 px per cell side
 
   const rgbData = await sharp(imageBuffer)
-    .resize(32, 32, { fit: "fill" })
+    .resize(SIZE, SIZE, { fit: "fill" })
     .removeAlpha()
     .raw()
     .toBuffer();
 
-  const hist = new Float32Array(256).fill(0);
-  const pixelCount = rgbData.length / 3;
-  for (let i = 0; i < rgbData.length; i += 3) {
-    const r = Math.min(7, Math.floor(rgbData[i] / 32));
-    const g = Math.min(7, Math.floor(rgbData[i + 1] / 32));
-    const b = Math.min(3, Math.floor(rgbData[i + 2] / 64));
-    hist[r * 32 + g * 4 + b] += 1;
-  }
-  const colorHist = Array.from(hist).map((v) => v / pixelCount);
+  const hist = new Float32Array(GRID * GRID * BINS).fill(0);
+  const pixelsPerCell = CELL * CELL;
 
-  const combined = [...structural, ...colorHist];
-  const norm = Math.sqrt(combined.reduce((s, v) => s + v * v, 0));
-  return norm > 0 ? combined.map((v) => v / norm) : combined;
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const cellY = Math.floor(y / CELL);
+      const cellX = Math.floor(x / CELL);
+      const cellIdx = cellY * GRID + cellX;
+
+      const base = (y * SIZE + x) * 3;
+      const rBin = Math.min(3, Math.floor(rgbData[base]     / 64)); // 0-3
+      const gBin = Math.min(3, Math.floor(rgbData[base + 1] / 64)); // 0-3
+      const bBin = Math.min(1, Math.floor(rgbData[base + 2] / 128)); // 0-1
+
+      const bin = rBin * 8 + gBin * 2 + bBin; // 0-31
+      hist[cellIdx * BINS + bin] += 1 / pixelsPerCell; // normalise per cell
+    }
+  }
+
+  const arr = Array.from(hist);
+  const norm = Math.sqrt(arr.reduce((s, v) => s + v * v, 0));
+  return norm > 0 ? arr.map((v) => v / norm) : arr;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
