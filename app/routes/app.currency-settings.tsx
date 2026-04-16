@@ -20,53 +20,20 @@ import { authenticate } from "../shopify.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
-  // Fetch shop currency and available markets via GraphQL
+  // Fetch shop currency info
   const shopRes = await admin.graphql(`#graphql
     query {
       shop {
         currencyCode
-        currencyFormats {
-          moneyFormat
-          moneyWithCurrencyFormat
-        }
-        paymentSettings {
-          supportedDigitalWallets
-        }
-      }
-      markets(first: 20) {
-        edges {
-          node {
-            id
-            name
-            enabled
-            primary
-            currencySettings {
-              baseCurrency {
-                currencyCode
-              }
-              localCurrencies
-            }
-            regions(first: 10) {
-              edges {
-                node {
-                  ... on MarketRegionCountry {
-                    name
-                    code
-                  }
-                }
-              }
-            }
-          }
-        }
+        name
       }
     }
   `);
 
   const data = await shopRes.json();
   const shop = data?.data?.shop || {};
-  const markets = data?.data?.markets?.edges?.map((e: any) => e.node) || [];
 
-  return json({ shop, markets });
+  return json({ shop });
 };
 
 export default function CurrencySettings() {
