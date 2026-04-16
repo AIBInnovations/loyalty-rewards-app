@@ -7,13 +7,8 @@
 
 <div id="loy-cs-root" data-base="{{ base_currency }}" data-fmt="{{ money_format | escape }}">
 
-  {% comment %}
-    CSS checkbox hack — clicking the label toggles the checkbox.
-    :checked ~ sibling selector shows the dropdown. Zero JS needed for toggle.
-  {% endcomment %}
-  <input type="checkbox" id="loy-cs-chk">
-
-  <label for="loy-cs-chk" id="loy-cs-fab" title="Select currency">
+  <button id="loy-cs-fab" type="button" title="Select currency"
+          aria-haspopup="listbox" aria-expanded="false">
     <svg id="loy-cs-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
       stroke="#555" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="10"/>
@@ -21,7 +16,7 @@
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
     </svg>
     <span id="loy-cs-code">{{ base_currency }}</span>
-  </label>
+  </button>
 
   <ul id="loy-cs-list" role="listbox">
     {% if custom_currencies != blank %}
@@ -61,13 +56,7 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 
-  /* ── Hide the checkbox ── */
-  #loy-cs-chk {
-    display: none;
-    position: absolute;
-  }
-
-  /* ── FAB label (acts as button) ── */
+  /* ── FAB button ── */
   #loy-cs-fab {
     width: 52px;
     height: 52px;
@@ -82,6 +71,7 @@
     justify-content: center;
     gap: 2px;
     transition: transform 0.15s, box-shadow 0.15s;
+    padding: 0;
   }
   #loy-cs-fab:hover {
     transform: scale(1.07);
@@ -99,9 +89,9 @@
     line-height: 1;
   }
 
-  /* ── Dropdown: hidden by default ── */
+  /* ── Dropdown: hidden by default with !important so theme CSS cannot override ── */
   #loy-cs-list {
-    display: none;
+    display: none !important;
     position: fixed;
     bottom: 224px;
     right: 20px;
@@ -118,9 +108,9 @@
     z-index: 9999999;
   }
 
-  /* ── KEY: show dropdown when checkbox is checked ── */
-  #loy-cs-chk:checked ~ #loy-cs-list {
-    display: block;
+  /* ── JS adds this class to reveal the dropdown ── */
+  #loy-cs-list.loy-cs-open {
+    display: block !important;
   }
 
   /* ── Option rows ── */
@@ -142,22 +132,33 @@
 
 <script>
 (function () {
-  var root  = document.getElementById("loy-cs-root");
-  var chk   = document.getElementById("loy-cs-chk");
-  var fab   = document.getElementById("loy-cs-fab");
-  var icon  = document.getElementById("loy-cs-icon");
-  var code  = document.getElementById("loy-cs-code");
-  var list  = document.getElementById("loy-cs-list");
-  if (!chk || !list) return;
+  var root = document.getElementById("loy-cs-root");
+  var fab  = document.getElementById("loy-cs-fab");
+  var icon = document.getElementById("loy-cs-icon");
+  var code = document.getElementById("loy-cs-code");
+  var list = document.getElementById("loy-cs-list");
+  if (!fab || !list) return;
+
+  // Move list to <body> so no parent stacking context can clip or hide it
+  document.body.appendChild(list);
 
   var BASE = (root && root.dataset.base) || "INR";
   var FMT  = (root && root.dataset.fmt)  || "{{amount}}";
 
-  // ── Close dropdown when clicking outside ────────────────────
+  function openList()  { list.classList.add("loy-cs-open");    fab.setAttribute("aria-expanded", "true");  }
+  function closeList() { list.classList.remove("loy-cs-open"); fab.setAttribute("aria-expanded", "false"); }
+  function isOpen()    { return list.classList.contains("loy-cs-open"); }
+
+  // ── FAB click — toggle dropdown ─────────────────────────────
+  fab.addEventListener("click", function (e) {
+    e.stopPropagation();
+    isOpen() ? closeList() : openList();
+  });
+
+  // ── Close on outside click ──────────────────────────────────
   document.addEventListener("click", function (e) {
-    if (chk.checked && root && !root.contains(e.target) && !list.contains(e.target)) {
-      chk.checked = false;
-    }
+    if (isOpen() && !list.contains(e.target) && e.target !== fab)
+      closeList();
   });
 
   // ── Option selection ────────────────────────────────────────
@@ -182,8 +183,7 @@
         o.classList.toggle("active", o === opt);
       });
 
-      // Close dropdown
-      chk.checked = false;
+      closeList();
 
       localStorage.setItem("loy_currency", JSON.stringify({
         code: selCode, symbol: selSymbol, flag: selFlag, label: selLabel
@@ -269,7 +269,7 @@
     fetchRates(function(r){ if(r&&r[saved.code]) convert(r[saved.code], saved.symbol); });
   }
 
-  // ── MutationObserver ────────────────────────────────────────
+  // ── MutationObserver for dynamically loaded prices ──────────
   if (window.MutationObserver) {
     new MutationObserver(function(){
       if (converting) return;
