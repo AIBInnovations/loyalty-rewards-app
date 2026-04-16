@@ -158,39 +158,56 @@
 
   /* ── Price conversion ──────────────────────────────────────── */
   var rates = null, converting = false;
-  var SEL = ".price__regular .price-item,.price__sale .price-item,.price-item,.price__current,.product-price__price,.product__price .price,.cart-item__price,.cart__price,.totals__subtotal-value,[data-product-price],[class*='price__'],.price";
+  var SEL = ".price-item,.price-item--regular,.price-item--sale,.price-item--last,.price__current,.product-price__price,.cart-item__price,.cart__price,.totals__subtotal-value,[data-product-price],[data-price]";
+
+  function formatNumber(val) {
+    // 1234.56 → "1,234.56"; integer values drop decimals
+    if (val >= 1000) return Math.round(val).toLocaleString("en-US");
+    return val.toFixed(2);
+  }
 
   function storeOrig() {
     document.querySelectorAll(SEL).forEach(function (el) {
       if (el.dataset.loyOrig) return;
-      var txt = el.textContent.trim();
-      var num = parseFloat(txt.replace(/[^\d.,]/g, "").replace(/,/g, "").replace(/\.(?=.*\.)/g, ""));
-      if (!isNaN(num) && num > 0) { el.dataset.loyOrig = num; el.dataset.loyOrigTxt = txt; }
+      // Skip elements that contain other price elements (process leaves only)
+      if (el.querySelector(SEL)) return;
+      var txt = (el.textContent || "").trim();
+      if (!txt) return;
+      // Extract numeric value — handle formats like "₹1,299.00", "$1.299,00", "1299"
+      var cleaned = txt.replace(/[^\d.,]/g, "");
+      if (!cleaned) return;
+      // If we have both , and . determine which is the decimal separator
+      var num;
+      if (cleaned.indexOf(",") !== -1 && cleaned.indexOf(".") !== -1) {
+        if (cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")) {
+          // European: 1.299,00
+          num = parseFloat(cleaned.replace(/\./g, "").replace(",", "."));
+        } else {
+          // US: 1,299.00
+          num = parseFloat(cleaned.replace(/,/g, ""));
+        }
+      } else {
+        num = parseFloat(cleaned.replace(/,/g, ""));
+      }
+      if (!isNaN(num) && num > 0) {
+        el.dataset.loyOrig = num;
+        el.dataset.loyOrigTxt = txt;
+      }
     });
   }
+
   function convertPrices(rate, sym) {
     converting = true;
-    document.querySelectorAll(SEL).forEach(function (el) {
-      if (!el.dataset.loyOrig) return;
-      var val = parseFloat(el.dataset.loyOrig) * rate, fmt = FMT, s;
-      if (fmt.indexOf("{{amount_no_decimals}}") !== -1) {
-        s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        fmt = fmt.replace("{{amount_no_decimals}}", s);
-      } else if (fmt.indexOf("{{amount_with_comma_separator}}") !== -1) {
-        fmt = fmt.replace("{{amount_with_comma_separator}}", val.toFixed(2).replace(".", ","));
-      } else {
-        s = val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        fmt = fmt.replace("{{amount}}", s);
-      }
-      var base = FMT.replace(/\{\{[^}]+\}\}/g, "").trim();
-      if (base && sym) fmt = fmt.split(base).join(sym);
-      el.textContent = fmt;
+    document.querySelectorAll("[data-loy-orig]").forEach(function (el) {
+      var val = parseFloat(el.dataset.loyOrig) * rate;
+      el.textContent = (sym || "") + formatNumber(val);
     });
     converting = false;
   }
+
   function resetPrices() {
     converting = true;
-    document.querySelectorAll(SEL).forEach(function (el) {
+    document.querySelectorAll("[data-loy-orig]").forEach(function (el) {
       if (el.dataset.loyOrigTxt) el.textContent = el.dataset.loyOrigTxt;
     });
     converting = false;
