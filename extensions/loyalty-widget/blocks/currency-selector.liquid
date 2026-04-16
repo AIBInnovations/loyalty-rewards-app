@@ -94,8 +94,6 @@
   #loy-cs-list {
     display: none !important;
     position: fixed;
-    bottom: 224px;
-    right: 20px;
     min-width: 225px;
     background: #ffffff;
     border: 1px solid #e0e0e0;
@@ -104,7 +102,7 @@
     list-style: none;
     margin: 0;
     padding: 6px 0;
-    max-height: calc(100vh - 260px);
+    max-height: 320px;
     overflow-y: auto;
     z-index: 9999999;
   }
@@ -145,7 +143,13 @@
   var BASE = (root && root.dataset.base) || "INR";
   var FMT  = (root && root.dataset.fmt)  || "{{amount}}";
 
-  function openList()  { list.classList.add("loy-cs-open");    fab.setAttribute("aria-expanded", "true");  }
+  function openList() {
+    var rect = fab.getBoundingClientRect();
+    list.style.top   = (rect.bottom + 8) + "px";
+    list.style.right = (window.innerWidth - rect.right) + "px";
+    list.classList.add("loy-cs-open");
+    fab.setAttribute("aria-expanded", "true");
+  }
   function closeList() { list.classList.remove("loy-cs-open"); fab.setAttribute("aria-expanded", "false"); }
   function isOpen()    { return list.classList.contains("loy-cs-open"); }
 
