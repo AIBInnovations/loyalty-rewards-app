@@ -1,7 +1,8 @@
 {% comment %}
-  Currency Selector - App Embed
-  - Custom dropdown: Flag + "Currency Name (CODE)" format
-  - JS-based price conversion using live exchange rates
+  Currency Selector - App Embed (target: body)
+  - Bar rendered directly in Liquid HTML (no JS injection needed)
+  - position: fixed so it always shows at top regardless of DOM position
+  - JS handles dropdown interaction + price conversion via live exchange rates
   - Persists selection across pages via localStorage
 {% endcomment %}
 
@@ -12,14 +13,12 @@
 
 {% unless cs_enabled == false %}
 
-  {% comment %} Data container — JS reads currencies from here {% endcomment %}
+  {% comment %} Hidden data container — JS reads currencies from here {% endcomment %}
   <div id="loy-cs-data-{{ block.id }}" style="display:none;"
     data-base="{{ base_currency }}"
     data-money-format="{{ money_format | escape }}"
-    data-current-country="{{ localization.country.iso_code }}"
   >
     {% if custom_currencies != blank %}
-      {% comment %} Admin-configured currencies from metafield {% endcomment %}
       {% for cur in custom_currencies %}
         <span
           data-country="{{ cur.countryCode }}"
@@ -30,7 +29,7 @@
         ></span>
       {% endfor %}
     {% else %}
-      {% comment %} Fallback: hardcoded popular currencies so widget always renders {% endcomment %}
+      {% comment %} Hardcoded fallback so widget always renders {% endcomment %}
       <span data-country="IN" data-code="INR" data-label="Indian Rupee"       data-flag="🇮🇳" data-symbol="₹"></span>
       <span data-country="US" data-code="USD" data-label="US Dollar"          data-flag="🇺🇸" data-symbol="$"></span>
       <span data-country="GB" data-code="GBP" data-label="British Pound"      data-flag="🇬🇧" data-symbol="£"></span>
@@ -44,8 +43,36 @@
     {% endif %}
   </div>
 
+  {% comment %} The bar — rendered directly in Liquid, fixed to top of viewport {% endcomment %}
+  <div id="loy-cs-bar-{{ block.id }}">
+    <div class="loy-cs-wrap" id="loy-cs-wrap-{{ block.id }}">
+      <button
+        type="button"
+        class="loy-cs-trigger"
+        id="loy-cs-trigger-{{ block.id }}"
+        aria-haspopup="listbox"
+        aria-expanded="false"
+      >
+        <span class="loy-cs-flag" id="loy-cs-flag-{{ block.id }}">🌐</span>
+        <span class="loy-cs-label" id="loy-cs-label-{{ block.id }}">{{ base_currency }}</span>
+        <span class="loy-cs-chevron">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+      </button>
+      <ul class="loy-cs-dropdown" id="loy-cs-dropdown-{{ block.id }}" role="listbox" style="display:none;">
+        {% comment %} Options populated by JS {% endcomment %}
+      </ul>
+    </div>
+  </div>
+
   <style>
     #loy-cs-bar-{{ block.id }} {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
       width: 100%;
       display: flex;
       align-items: center;
@@ -53,10 +80,11 @@
       background: {{ block.settings.bar_background }};
       border-bottom: 1px solid {{ block.settings.border_color }};
       box-sizing: border-box;
-      position: sticky;
-      top: 0;
-      z-index: 10000;
+      z-index: 99999999;
     }
+    /* Push page content down so nothing hides under the fixed bar */
+    body { padding-top: 44px !important; }
+
     .loy-cs-wrap {
       position: relative;
       display: inline-flex;
@@ -82,8 +110,8 @@
       white-space: nowrap;
     }
     .loy-cs-trigger:hover { background: {{ block.settings.hover_color }}; }
-    .loy-cs-flag  { font-size: 16px; line-height: 1; flex-shrink: 0; }
-    .loy-cs-label { flex: 1; }
+    .loy-cs-flag   { font-size: 16px; line-height: 1; flex-shrink: 0; }
+    .loy-cs-label  { flex: 1; }
     .loy-cs-chevron {
       color: #999; flex-shrink: 0;
       display: flex; align-items: center;
@@ -104,7 +132,7 @@
       padding: 6px 0;
       max-height: 300px;
       overflow-y: auto;
-      z-index: 99999;
+      z-index: 99999999;
     }
     .loy-cs-option {
       display: flex;
@@ -116,24 +144,25 @@
       font-size: 13px;
       transition: background 0.15s;
     }
-    .loy-cs-option:hover { background: #f5f5f5; }
-    .loy-cs-option--active { background: #f0f0f0; font-weight: 600; }
-    .loy-cs-option-flag  { font-size: 18px; line-height: 1; flex-shrink: 0; }
-    .loy-cs-option-label { flex: 1; }
+    .loy-cs-option:hover       { background: #f5f5f5; }
+    .loy-cs-option--active     { background: #f0f0f0; font-weight: 600; }
+    .loy-cs-option-flag        { font-size: 18px; line-height: 1; flex-shrink: 0; }
+    .loy-cs-option-label       { flex: 1; }
   </style>
 
   <script>
   (function () {
-    var DATA_ID   = "loy-cs-data-{{ block.id }}";
-    var STORE_KEY = "loy_currency_{{ block.id }}";
+    var BID       = "{{ block.id }}";
+    var DATA_ID   = "loy-cs-data-"    + BID;
+    var STORE_KEY = "loy_currency_"   + BID;
 
-    // ── Read data from Liquid-rendered container ──────────────
     var dataEl = document.getElementById(DATA_ID);
     if (!dataEl) return;
 
-    var BASE_CURRENCY  = dataEl.dataset.base        || "INR";
-    var MONEY_FORMAT   = dataEl.dataset.moneyFormat || "₹{{amount}}";
+    var BASE_CURRENCY = dataEl.dataset.base        || "INR";
+    var MONEY_FORMAT  = dataEl.dataset.moneyFormat || "{{ money_format | escape }}";
 
+    // ── Build currency list from data container ───────────────
     var currencies = [];
     dataEl.querySelectorAll("span[data-country]").forEach(function (s) {
       currencies.push({
@@ -147,28 +176,24 @@
     if (!currencies.length) return;
 
     // ── Exchange rate cache ───────────────────────────────────
-    var rates   = null;   // { USD: 0.012, EUR: 0.011, ... }
-    var ratesFetched = false;
-    var converting = false; // guard against MutationObserver re-entrancy
+    var rates     = null;
+    var converting = false;
 
     function fetchRates(cb) {
       if (rates) { cb(rates); return; }
       fetch("https://open.er-api.com/v6/latest/" + BASE_CURRENCY)
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          if (data && data.rates) {
-            rates = data.rates;
-            ratesFetched = true;
-          }
+          if (data && data.rates) rates = data.rates;
           cb(rates);
         })
         .catch(function () { cb(null); });
     }
 
-    // ── Format money using Shopify money_format ───────────────
-    function formatMoney(amount, toCurrency, symbol) {
-      var fmt    = MONEY_FORMAT;
-      var val    = parseFloat(amount) || 0;
+    // ── Format money ──────────────────────────────────────────
+    function formatMoney(amount, symbol) {
+      var fmt = MONEY_FORMAT;
+      var val = parseFloat(amount) || 0;
       var str;
 
       if (fmt.indexOf("{{amount_no_decimals}}") !== -1) {
@@ -182,19 +207,15 @@
         fmt = fmt.replace("{{amount}}", str);
       }
 
-      // Replace the base currency symbol with the target symbol
-      // fmt currently has the base symbol (e.g. ₹); swap it
-      if (symbol && symbol !== "") {
+      if (symbol) {
         var baseSymbol = MONEY_FORMAT.replace(/\{\{[^}]+\}\}/g, "").trim();
-        if (baseSymbol) {
-          fmt = fmt.replace(baseSymbol, symbol);
-        }
+        if (baseSymbol) fmt = fmt.split(baseSymbol).join(symbol);
       }
       return fmt;
     }
 
-    // ── Price selectors (covers most Shopify themes) ──────────
-    var PRICE_SELECTORS = [
+    // ── Price selectors ───────────────────────────────────────
+    var PRICE_SEL = [
       ".price__regular .price-item",
       ".price__sale .price-item",
       ".price-item",
@@ -204,21 +225,16 @@
       ".cart-item__price",
       ".cart__price",
       ".totals__subtotal-value",
-      ".order-summary__emphasis",
       "[data-product-price]",
       "[class*='price__']",
       ".price"
     ].join(",");
 
-    // ── Store original amounts as data attributes ─────────────
     function storeOriginals() {
-      document.querySelectorAll(PRICE_SELECTORS).forEach(function (el) {
-        if (el.dataset.loyOriginal) return; // already stored
+      document.querySelectorAll(PRICE_SEL).forEach(function (el) {
+        if (el.dataset.loyOriginal) return;
         var text = el.textContent.trim();
-        // Extract numeric value: strip currency symbols/spaces, remove thousand-sep commas
-        var raw  = text.replace(/[^\d.,]/g, "")   // keep only digits, dot, comma
-                       .replace(/,/g, "")          // remove all commas (handles 1,234 and 1,23,456)
-                       .replace(/\.(?=.*\.)/g, ""); // remove all but the last dot (edge-case safety)
+        var raw  = text.replace(/[^\d.,]/g, "").replace(/,/g, "").replace(/\.(?=.*\.)/g, "");
         var num  = parseFloat(raw);
         if (!isNaN(num) && num > 0) {
           el.dataset.loyOriginal     = num;
@@ -227,86 +243,81 @@
       });
     }
 
-    // ── Convert all prices to target currency ─────────────────
-    function convertPrices(toCurrency, symbol) {
-      if (!rates) return;
-      var rate = rates[toCurrency];
-      if (!rate) return;
-
+    function convertPrices(code, symbol) {
+      if (!rates || !rates[code]) return;
+      var rate = rates[code];
       converting = true;
-      document.querySelectorAll(PRICE_SELECTORS).forEach(function (el) {
+      document.querySelectorAll(PRICE_SEL).forEach(function (el) {
         if (!el.dataset.loyOriginal) return;
-        var original  = parseFloat(el.dataset.loyOriginal);
-        var converted = original * rate;
-        el.textContent = formatMoney(converted, toCurrency, symbol);
+        el.textContent = formatMoney(parseFloat(el.dataset.loyOriginal) * rate, symbol);
       });
       converting = false;
     }
 
-    // ── Reset prices to base currency ─────────────────────────
     function resetPrices() {
       converting = true;
-      document.querySelectorAll(PRICE_SELECTORS).forEach(function (el) {
-        if (el.dataset.loyOriginalText) {
-          el.textContent = el.dataset.loyOriginalText;
-        }
+      document.querySelectorAll(PRICE_SEL).forEach(function (el) {
+        if (el.dataset.loyOriginalText) el.textContent = el.dataset.loyOriginalText;
       });
       converting = false;
     }
 
-    // ── Apply a currency (fetch rates if needed) ──────────────
     function applyCurrency(cur) {
       storeOriginals();
-      if (cur.code === BASE_CURRENCY) {
-        resetPrices();
-        return;
-      }
-      fetchRates(function (r) {
-        if (r) convertPrices(cur.code, cur.symbol);
-      });
+      if (cur.code === BASE_CURRENCY) { resetPrices(); return; }
+      fetchRates(function (r) { if (r) convertPrices(cur.code, cur.symbol); });
     }
 
-    // ── Build the dropdown widget ─────────────────────────────
-    function buildWidget(activeCur) {
-      var wrap = document.createElement("div");
-      wrap.className = "loy-cs-wrap";
+    // ── Populate dropdown from currencies list ────────────────
+    function populateDropdown(activeCur) {
+      var trigger  = document.getElementById("loy-cs-trigger-"  + BID);
+      var flagEl   = document.getElementById("loy-cs-flag-"     + BID);
+      var labelEl  = document.getElementById("loy-cs-label-"    + BID);
+      var list     = document.getElementById("loy-cs-dropdown-" + BID);
+      if (!trigger || !list) return;
 
-      var trigger = document.createElement("button");
-      trigger.type      = "button";
-      trigger.className = "loy-cs-trigger";
-      trigger.setAttribute("aria-haspopup", "listbox");
-      trigger.setAttribute("aria-expanded", "false");
-      trigger.innerHTML =
-        '<span class="loy-cs-flag">'  + (activeCur.flag  || activeCur.symbol) + '</span>' +
-        '<span class="loy-cs-label">' + activeCur.label  + ' (' + activeCur.code + ')</span>' +
-        '<span class="loy-cs-chevron"><svg width="10" height="10" viewBox="0 0 10 10" fill="none">' +
-          '<path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
-        '</svg></span>';
+      // Set trigger to active currency
+      flagEl.textContent  = activeCur.flag || "🌐";
+      labelEl.textContent = activeCur.label + " (" + activeCur.code + ")";
 
-      var list = document.createElement("ul");
-      list.className = "loy-cs-dropdown";
-      list.setAttribute("role", "listbox");
-      list.style.display = "none";
-
+      // Build option list
+      list.innerHTML = "";
       currencies.forEach(function (c) {
         var isActive = c.code === activeCur.code;
         var li = document.createElement("li");
         li.className = "loy-cs-option" + (isActive ? " loy-cs-option--active" : "");
         li.setAttribute("role", "option");
         li.setAttribute("aria-selected", isActive ? "true" : "false");
-        li.dataset.code    = c.code;
-        li.dataset.country = c.country;
-        li.dataset.symbol  = c.symbol;
-        li.dataset.label   = c.label;
-        li.dataset.flag    = c.flag || c.symbol;
+        li.dataset.code   = c.code;
+        li.dataset.symbol = c.symbol;
+        li.dataset.label  = c.label;
+        li.dataset.flag   = c.flag || "";
         li.innerHTML =
-          '<span class="loy-cs-option-flag">'  + (c.flag || c.symbol) + '</span>' +
+          '<span class="loy-cs-option-flag">'  + (c.flag || "🌐") + '</span>' +
           '<span class="loy-cs-option-label">' + c.label + ' (' + c.code + ')</span>';
+
+        li.addEventListener("click", function () {
+          var cur = { code: c.code, symbol: c.symbol, label: c.label, flag: c.flag || "" };
+
+          flagEl.textContent  = cur.flag || "🌐";
+          labelEl.textContent = cur.label + " (" + cur.code + ")";
+
+          list.querySelectorAll(".loy-cs-option").forEach(function (o) {
+            o.classList.remove("loy-cs-option--active");
+            o.setAttribute("aria-selected", "false");
+          });
+          li.classList.add("loy-cs-option--active");
+          li.setAttribute("aria-selected", "true");
+
+          list.style.display = "none";
+          trigger.setAttribute("aria-expanded", "false");
+
+          localStorage.setItem(STORE_KEY, JSON.stringify(cur));
+          applyCurrency(cur);
+        });
+
         list.appendChild(li);
       });
-
-      wrap.appendChild(trigger);
-      wrap.appendChild(list);
 
       // Toggle open/close
       trigger.addEventListener("click", function (e) {
@@ -316,86 +327,37 @@
         trigger.setAttribute("aria-expanded", open ? "false" : "true");
       });
       document.addEventListener("click", function (e) {
-        if (!wrap.contains(e.target)) {
+        var wrap = document.getElementById("loy-cs-wrap-" + BID);
+        if (wrap && !wrap.contains(e.target)) {
           list.style.display = "none";
           trigger.setAttribute("aria-expanded", "false");
         }
       });
-
-      // Option click — convert prices
-      list.querySelectorAll(".loy-cs-option").forEach(function (opt) {
-        opt.addEventListener("click", function () {
-          var cur = {
-            code:   opt.dataset.code,
-            symbol: opt.dataset.symbol,
-            label:  opt.dataset.label,
-            flag:   opt.dataset.flag
-          };
-
-          // Update trigger
-          trigger.querySelector(".loy-cs-flag").textContent  = cur.flag || cur.symbol;
-          trigger.querySelector(".loy-cs-label").textContent = cur.label + " (" + cur.code + ")";
-
-          // Update active state
-          list.querySelectorAll(".loy-cs-option").forEach(function (o) {
-            o.classList.remove("loy-cs-option--active");
-            o.setAttribute("aria-selected", "false");
-          });
-          opt.classList.add("loy-cs-option--active");
-          opt.setAttribute("aria-selected", "true");
-
-          list.style.display = "none";
-          trigger.setAttribute("aria-expanded", "false");
-
-          // Save + convert
-          localStorage.setItem(STORE_KEY, JSON.stringify(cur));
-          applyCurrency(cur);
-        });
-      });
-
-      return wrap;
-    }
-
-    // ── Inject bar below header ───────────────────────────────
-    function inject(wrap) {
-      var bar = document.createElement("div");
-      bar.id = "loy-cs-bar-{{ block.id }}";
-      bar.appendChild(wrap);
-
-      // Insert at very top of body — most reliable cross-theme approach
-      document.body.insertBefore(bar, document.body.firstChild);
     }
 
     // ── Init ─────────────────────────────────────────────────
     function init() {
-      // Determine active currency (saved or default base)
-      var saved      = null;
-      var savedRaw   = localStorage.getItem(STORE_KEY);
-      try { if (savedRaw) saved = JSON.parse(savedRaw); } catch(e) {}
+      var saved = null;
+      try { saved = JSON.parse(localStorage.getItem(STORE_KEY)); } catch(e) {}
 
-      var activeCur  = currencies.find(function(c){ return c.code === BASE_CURRENCY; }) || currencies[0];
-      if (saved && currencies.find(function(c){ return c.code === saved.code; })) {
+      var activeCur = currencies.find(function (c) { return c.code === BASE_CURRENCY; }) || currencies[0];
+      if (saved && currencies.find(function (c) { return c.code === saved.code; })) {
         activeCur = saved;
       }
 
-      var wrap = buildWidget(activeCur);
-      inject(wrap);
+      populateDropdown(activeCur);
 
-      // Apply saved currency on page load
       if (saved && saved.code !== BASE_CURRENCY) {
         storeOriginals();
-        fetchRates(function(r) {
-          if (r) convertPrices(saved.code, saved.symbol);
-        });
+        fetchRates(function (r) { if (r) convertPrices(saved.code, saved.symbol); });
       }
 
       // Watch for dynamic price changes (variant switches, cart updates)
       if (window.MutationObserver) {
         var observer = new MutationObserver(function () {
-          if (converting) return; // skip updates we triggered ourselves
+          if (converting) return;
           var cur = null;
-          var raw = localStorage.getItem(STORE_KEY);
-          try { if (raw) cur = JSON.parse(raw); } catch(e) {}
+          try { cur = JSON.parse(localStorage.getItem(STORE_KEY)); } catch(e) {}
           if (cur && cur.code !== BASE_CURRENCY) {
             storeOriginals();
             if (rates) convertPrices(cur.code, cur.symbol);
