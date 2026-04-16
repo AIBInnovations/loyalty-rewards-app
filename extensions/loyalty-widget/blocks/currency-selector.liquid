@@ -14,7 +14,7 @@
 
 {% assign available_countries = localization.available_countries %}
 
-{% if available_countries.size > 1 %}
+{% if available_countries.size > 0 %}
   <div class="loy-currency-selector" id="loy-currency-selector-{{ block.id }}">
     {% form 'localization', class: 'loy-currency-form' %}
       <div class="loy-currency-wrapper">
