@@ -73,9 +73,9 @@
   }
   #loy-cs-list {
     display: none;
-    position: absolute;
-    bottom: calc(100% + 8px);
-    right: 0;
+    position: fixed;
+    bottom: 220px;
+    right: 20px;
     min-width: 220px;
     background: #fff;
     border: 1px solid #e5e5e5;
@@ -84,8 +84,9 @@
     list-style: none;
     margin: 0;
     padding: 6px 0;
-    max-height: 480px;
+    max-height: calc(100vh - 250px);
     overflow-y: auto;
+    z-index: 9999999;
   }
   #loy-cs-list.open { display: block; }
   .loy-cs-opt {
