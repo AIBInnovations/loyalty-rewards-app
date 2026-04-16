@@ -5,160 +5,128 @@
 
 {% unless cs_enabled == false %}
 
-<div id="loy-cs-root" data-base="{{ base_currency }}" data-fmt="{{ money_format | escape }}">
+<div id="loy-cs-root" data-base="{{ base_currency }}" data-fmt="{{ money_format | escape }}"></div>
 
-  <button id="loy-cs-fab" type="button" title="Select currency" aria-haspopup="listbox" aria-expanded="false">
-    <span id="loy-cs-code">{{ base_currency }}</span>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none"
-      stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
-      style="width:10px;height:10px;flex-shrink:0;transition:transform 0.2s;">
-      <path d="M2 4l4 4 4-4"/>
-    </svg>
-  </button>
-
-</div>
-
-{% comment %} Pass currency data to JS without rendering any li/ul elements {% endcomment %}
 <script type="application/json" id="loy-cs-data">
-  {% if custom_currencies != blank %}
-    {{ custom_currencies | json }}
-  {% else %}
-    [
-      {"currencyCode":"INR","symbol":"₹","flag":"🇮🇳","label":"Indian Rupee"},
-      {"currencyCode":"USD","symbol":"$","flag":"🇺🇸","label":"US Dollar"},
-      {"currencyCode":"GBP","symbol":"£","flag":"🇬🇧","label":"British Pound"},
-      {"currencyCode":"EUR","symbol":"€","flag":"🇪🇺","label":"Euro"},
-      {"currencyCode":"AUD","symbol":"A$","flag":"🇦🇺","label":"Australian Dollar"},
-      {"currencyCode":"AED","symbol":"د.إ","flag":"🇦🇪","label":"UAE Dirham"},
-      {"currencyCode":"SAR","symbol":"﷼","flag":"🇸🇦","label":"Saudi Riyal"},
-      {"currencyCode":"CAD","symbol":"CA$","flag":"🇨🇦","label":"Canadian Dollar"},
-      {"currencyCode":"SGD","symbol":"S$","flag":"🇸🇬","label":"Singapore Dollar"},
-      {"currencyCode":"JPY","symbol":"¥","flag":"🇯🇵","label":"Japanese Yen"}
-    ]
-  {% endif %}
+{% if custom_currencies != blank %}{{ custom_currencies | json }}{% else %}[{"currencyCode":"INR","symbol":"₹","flag":"🇮🇳","label":"Indian Rupee"},{"currencyCode":"USD","symbol":"$","flag":"🇺🇸","label":"US Dollar"},{"currencyCode":"GBP","symbol":"£","flag":"🇬🇧","label":"British Pound"},{"currencyCode":"EUR","symbol":"€","flag":"🇪🇺","label":"Euro"},{"currencyCode":"AUD","symbol":"A$","flag":"🇦🇺","label":"Australian Dollar"},{"currencyCode":"AED","symbol":"د.إ","flag":"🇦🇪","label":"UAE Dirham"},{"currencyCode":"SAR","symbol":"﷼","flag":"🇸🇦","label":"Saudi Riyal"},{"currencyCode":"CAD","symbol":"CA$","flag":"🇨🇦","label":"Canadian Dollar"},{"currencyCode":"SGD","symbol":"S$","flag":"🇸🇬","label":"Singapore Dollar"},{"currencyCode":"JPY","symbol":"¥","flag":"🇯🇵","label":"Japanese Yen"}]{% endif %}
 </script>
-
-<style>
-  #loy-cs-root {
-    position: fixed;
-    bottom: 162px;
-    right: 20px;
-    z-index: 9999999;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  #loy-cs-fab {
-    display: inline-flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    background: #ffffff;
-    border: 1.5px solid #ddd;
-    border-radius: 24px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.14);
-    cursor: pointer;
-    white-space: nowrap;
-    font-family: inherit;
-  }
-  #loy-cs-fab:hover { border-color: #bbb; box-shadow: 0 4px 16px rgba(0,0,0,0.20); }
-  #loy-cs-code {
-    font-size: 13px;
-    font-weight: 700;
-    color: #333;
-    letter-spacing: 0.4px;
-    line-height: 1;
-  }
-  #loy-cs-fab[aria-expanded="true"] svg { transform: rotate(180deg); }
-</style>
 
 <script>
 (function () {
-  var root     = document.getElementById("loy-cs-root");
-  var fab      = document.getElementById("loy-cs-fab");
-  var codeEl   = document.getElementById("loy-cs-code");
-  var dataEl   = document.getElementById("loy-cs-data");
-  if (!fab || !dataEl) return;
 
-  var BASE = (root && root.dataset.base) || "INR";
-  var FMT  = (root && root.dataset.fmt)  || "{{amount}}";
+  /* ── Read data ─────────────────────────────────────────────── */
+  var root   = document.getElementById("loy-cs-root");
+  var dataEl = document.getElementById("loy-cs-data");
+  if (!root || !dataEl) return;
 
-  // ── Parse currencies ────────────────────────────────────────
+  var BASE = root.dataset.base || "INR";
+  var FMT  = root.dataset.fmt  || "{{amount}}";
+
   var currencies = [];
-  try { currencies = JSON.parse(dataEl.textContent); } catch(e) {}
-  if (!currencies.length) return;
+  try { currencies = JSON.parse(dataEl.textContent.trim()); } catch(e) { return; }
+  if (!Array.isArray(currencies) || !currencies.length) return;
 
-  // ── Build dropdown entirely in JS with inline styles ────────
-  // (inline styles cannot be overridden by ANY stylesheet)
+  /* ── Build FAB button ──────────────────────────────────────── */
+  var fab = document.createElement("button");
+  fab.type = "button";
+  fab.id   = "loy-cs-fab";
+  fab.title = "Select currency";
+  fab.setAttribute("aria-haspopup", "listbox");
+  fab.setAttribute("aria-expanded", "false");
+
+  fab.style.cssText = [
+    "position:fixed",
+    "bottom:162px",
+    "right:20px",
+    "z-index:9999999",
+    "display:inline-flex",
+    "flex-direction:row",
+    "align-items:center",
+    "gap:6px",
+    "padding:8px 14px",
+    "background:#ffffff",
+    "border:1.5px solid #ddd",
+    "border-radius:24px",
+    "box-shadow:0 2px 10px rgba(0,0,0,0.14)",
+    "cursor:pointer",
+    "white-space:nowrap",
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+    "font-size:13px",
+    "font-weight:700",
+    "color:#333",
+    "outline:none"
+  ].join(";");
+
+  var codeEl = document.createElement("span");
+  codeEl.id = "loy-cs-code";
+  codeEl.textContent = BASE;
+  codeEl.style.cssText = "font-size:13px;font-weight:700;color:#333;letter-spacing:0.4px;line-height:1;";
+
+  var chevron = document.createElement("span");
+  chevron.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#555" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:block;transition:transform 0.2s;"><path d="M2 4l4 4 4-4"/></svg>';
+
+  fab.appendChild(codeEl);
+  fab.appendChild(chevron);
+  document.body.appendChild(fab);
+
+  /* ── Build dropdown ────────────────────────────────────────── */
   var dropdown = document.createElement("div");
   dropdown.id = "loy-cs-dropdown";
-  Object.assign(dropdown.style, {
-    display:       "none",
-    position:      "fixed",
-    zIndex:        "9999999",
-    background:    "#ffffff",
-    border:        "1px solid #e0e0e0",
-    borderRadius:  "12px",
-    boxShadow:     "0 8px 32px rgba(0,0,0,0.18)",
-    minWidth:      "230px",
-    maxHeight:     "320px",
-    overflowY:     "auto",
-    overflowX:     "hidden",
-    padding:       "6px 0",
-    margin:        "0",
-    fontFamily:    "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-  });
+  dropdown.style.cssText = [
+    "display:none",
+    "position:fixed",
+    "z-index:10000000",
+    "background:#fff",
+    "border:1px solid #e0e0e0",
+    "border-radius:12px",
+    "box-shadow:0 8px 32px rgba(0,0,0,0.18)",
+    "min-width:230px",
+    "max-height:300px",
+    "overflow-y:auto",
+    "overflow-x:hidden",
+    "padding:6px 0",
+    "margin:0",
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
+  ].join(";");
 
   currencies.forEach(function (cur) {
     var row = document.createElement("div");
-    Object.assign(row.style, {
-      display:    "flex",
-      alignItems: "center",
-      gap:        "10px",
-      padding:    "10px 16px",
-      cursor:     "pointer",
-      fontSize:   "13px",
-      color:      "#333333",
-      background: "transparent",
-      margin:     "0",
-      boxSizing:  "border-box",
-      width:      "100%"
-    });
-    row.dataset.code   = cur.currencyCode;
-    row.dataset.symbol = cur.symbol;
-    row.dataset.flag   = cur.flag || "";
-    row.dataset.label  = cur.label;
+    row.setAttribute("data-code",   cur.currencyCode);
+    row.setAttribute("data-symbol", cur.symbol || "");
+    row.setAttribute("data-flag",   cur.flag   || "");
+    row.setAttribute("data-label",  cur.label  || "");
 
-    var flag = document.createElement("span");
-    flag.textContent = cur.flag || "";
-    Object.assign(flag.style, {
-      fontSize:   "22px",
-      lineHeight: "1",
-      flexShrink: "0",
-      display:    "inline-block"
-    });
+    row.style.cssText = [
+      "display:flex",
+      "align-items:center",
+      "gap:10px",
+      "padding:10px 16px",
+      "cursor:pointer",
+      "font-size:13px",
+      "color:#333",
+      "background:transparent",
+      "margin:0",
+      "box-sizing:border-box",
+      "width:100%",
+      "line-height:1.4"
+    ].join(";");
 
-    var name = document.createElement("span");
-    name.textContent = cur.label + " (" + cur.currencyCode + ")";
-    Object.assign(name.style, {
-      flex:     "1",
-      display:  "inline-block",
-      color:    "#333333",
-      fontSize: "13px"
-    });
+    var flagSpan = document.createElement("span");
+    flagSpan.textContent = cur.flag || "";
+    flagSpan.style.cssText = "font-size:20px;line-height:1;flex-shrink:0;";
 
-    row.appendChild(flag);
-    row.appendChild(name);
+    var nameSpan = document.createElement("span");
+    nameSpan.textContent = cur.label + " (" + cur.currencyCode + ")";
+    nameSpan.style.cssText = "flex:1;font-size:13px;color:#333;";
 
-    row.addEventListener("mouseenter", function () {
-      row.style.background = "#f5f5f5";
-    });
-    row.addEventListener("mouseleave", function () {
-      row.style.background = row._active ? "#eef2ff" : "transparent";
-    });
+    row.appendChild(flagSpan);
+    row.appendChild(nameSpan);
+
+    row.addEventListener("mouseenter", function () { row.style.background = "#f5f5f5"; });
+    row.addEventListener("mouseleave", function () { row.style.background = row._active ? "#eef2ff" : "transparent"; });
 
     row.addEventListener("click", function (e) {
       e.stopPropagation();
-      // Mark active
       dropdown.querySelectorAll("[data-code]").forEach(function (r) {
         r.style.background = "transparent";
         r.style.fontWeight = "normal";
@@ -168,17 +136,9 @@
       row.style.fontWeight = "600";
       row._active = true;
 
-      // Update FAB label
-      if (codeEl) {
-        codeEl.textContent = (cur.flag ? cur.flag + " " : "") + cur.currencyCode;
-      }
-
+      codeEl.textContent = (cur.flag ? cur.flag + " " : "") + cur.currencyCode;
       closeDropdown();
-
-      localStorage.setItem("loy_currency", JSON.stringify({
-        code: cur.currencyCode, symbol: cur.symbol,
-        flag: cur.flag, label: cur.label
-      }));
+      localStorage.setItem("loy_currency", JSON.stringify({ code: cur.currencyCode, symbol: cur.symbol, flag: cur.flag || "", label: cur.label }));
       apply(cur.currencyCode, cur.symbol);
     });
 
@@ -187,18 +147,38 @@
 
   document.body.appendChild(dropdown);
 
-  // ── Toggle helpers ──────────────────────────────────────────
+  /* ── Toggle ────────────────────────────────────────────────── */
   function openDropdown() {
     var rect = fab.getBoundingClientRect();
-    dropdown.style.top   = (rect.bottom + 6) + "px";
+    var spaceBelow = window.innerHeight - rect.bottom;
+    var dropH = Math.min(300, currencies.length * 44 + 12);
+
     dropdown.style.right = (window.innerWidth - rect.right) + "px";
+    dropdown.style.left  = "auto";
+
+    if (spaceBelow >= dropH + 8) {
+      // enough room below
+      dropdown.style.top    = (rect.bottom + 6) + "px";
+      dropdown.style.bottom = "auto";
+    } else {
+      // not enough room below — open above
+      dropdown.style.bottom = (window.innerHeight - rect.top + 6) + "px";
+      dropdown.style.top    = "auto";
+    }
+
     dropdown.style.display = "block";
     fab.setAttribute("aria-expanded", "true");
+    var svg = chevron.querySelector("svg");
+    if (svg) svg.style.transform = "rotate(180deg)";
   }
+
   function closeDropdown() {
     dropdown.style.display = "none";
     fab.setAttribute("aria-expanded", "false");
+    var svg = chevron.querySelector("svg");
+    if (svg) svg.style.transform = "rotate(0deg)";
   }
+
   function isOpen() { return dropdown.style.display === "block"; }
 
   fab.addEventListener("click", function (e) {
@@ -207,19 +187,19 @@
   });
 
   document.addEventListener("click", function (e) {
-    if (isOpen() && !dropdown.contains(e.target) && e.target !== fab)
+    if (isOpen() && !dropdown.contains(e.target) && e.target !== fab && !fab.contains(e.target))
       closeDropdown();
   });
 
-  // ── Price conversion ────────────────────────────────────────
+  /* ── Price conversion ──────────────────────────────────────── */
   var rates      = null;
   var converting = false;
   var SEL = [
-    ".price__regular .price-item", ".price__sale .price-item",
-    ".price-item", ".price__current", ".product-price__price",
-    ".product__price .price", ".cart-item__price", ".cart__price",
-    ".totals__subtotal-value", "[data-product-price]",
-    "[class*='price__']", ".price"
+    ".price__regular .price-item",".price__sale .price-item",
+    ".price-item",".price__current",".product-price__price",
+    ".product__price .price",".cart-item__price",".cart__price",
+    ".totals__subtotal-value","[data-product-price]",
+    "[class*='price__']",".price"
   ].join(",");
 
   function store() {
@@ -275,13 +255,13 @@
     fetchRates(function(r){ if(r&&r[c]) convert(r[c], sym); });
   }
 
-  // ── Restore saved currency on page load ─────────────────────
+  /* ── Restore saved currency ────────────────────────────────── */
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch(e) {}
-  if (saved && saved.code !== BASE) {
-    if (codeEl) codeEl.textContent = (saved.flag ? saved.flag + " " : "") + saved.code;
+  if (saved && saved.code && saved.code !== BASE) {
+    codeEl.textContent = (saved.flag ? saved.flag + " " : "") + saved.code;
     dropdown.querySelectorAll("[data-code]").forEach(function (r) {
-      if (r.dataset.code === saved.code) {
+      if (r.getAttribute("data-code") === saved.code) {
         r.style.background = "#eef2ff";
         r.style.fontWeight = "600";
         r._active = true;
@@ -291,7 +271,7 @@
     fetchRates(function(r){ if(r&&r[saved.code]) convert(r[saved.code], saved.symbol); });
   }
 
-  // ── MutationObserver for dynamically loaded prices ──────────
+  /* ── MutationObserver ──────────────────────────────────────── */
   if (window.MutationObserver) {
     new MutationObserver(function(){
       if (converting) return;
@@ -301,6 +281,7 @@
       if(rates&&rates[s.code]) convert(rates[s.code],s.symbol);
     }).observe(document.body,{childList:true,subtree:true,characterData:true});
   }
+
 })();
 </script>
 
