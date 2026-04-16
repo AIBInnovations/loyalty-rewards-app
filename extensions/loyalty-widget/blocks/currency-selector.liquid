@@ -1,6 +1,7 @@
 {% comment %}
-  Currency Selector - App Block
-  Styled dropdown with flags + currency names, matching the reference UI.
+  Currency Selector - App Embed (body target)
+  Appears in Theme Editor → App Embeds panel.
+  Injects the currency dropdown into the store header automatically.
   Currencies configured from app admin → Currency Selector page.
 {% endcomment %}
 
@@ -9,132 +10,65 @@
 
 {% unless cs_enabled == false %}
 
-  {% comment %} Build the display list {% endcomment %}
   {% if custom_currencies != blank %}
     {% assign use_custom = true %}
   {% else %}
     {% assign use_custom = false %}
   {% endif %}
 
-  <div class="loy-cs-wrap" id="loy-cs-{{ block.id }}">
+  {% comment %} Render hidden data container — JS reads from it {% endcomment %}
+  <div id="loy-cs-data-{{ block.id }}" style="display:none;"
+    data-current-country="{{ localization.country.iso_code }}"
+  >
+    {% if use_custom %}
+      {% for cur in custom_currencies %}
+        <span
+          data-country="{{ cur.countryCode }}"
+          data-code="{{ cur.currencyCode }}"
+          data-label="{{ cur.label | escape }}"
+          data-flag="{{ cur.flag }}"
+        ></span>
+      {% endfor %}
+    {% else %}
+      {% for country in localization.available_countries %}
+        <span
+          data-country="{{ country.iso_code }}"
+          data-code="{{ country.currency.iso_code }}"
+          data-label="{{ country.name | escape }}"
+          data-flag="{{ country.currency.symbol }}"
+        ></span>
+      {% endfor %}
+    {% endif %}
+  </div>
 
-    {% comment %} Hidden native select for form submission {% endcomment %}
-    {% form 'localization', id: 'loy-cs-form-{{ block.id }}' %}
-      <select
-        name="country_code"
-        id="loy-cs-native-{{ block.id }}"
-        style="display:none;"
-        aria-hidden="true"
-      >
-        {% if use_custom %}
-          {% for cur in custom_currencies %}
-            <option
-              value="{{ cur.countryCode }}"
-              {% if cur.countryCode == localization.country.iso_code %}selected{% endif %}
-            >{{ cur.currencyCode }}</option>
-          {% endfor %}
-        {% else %}
-          {% for country in localization.available_countries %}
-            <option
-              value="{{ country.iso_code }}"
-              {% if country.iso_code == localization.country.iso_code %}selected{% endif %}
-            >{{ country.currency.iso_code }}</option>
-          {% endfor %}
-        {% endif %}
-      </select>
-    {% endform %}
-
-    {% comment %} Custom styled dropdown trigger {% endcomment %}
-    <button
-      class="loy-cs-trigger"
-      id="loy-cs-trigger-{{ block.id }}"
-      type="button"
-      aria-haspopup="listbox"
-      aria-expanded="false"
-    >
-      <span class="loy-cs-flag" id="loy-cs-flag-{{ block.id }}">
-        {% if use_custom %}
-          {% for cur in custom_currencies %}
-            {% if cur.countryCode == localization.country.iso_code %}{{ cur.flag }}{% endif %}
-          {% endfor %}
-          {% comment %} fallback: first currency flag {% endcomment %}
-          {% assign first_cur = custom_currencies | first %}
-          {% if localization.country.iso_code == blank %}{{ first_cur.flag }}{% endif %}
-        {% else %}
-          {{ localization.country.currency.symbol }}
-        {% endif %}
-      </span>
-      <span class="loy-cs-label" id="loy-cs-label-{{ block.id }}">
-        {% if use_custom %}
-          {% assign matched = false %}
-          {% for cur in custom_currencies %}
-            {% if cur.countryCode == localization.country.iso_code and matched == false %}
-              {{ cur.label }} ({{ cur.currencyCode }})
-              {% assign matched = true %}
-            {% endif %}
-          {% endfor %}
-          {% if matched == false %}
-            {% assign first_cur = custom_currencies | first %}
-            {{ first_cur.label }} ({{ first_cur.currencyCode }})
-          {% endif %}
-        {% else %}
-          {{ localization.country.name }} ({{ localization.country.currency.iso_code }})
-        {% endif %}
-      </span>
-      <span class="loy-cs-chevron" aria-hidden="true">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.5"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </span>
-    </button>
-
-    {% comment %} Dropdown list {% endcomment %}
-    <ul
-      class="loy-cs-dropdown"
-      id="loy-cs-dropdown-{{ block.id }}"
-      role="listbox"
-      aria-label="Select currency"
-      style="display:none;"
-    >
+  {% comment %} Hidden localization form {% endcomment %}
+  {% form 'localization', id: 'loy-cs-form-{{ block.id }}' %}
+    <select name="country_code" id="loy-cs-native-{{ block.id }}" style="display:none;" aria-hidden="true">
       {% if use_custom %}
         {% for cur in custom_currencies %}
-          <li
-            class="loy-cs-option{% if cur.countryCode == localization.country.iso_code %} loy-cs-option--active{% endif %}"
-            role="option"
-            data-value="{{ cur.countryCode }}"
-            aria-selected="{% if cur.countryCode == localization.country.iso_code %}true{% else %}false{% endif %}"
-          >
-            <span class="loy-cs-option-flag">{{ cur.flag }}</span>
-            <span class="loy-cs-option-label">{{ cur.label }} ({{ cur.currencyCode }})</span>
-          </li>
+          <option value="{{ cur.countryCode }}"
+            {% if cur.countryCode == localization.country.iso_code %}selected{% endif %}
+          >{{ cur.currencyCode }}</option>
         {% endfor %}
       {% else %}
         {% for country in localization.available_countries %}
-          <li
-            class="loy-cs-option{% if country.iso_code == localization.country.iso_code %} loy-cs-option--active{% endif %}"
-            role="option"
-            data-value="{{ country.iso_code }}"
-            aria-selected="{% if country.iso_code == localization.country.iso_code %}true{% else %}false{% endif %}"
-          >
-            <span class="loy-cs-option-flag">{{ country.currency.symbol }}</span>
-            <span class="loy-cs-option-label">{{ country.name }} ({{ country.currency.iso_code }})</span>
-          </li>
+          <option value="{{ country.iso_code }}"
+            {% if country.iso_code == localization.country.iso_code %}selected{% endif %}
+          >{{ country.currency.iso_code }}</option>
         {% endfor %}
       {% endif %}
-    </ul>
-
-  </div>
+    </select>
+  {% endform %}
 
   <style>
     .loy-cs-wrap {
       position: relative;
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
       font-family: inherit;
       font-size: 13px;
       z-index: 1000;
     }
-
     .loy-cs-trigger {
       display: inline-flex;
       align-items: center;
@@ -152,31 +86,17 @@
       line-height: 1.4;
       white-space: nowrap;
     }
-
-    .loy-cs-trigger:hover {
-      background: {{ block.settings.hover_color }};
-    }
-
-    .loy-cs-flag {
-      font-size: 16px;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-
-    .loy-cs-label {
-      flex: 1;
-    }
-
+    .loy-cs-trigger:hover { background: {{ block.settings.hover_color }}; }
+    .loy-cs-flag  { font-size: 16px; line-height: 1; flex-shrink: 0; }
+    .loy-cs-label { flex: 1; }
     .loy-cs-chevron {
       color: #999;
       flex-shrink: 0;
       transition: transform 0.2s;
+      display: flex;
+      align-items: center;
     }
-
-    .loy-cs-trigger[aria-expanded="true"] .loy-cs-chevron {
-      transform: rotate(180deg);
-    }
-
+    .loy-cs-trigger[aria-expanded="true"] .loy-cs-chevron { transform: rotate(180deg); }
     .loy-cs-dropdown {
       position: absolute;
       top: calc(100% + 4px);
@@ -191,9 +111,8 @@
       padding: 6px 0;
       max-height: 280px;
       overflow-y: auto;
-      z-index: 9999;
+      z-index: 99999;
     }
-
     .loy-cs-option {
       display: flex;
       align-items: center;
@@ -204,88 +123,163 @@
       font-size: 13px;
       transition: background 0.15s;
     }
-
-    .loy-cs-option:hover {
-      background: #f5f5f5;
-    }
-
-    .loy-cs-option--active {
-      background: #f0f0f0;
-      font-weight: 600;
-    }
-
-    .loy-cs-option-flag {
-      font-size: 18px;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-
-    .loy-cs-option-label {
-      flex: 1;
-    }
+    .loy-cs-option:hover { background: #f5f5f5; }
+    .loy-cs-option--active { background: #f0f0f0; font-weight: 600; }
+    .loy-cs-option-flag  { font-size: 18px; line-height: 1; flex-shrink: 0; }
+    .loy-cs-option-label { flex: 1; }
   </style>
 
   <script>
-    (function () {
-      var wrap     = document.getElementById("loy-cs-{{ block.id }}");
-      var trigger  = document.getElementById("loy-cs-trigger-{{ block.id }}");
-      var dropdown = document.getElementById("loy-cs-dropdown-{{ block.id }}");
-      var native   = document.getElementById("loy-cs-native-{{ block.id }}");
-      var form     = document.getElementById("loy-cs-form-{{ block.id }}");
-      var flagEl   = document.getElementById("loy-cs-flag-{{ block.id }}");
-      var labelEl  = document.getElementById("loy-cs-label-{{ block.id }}");
+  (function () {
+    var DATA_ID   = "loy-cs-data-{{ block.id }}";
+    var FORM_ID   = "loy-cs-form-{{ block.id }}";
+    var NATIVE_ID = "loy-cs-native-{{ block.id }}";
 
-      if (!trigger || !dropdown || !native || !form) return;
+    function buildWidget(currencies, currentCountry) {
+      var current = currencies.find(function(c){ return c.country === currentCountry; }) || currencies[0];
+      if (!current) return;
 
-      function openDropdown() {
-        dropdown.style.display = "block";
-        trigger.setAttribute("aria-expanded", "true");
-      }
+      // ── wrapper
+      var wrap = document.createElement("div");
+      wrap.className = "loy-cs-wrap";
+      wrap.id = "loy-cs-wrap-{{ block.id }}";
 
-      function closeDropdown() {
-        dropdown.style.display = "none";
-        trigger.setAttribute("aria-expanded", "false");
-      }
+      // ── trigger button
+      var trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.className = "loy-cs-trigger";
+      trigger.setAttribute("aria-haspopup", "listbox");
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.innerHTML =
+        '<span class="loy-cs-flag">'   + current.flag  + '</span>' +
+        '<span class="loy-cs-label">'  + current.label + ' (' + current.code + ')</span>' +
+        '<span class="loy-cs-chevron"><svg width="10" height="10" viewBox="0 0 10 10" fill="none">' +
+          '<path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '</svg></span>';
 
-      function isOpen() {
-        return dropdown.style.display === "block";
-      }
+      // ── dropdown
+      var list = document.createElement("ul");
+      list.className = "loy-cs-dropdown";
+      list.setAttribute("role", "listbox");
+      list.style.display = "none";
 
+      currencies.forEach(function (c) {
+        var li = document.createElement("li");
+        li.className = "loy-cs-option" + (c.country === currentCountry ? " loy-cs-option--active" : "");
+        li.setAttribute("role", "option");
+        li.setAttribute("data-value", c.country);
+        li.setAttribute("aria-selected", c.country === currentCountry ? "true" : "false");
+        li.innerHTML =
+          '<span class="loy-cs-option-flag">'  + c.flag  + '</span>' +
+          '<span class="loy-cs-option-label">' + c.label + ' (' + c.code + ')</span>';
+        list.appendChild(li);
+      });
+
+      wrap.appendChild(trigger);
+      wrap.appendChild(list);
+
+      // ── events
       trigger.addEventListener("click", function (e) {
         e.stopPropagation();
-        isOpen() ? closeDropdown() : openDropdown();
+        var open = list.style.display === "block";
+        list.style.display = open ? "none" : "block";
+        trigger.setAttribute("aria-expanded", open ? "false" : "true");
       });
 
       document.addEventListener("click", function (e) {
-        if (!wrap.contains(e.target)) closeDropdown();
+        if (!wrap.contains(e.target)) {
+          list.style.display = "none";
+          trigger.setAttribute("aria-expanded", "false");
+        }
       });
 
-      dropdown.querySelectorAll(".loy-cs-option").forEach(function (opt) {
+      list.querySelectorAll(".loy-cs-option").forEach(function (opt) {
         opt.addEventListener("click", function () {
           var val   = opt.dataset.value;
-          var flag  = opt.querySelector(".loy-cs-option-flag")  ? opt.querySelector(".loy-cs-option-flag").textContent  : "";
-          var label = opt.querySelector(".loy-cs-option-label") ? opt.querySelector(".loy-cs-option-label").textContent : "";
+          var flag  = opt.querySelector(".loy-cs-option-flag").textContent;
+          var label = opt.querySelector(".loy-cs-option-label").textContent;
 
-          // Update trigger display
-          if (flagEl)  flagEl.textContent  = flag;
-          if (labelEl) labelEl.textContent = label;
+          trigger.querySelector(".loy-cs-flag").textContent  = flag;
+          trigger.querySelector(".loy-cs-label").textContent = label;
 
-          // Update active state
-          dropdown.querySelectorAll(".loy-cs-option").forEach(function (o) {
+          list.querySelectorAll(".loy-cs-option").forEach(function(o){
             o.classList.remove("loy-cs-option--active");
-            o.setAttribute("aria-selected", "false");
+            o.setAttribute("aria-selected","false");
           });
           opt.classList.add("loy-cs-option--active");
-          opt.setAttribute("aria-selected", "true");
+          opt.setAttribute("aria-selected","true");
 
-          closeDropdown();
+          list.style.display = "none";
+          trigger.setAttribute("aria-expanded","false");
 
-          // Submit localization form
-          native.value = val;
-          form.submit();
+          var native = document.getElementById(NATIVE_ID);
+          var form   = document.getElementById(FORM_ID);
+          if (native) native.value = val;
+          if (form)   form.submit();
         });
       });
-    })();
+
+      return wrap;
+    }
+
+    function injectWidget(wrap) {
+      // Try common header selectors across popular themes
+      var selectors = [
+        ".header__inline-menu",
+        ".header__icons",
+        "header .header__wrapper",
+        ".site-header__icons",
+        ".header-wrapper",
+        "header nav",
+        "header .container",
+        ".header",
+        "header"
+      ];
+
+      for (var i = 0; i < selectors.length; i++) {
+        var el = document.querySelector(selectors[i]);
+        if (el) {
+          el.appendChild(wrap);
+          return;
+        }
+      }
+
+      // Last resort: fixed position top-left
+      wrap.style.position = "fixed";
+      wrap.style.top = "12px";
+      wrap.style.left = "12px";
+      wrap.style.zIndex = "99999";
+      document.body.appendChild(wrap);
+    }
+
+    function init() {
+      var dataEl = document.getElementById(DATA_ID);
+      if (!dataEl) return;
+
+      var spans = dataEl.querySelectorAll("span[data-country]");
+      if (!spans.length) return;
+
+      var currencies = [];
+      spans.forEach(function (span) {
+        currencies.push({
+          country: span.dataset.country,
+          code:    span.dataset.code,
+          label:   span.dataset.label,
+          flag:    span.dataset.flag
+        });
+      });
+
+      var currentCountry = dataEl.dataset.currentCountry || "";
+      var wrap = buildWidget(currencies, currentCountry);
+      if (wrap) injectWidget(wrap);
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
+  })();
   </script>
 
 {% endunless %}
@@ -293,7 +287,7 @@
 {% schema %}
 {
   "name": "Currency Selector",
-  "target": "section",
+  "target": "body",
   "settings": [
     {
       "type": "color",
