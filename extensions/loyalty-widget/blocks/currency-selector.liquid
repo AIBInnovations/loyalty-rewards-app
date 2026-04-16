@@ -53,8 +53,9 @@
       background: {{ block.settings.bar_background }};
       border-bottom: 1px solid {{ block.settings.border_color }};
       box-sizing: border-box;
-      position: relative;
-      z-index: 999;
+      position: sticky;
+      top: 0;
+      z-index: 10000;
     }
     .loy-cs-wrap {
       position: relative;
@@ -361,33 +362,8 @@
       bar.id = "loy-cs-bar-{{ block.id }}";
       bar.appendChild(wrap);
 
-      // Try inserting AFTER the header/announcement section
-      var headerSelectors = [
-        ".shopify-section-header",  // Dawn theme wrapper
-        "sticky-header",            // Dawn sticky-header custom element
-        "#shopify-section-header",  // section ID
-        "header[role='banner']",    // semantic header
-        "header",
-        ".header",
-        ".site-header",
-        "#header",
-        ".header-wrapper",
-        ".announcement-bar + *",    // element right after announcement bar
-        "[id*='header']"
-      ];
-      var inserted = false;
-      for (var i = 0; i < headerSelectors.length; i++) {
-        var el = document.querySelector(headerSelectors[i]);
-        if (el && el.parentNode) {
-          el.parentNode.insertBefore(bar, el.nextSibling);
-          inserted = true;
-          break;
-        }
-      }
-      if (!inserted) {
-        // Last resort: put at top of body
-        document.body.insertBefore(bar, document.body.firstChild);
-      }
+      // Insert at very top of body — most reliable cross-theme approach
+      document.body.insertBefore(bar, document.body.firstChild);
     }
 
     // ── Init ─────────────────────────────────────────────────
