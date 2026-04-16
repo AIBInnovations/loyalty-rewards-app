@@ -417,13 +417,14 @@ async function handleGetCartSettings(shop: string) {
 async function handleGetCurrencySettings(shop: string) {
   const settings = await Settings.findOne({ shopId: shop }).lean();
 
-  if (!settings?.currencySelectorEnabled) {
+  // Only treat explicit `false` as disabled — undefined means "not yet set, default to enabled"
+  if (settings && settings.currencySelectorEnabled === false) {
     return json({ enabled: false, currencies: [] }, { headers: { "Cache-Control": "no-store" } });
   }
 
   return json({
     enabled: true,
-    currencies: settings.currencies || [],
+    currencies: (settings && settings.currencies) || [],
   }, { headers: { "Cache-Control": "no-store" } });
 }
 
