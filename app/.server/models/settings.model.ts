@@ -12,6 +12,13 @@ export interface IWidgetConfig {
   title: string;
 }
 
+export interface ICurrencyOption {
+  currencyCode: string;
+  countryCode: string;
+  label: string;
+  symbol: string;
+}
+
 export interface ISettings extends Document {
   shopId: string;
   // Earning configuration
@@ -33,6 +40,7 @@ export interface ISettings extends Document {
   // General
   currencySymbol: string;
   currencySelectorEnabled: boolean;
+  currencies: ICurrencyOption[];
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -73,6 +81,17 @@ const settingsSchema = new Schema<ISettings>(
     },
     currencySymbol: { type: String, default: "₹" },
     currencySelectorEnabled: { type: Boolean, default: true },
+    currencies: {
+      type: [
+        {
+          currencyCode: { type: String, required: true },
+          countryCode: { type: String, required: true },
+          label: { type: String, required: true },
+          symbol: { type: String, required: true },
+        },
+      ],
+      default: [{ currencyCode: "INR", countryCode: "IN", label: "India", symbol: "₹" }],
+    },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true },
