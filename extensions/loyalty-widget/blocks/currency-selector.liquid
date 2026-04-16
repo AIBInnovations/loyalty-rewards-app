@@ -19,6 +19,7 @@
     data-current-country="{{ localization.country.iso_code }}"
   >
     {% if custom_currencies != blank %}
+      {% comment %} Admin-configured currencies from metafield {% endcomment %}
       {% for cur in custom_currencies %}
         <span
           data-country="{{ cur.countryCode }}"
@@ -29,15 +30,17 @@
         ></span>
       {% endfor %}
     {% else %}
-      {% for country in localization.available_countries %}
-        <span
-          data-country="{{ country.iso_code }}"
-          data-code="{{ country.currency.iso_code }}"
-          data-label="{{ country.name | escape }}"
-          data-flag="{{ country.currency.symbol }}"
-          data-symbol="{{ country.currency.symbol | escape }}"
-        ></span>
-      {% endfor %}
+      {% comment %} Fallback: hardcoded popular currencies so widget always renders {% endcomment %}
+      <span data-country="IN" data-code="INR" data-label="Indian Rupee"       data-flag="🇮🇳" data-symbol="₹"></span>
+      <span data-country="US" data-code="USD" data-label="US Dollar"          data-flag="🇺🇸" data-symbol="$"></span>
+      <span data-country="GB" data-code="GBP" data-label="British Pound"      data-flag="🇬🇧" data-symbol="£"></span>
+      <span data-country="DE" data-code="EUR" data-label="Euro"               data-flag="🇪🇺" data-symbol="€"></span>
+      <span data-country="AU" data-code="AUD" data-label="Australian Dollar"  data-flag="🇦🇺" data-symbol="A$"></span>
+      <span data-country="AE" data-code="AED" data-label="UAE Dirham"         data-flag="🇦🇪" data-symbol="د.إ"></span>
+      <span data-country="SA" data-code="SAR" data-label="Saudi Riyal"        data-flag="🇸🇦" data-symbol="﷼"></span>
+      <span data-country="CA" data-code="CAD" data-label="Canadian Dollar"    data-flag="🇨🇦" data-symbol="CA$"></span>
+      <span data-country="SG" data-code="SGD" data-label="Singapore Dollar"   data-flag="🇸🇬" data-symbol="S$"></span>
+      <span data-country="JP" data-code="JPY" data-label="Japanese Yen"       data-flag="🇯🇵" data-symbol="¥"></span>
     {% endif %}
   </div>
 
@@ -358,19 +361,32 @@
       bar.id = "loy-cs-bar-{{ block.id }}";
       bar.appendChild(wrap);
 
-      var headerSelectors = ["header", ".header", ".site-header", "#header", ".header-wrapper", ".shopify-section-header"];
+      // Try inserting AFTER the header/announcement section
+      var headerSelectors = [
+        ".shopify-section-header",  // Dawn theme wrapper
+        "sticky-header",            // Dawn sticky-header custom element
+        "#shopify-section-header",  // section ID
+        "header[role='banner']",    // semantic header
+        "header",
+        ".header",
+        ".site-header",
+        "#header",
+        ".header-wrapper",
+        ".announcement-bar + *",    // element right after announcement bar
+        "[id*='header']"
+      ];
       var inserted = false;
       for (var i = 0; i < headerSelectors.length; i++) {
         var el = document.querySelector(headerSelectors[i]);
-        if (el) {
+        if (el && el.parentNode) {
           el.parentNode.insertBefore(bar, el.nextSibling);
           inserted = true;
           break;
         }
       }
       if (!inserted) {
-        var main = document.querySelector("main") || document.body;
-        main.insertBefore(bar, main.firstChild);
+        // Last resort: put at top of body
+        document.body.insertBefore(bar, document.body.firstChild);
       }
     }
 
