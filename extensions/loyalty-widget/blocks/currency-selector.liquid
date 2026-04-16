@@ -1,8 +1,8 @@
 {% comment %}
   Currency Selector - App Embed
-  Floating in top-left header area — same style as reference UI
-  Flag + Code trigger, dropdown with flag + Name (Code)
-  JS-based price conversion via open.er-api.com
+  - Options rendered directly in Liquid (no JS needed for dropdown)
+  - Inline onclick toggle — works regardless of JS loading
+  - JS only used for price conversion
 {% endcomment %}
 
 {% assign cs_enabled = shop.metafields.loyalty_widget.currency_selector_enabled | default: true %}
@@ -12,354 +12,268 @@
 
 {% unless cs_enabled == false %}
 
-  {% comment %} Hidden data container {% endcomment %}
-  <div id="loy-cs-data-{{ block.id }}" style="display:none;"
-    data-base="{{ base_currency }}"
-    data-money-format="{{ money_format | escape }}"
+<div id="loy-cs-widget">
+
+  {% comment %} Trigger button — inline onclick toggles the list {% endcomment %}
+  <button
+    type="button"
+    id="loy-cs-btn"
+    onclick="var l=document.getElementById('loy-cs-list');l.style.display=l.style.display==='block'?'none':'block';"
   >
+    <span id="loy-cs-flag">
+      {% if custom_currencies != blank %}{{ custom_currencies.first.flag }}
+      {% else %}🌐{% endif %}
+    </span>
+    <span id="loy-cs-code">
+      {% if custom_currencies != blank %}{{ custom_currencies.first.currencyCode }}
+      {% else %}{{ base_currency }}{% endif %}
+    </span>
+    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="margin-left:2px;">
+      <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.8"
+        stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  {% comment %} Dropdown — options pre-rendered by Liquid {% endcomment %}
+  <ul id="loy-cs-list" role="listbox">
+
     {% if custom_currencies != blank %}
       {% for cur in custom_currencies %}
-        <span data-country="{{ cur.countryCode }}" data-code="{{ cur.currencyCode }}"
-          data-label="{{ cur.label | escape }}" data-flag="{{ cur.flag }}"
-          data-symbol="{{ cur.symbol | escape }}"></span>
+        <li class="loy-cs-opt"
+          data-code="{{ cur.currencyCode }}"
+          data-symbol="{{ cur.symbol | escape }}"
+          data-flag="{{ cur.flag }}"
+          data-label="{{ cur.label | escape }}"
+          data-money-format="{{ money_format | escape }}"
+          onclick="loyCsSelect(this)"
+        >
+          <span class="loy-cs-opt-flag">{{ cur.flag }}</span>
+          <span class="loy-cs-opt-name">{{ cur.label }} ({{ cur.currencyCode }})</span>
+        </li>
       {% endfor %}
+
     {% else %}
-      <span data-country="IN"  data-code="INR" data-label="Indian Rupee"      data-flag="🇮🇳" data-symbol="₹"></span>
-      <span data-country="US"  data-code="USD" data-label="US Dollar"         data-flag="🇺🇸" data-symbol="$"></span>
-      <span data-country="GB"  data-code="GBP" data-label="British Pound"     data-flag="🇬🇧" data-symbol="£"></span>
-      <span data-country="DE"  data-code="EUR" data-label="Euro"              data-flag="🇪🇺" data-symbol="€"></span>
-      <span data-country="AU"  data-code="AUD" data-label="Australian Dollar" data-flag="🇦🇺" data-symbol="A$"></span>
-      <span data-country="AE"  data-code="AED" data-label="UAE Dirham"        data-flag="🇦🇪" data-symbol="د.إ"></span>
-      <span data-country="SA"  data-code="SAR" data-label="Saudi Riyal"       data-flag="🇸🇦" data-symbol="﷼"></span>
-      <span data-country="CA"  data-code="CAD" data-label="Canadian Dollar"   data-flag="🇨🇦" data-symbol="CA$"></span>
-      <span data-country="SG"  data-code="SGD" data-label="Singapore Dollar"  data-flag="🇸🇬" data-symbol="S$"></span>
-      <span data-country="JP"  data-code="JPY" data-label="Japanese Yen"      data-flag="🇯🇵" data-symbol="¥"></span>
+      <li class="loy-cs-opt" data-code="INR" data-symbol="₹"   data-flag="🇮🇳" data-label="Indian Rupee"       onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇮🇳</span><span class="loy-cs-opt-name">Indian Rupee (INR)</span></li>
+      <li class="loy-cs-opt" data-code="USD" data-symbol="$"   data-flag="🇺🇸" data-label="US Dollar"          onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇺🇸</span><span class="loy-cs-opt-name">US Dollar (USD)</span></li>
+      <li class="loy-cs-opt" data-code="GBP" data-symbol="£"   data-flag="🇬🇧" data-label="British Pound"      onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇬🇧</span><span class="loy-cs-opt-name">British Pound (GBP)</span></li>
+      <li class="loy-cs-opt" data-code="EUR" data-symbol="€"   data-flag="🇪🇺" data-label="Euro"               onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇪🇺</span><span class="loy-cs-opt-name">Euro (EUR)</span></li>
+      <li class="loy-cs-opt" data-code="AUD" data-symbol="A$"  data-flag="🇦🇺" data-label="Australian Dollar"  onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇦🇺</span><span class="loy-cs-opt-name">Australian Dollar (AUD)</span></li>
+      <li class="loy-cs-opt" data-code="AED" data-symbol="د.إ" data-flag="🇦🇪" data-label="UAE Dirham"         onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇦🇪</span><span class="loy-cs-opt-name">UAE Dirham (AED)</span></li>
+      <li class="loy-cs-opt" data-code="SAR" data-symbol="﷼"  data-flag="🇸🇦" data-label="Saudi Riyal"        onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇸🇦</span><span class="loy-cs-opt-name">Saudi Riyal (SAR)</span></li>
+      <li class="loy-cs-opt" data-code="CAD" data-symbol="CA$" data-flag="🇨🇦" data-label="Canadian Dollar"    onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇨🇦</span><span class="loy-cs-opt-name">Canadian Dollar (CAD)</span></li>
+      <li class="loy-cs-opt" data-code="SGD" data-symbol="S$"  data-flag="🇸🇬" data-label="Singapore Dollar"   onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇸🇬</span><span class="loy-cs-opt-name">Singapore Dollar (SGD)</span></li>
+      <li class="loy-cs-opt" data-code="JPY" data-symbol="¥"   data-flag="🇯🇵" data-label="Japanese Yen"       onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇯🇵</span><span class="loy-cs-opt-name">Japanese Yen (JPY)</span></li>
     {% endif %}
-  </div>
 
-  {% comment %} The floating currency selector widget {% endcomment %}
-  <div class="loy-cs-widget" id="loy-cs-widget">
+  </ul>
+</div>
 
-    {% comment %} Trigger button: flag + code + chevron {% endcomment %}
-    <button type="button" class="loy-cs-trigger" aria-haspopup="listbox" aria-expanded="false">
-      <span class="loy-cs-flag">🌐</span>
-      <span class="loy-cs-code">{{ base_currency }}</span>
-      <span class="loy-cs-arrow">
-        <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-          <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5"
-            stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </span>
-    </button>
+<style>
+  #loy-cs-widget {
+    position: fixed;
+    top: 12px;
+    left: 16px;
+    z-index: 9999999;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  #loy-cs-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    color: #222;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 6px 10px 6px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    white-space: nowrap;
+    line-height: 1;
+  }
+  #loy-cs-btn:hover { background: #f5f5f5; }
+  #loy-cs-flag { font-size: 18px; line-height: 1; }
+  #loy-cs-code { font-size: 13px; font-weight: 600; }
 
-    {% comment %} Dropdown list {% endcomment %}
-    <ul class="loy-cs-dropdown" role="listbox" aria-label="Select currency" style="display:none;"></ul>
+  #loy-cs-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 215px;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.14);
+    list-style: none;
+    margin: 0;
+    padding: 6px 0;
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 9999999;
+  }
+  .loy-cs-opt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #333;
+  }
+  .loy-cs-opt:hover { background: #f5f5f5; }
+  .loy-cs-opt.loy-active { background: #f0f0f0; font-weight: 600; }
+  .loy-cs-opt-flag { font-size: 20px; line-height: 1; flex-shrink: 0; }
+  .loy-cs-opt-name { flex: 1; }
+</style>
 
-  </div>
+<script>
+// ── Close dropdown on outside click ──────────────────────────────
+document.addEventListener("click", function (e) {
+  var w = document.getElementById("loy-cs-widget");
+  var l = document.getElementById("loy-cs-list");
+  if (w && l && !w.contains(e.target)) l.style.display = "none";
+});
 
-  <style>
-    /* ── Widget container — fixed top-left ── */
-    #loy-cs-widget {
-      position: fixed;
-      top: 12px;
-      left: 16px;
-      z-index: 9999999;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 13px;
+// ── Currency selection handler ────────────────────────────────────
+window.loyCsSelect = function (el) {
+  var code   = el.dataset.code;
+  var symbol = el.dataset.symbol;
+  var flag   = el.dataset.flag;
+  var label  = el.dataset.label;
+
+  // Update trigger display
+  var flagEl = document.getElementById("loy-cs-flag");
+  var codeEl = document.getElementById("loy-cs-code");
+  if (flagEl) flagEl.textContent = flag;
+  if (codeEl) codeEl.textContent = code;
+
+  // Mark active option
+  document.querySelectorAll(".loy-cs-opt").forEach(function (o) {
+    o.classList.toggle("loy-active", o === el);
+  });
+
+  // Close dropdown
+  var list = document.getElementById("loy-cs-list");
+  if (list) list.style.display = "none";
+
+  // Save selection
+  var BASE = "{{ base_currency }}";
+  localStorage.setItem("loy_currency", JSON.stringify({ code: code, symbol: symbol, flag: flag, label: label }));
+
+  // Convert prices
+  loyCsApply(code, symbol, BASE);
+};
+
+// ── Price conversion ──────────────────────────────────────────────
+var loyCsRates    = null;
+var loyCsConverting = false;
+var loyCsFmt      = "{{ money_format | escape }}";
+var loyCsBase     = "{{ base_currency }}";
+
+function loyCsApply(code, symbol, base) {
+  loyCsStoreOriginals();
+  if (code === base) { loyCsReset(); return; }
+  loyCsFetchRates(base, function (rates) {
+    if (rates && rates[code]) loyCsConvert(rates[code], symbol);
+  });
+}
+
+function loyCsFetchRates(base, cb) {
+  if (loyCsRates) { cb(loyCsRates); return; }
+  fetch("https://open.er-api.com/v6/latest/" + base)
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.rates) loyCsRates = d.rates; cb(loyCsRates); })
+    .catch(function () { cb(null); });
+}
+
+var PRICE_SEL = [
+  ".price__regular .price-item", ".price__sale .price-item",
+  ".price-item", ".price__current", ".product-price__price",
+  ".product__price .price", ".cart-item__price", ".cart__price",
+  ".totals__subtotal-value", "[data-product-price]",
+  "[class*='price__']", ".price"
+].join(",");
+
+function loyCsStoreOriginals() {
+  document.querySelectorAll(PRICE_SEL).forEach(function (el) {
+    if (el.dataset.loyOrig) return;
+    var txt = el.textContent.trim();
+    var raw = txt.replace(/[^\d.,]/g, "").replace(/,/g, "").replace(/\.(?=.*\.)/g, "");
+    var num = parseFloat(raw);
+    if (!isNaN(num) && num > 0) {
+      el.dataset.loyOrig    = num;
+      el.dataset.loyOrigTxt = txt;
     }
+  });
+}
 
-    /* ── Trigger button ── */
-    #loy-cs-widget .loy-cs-trigger {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: {{ block.settings.background_color }};
-      color: {{ block.settings.text_color }};
-      border: 1px solid {{ block.settings.border_color }};
-      border-radius: {{ block.settings.border_radius }}px;
-      padding: 5px 10px 5px 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      line-height: 1;
-      white-space: nowrap;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.10);
-      transition: background 0.15s;
-    }
-    #loy-cs-widget .loy-cs-trigger:hover {
-      background: {{ block.settings.hover_color }};
-    }
-    #loy-cs-widget .loy-cs-flag {
-      font-size: 18px;
-      line-height: 1;
-    }
-    #loy-cs-widget .loy-cs-code {
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
-    }
-    #loy-cs-widget .loy-cs-arrow {
-      color: #888;
-      display: flex;
-      align-items: center;
-      transition: transform 0.2s;
-    }
-    #loy-cs-widget .loy-cs-trigger[aria-expanded="true"] .loy-cs-arrow {
-      transform: rotate(180deg);
-    }
-
-    /* ── Dropdown list ── */
-    #loy-cs-widget .loy-cs-dropdown {
-      position: absolute;
-      top: calc(100% + 6px);
-      left: 0;
-      min-width: 210px;
-      background: #fff;
-      border: 1px solid #e5e5e5;
-      border-radius: 10px;
-      box-shadow: 0 8px 28px rgba(0,0,0,0.14);
-      list-style: none;
-      margin: 0;
-      padding: 6px 0;
-      max-height: 320px;
-      overflow-y: auto;
-      z-index: 9999999;
-    }
-
-    /* ── Dropdown option ── */
-    #loy-cs-widget .loy-cs-option {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 14px;
-      cursor: pointer;
-      color: #333;
-      font-size: 13px;
-      font-weight: 400;
-      transition: background 0.12s;
-    }
-    #loy-cs-widget .loy-cs-option:hover { background: #f5f5f5; }
-    #loy-cs-widget .loy-cs-option.active { background: #f0f0f0; font-weight: 600; }
-    #loy-cs-widget .loy-cs-opt-flag { font-size: 20px; line-height: 1; flex-shrink: 0; }
-    #loy-cs-widget .loy-cs-opt-name { flex: 1; }
-  </style>
-
-  <script>
-  (function () {
-    var STORE_KEY = "loy_currency_sel";
-
-    var dataEl = document.getElementById("loy-cs-data-{{ block.id }}");
-    if (!dataEl) {
-      // fallback: find by data-base attribute
-      dataEl = document.querySelector("[data-base]");
-    }
-    if (!dataEl) return;
-
-    var BASE = dataEl.dataset.base        || "{{ base_currency }}";
-    var FMT  = dataEl.dataset.moneyFormat || "{{ money_format | escape }}";
-
-    // ── Parse currencies ──────────────────────────────────────
-    var currencies = [];
-    dataEl.querySelectorAll("span[data-code]").forEach(function (s) {
-      currencies.push({
-        code:    s.dataset.code,
-        label:   s.dataset.label,
-        flag:    s.dataset.flag  || "🌐",
-        symbol:  s.dataset.symbol || s.dataset.code
-      });
-    });
-    if (!currencies.length) return;
-
-    // ── Exchange rates ────────────────────────────────────────
-    var rates     = null;
-    var converting = false;
-
-    function fetchRates(cb) {
-      if (rates) { cb(rates); return; }
-      fetch("https://open.er-api.com/v6/latest/" + BASE)
-        .then(function (r) { return r.json(); })
-        .then(function (d) { if (d && d.rates) rates = d.rates; cb(rates); })
-        .catch(function () { cb(null); });
-    }
-
-    // ── Format money ──────────────────────────────────────────
-    function fmtMoney(amount, symbol) {
-      var f   = FMT;
-      var val = parseFloat(amount) || 0;
-      var s;
-      if (f.indexOf("{{amount_no_decimals}}") !== -1) {
-        s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        f = f.replace("{{amount_no_decimals}}", s);
-      } else if (f.indexOf("{{amount_with_comma_separator}}") !== -1) {
-        s = val.toFixed(2).replace(".", ",");
-        f = f.replace("{{amount_with_comma_separator}}", s);
-      } else {
-        s = val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        f = f.replace("{{amount}}", s);
-      }
-      if (symbol) {
-        var base = FMT.replace(/\{\{[^}]+\}\}/g, "").trim();
-        if (base) f = f.split(base).join(symbol);
-      }
-      return f;
-    }
-
-    // ── Price selectors ───────────────────────────────────────
-    var SEL = [
-      ".price__regular .price-item",
-      ".price__sale .price-item",
-      ".price-item",
-      ".price__current",
-      ".product-price__price",
-      ".product__price .price",
-      ".cart-item__price",
-      ".cart__price",
-      ".totals__subtotal-value",
-      "[data-product-price]",
-      "[class*='price__']",
-      ".price"
-    ].join(",");
-
-    function storeOriginals() {
-      document.querySelectorAll(SEL).forEach(function (el) {
-        if (el.dataset.loyOrig) return;
-        var txt = el.textContent.trim();
-        var raw = txt.replace(/[^\d.,]/g, "").replace(/,/g, "").replace(/\.(?=.*\.)/g, "");
-        var num = parseFloat(raw);
-        if (!isNaN(num) && num > 0) {
-          el.dataset.loyOrig = num;
-          el.dataset.loyOrigTxt = txt;
-        }
-      });
-    }
-
-    function convertPrices(code, symbol) {
-      if (!rates || !rates[code]) return;
-      converting = true;
-      document.querySelectorAll(SEL).forEach(function (el) {
-        if (!el.dataset.loyOrig) return;
-        el.textContent = fmtMoney(parseFloat(el.dataset.loyOrig) * rates[code], symbol);
-      });
-      converting = false;
-    }
-
-    function resetPrices() {
-      converting = true;
-      document.querySelectorAll(SEL).forEach(function (el) {
-        if (el.dataset.loyOrigTxt) el.textContent = el.dataset.loyOrigTxt;
-      });
-      converting = false;
-    }
-
-    function apply(cur) {
-      storeOriginals();
-      if (cur.code === BASE) { resetPrices(); return; }
-      fetchRates(function (r) { if (r) convertPrices(cur.code, cur.symbol); });
-    }
-
-    // ── Build dropdown ────────────────────────────────────────
-    function buildDropdown(activeCur) {
-      var widget  = document.getElementById("loy-cs-widget");
-      if (!widget) return;
-
-      var trigger = widget.querySelector(".loy-cs-trigger");
-      var flagEl  = widget.querySelector(".loy-cs-flag");
-      var codeEl  = widget.querySelector(".loy-cs-code");
-      var list    = widget.querySelector(".loy-cs-dropdown");
-      if (!trigger || !list) return;
-
-      // Set trigger to active currency
-      if (flagEl) flagEl.textContent = activeCur.flag;
-      if (codeEl) codeEl.textContent = activeCur.code;
-
-      // Build options
-      list.innerHTML = "";
-      currencies.forEach(function (c) {
-        var li = document.createElement("li");
-        li.className = "loy-cs-option" + (c.code === activeCur.code ? " active" : "");
-        li.setAttribute("role", "option");
-        li.setAttribute("aria-selected", c.code === activeCur.code ? "true" : "false");
-        li.innerHTML =
-          '<span class="loy-cs-opt-flag">' + c.flag + '</span>' +
-          '<span class="loy-cs-opt-name">' + c.label + ' (' + c.code + ')</span>';
-
-        li.addEventListener("click", function (e) {
-          e.stopPropagation();
-          if (flagEl) flagEl.textContent = c.flag;
-          if (codeEl) codeEl.textContent = c.code;
-
-          list.querySelectorAll(".loy-cs-option").forEach(function (o) {
-            o.classList.remove("active");
-            o.setAttribute("aria-selected", "false");
-          });
-          li.classList.add("active");
-          li.setAttribute("aria-selected", "true");
-
-          list.style.display = "none";
-          trigger.setAttribute("aria-expanded", "false");
-
-          localStorage.setItem(STORE_KEY, JSON.stringify({ code: c.code, symbol: c.symbol, flag: c.flag, label: c.label }));
-          apply(c);
-        });
-
-        list.appendChild(li);
-      });
-
-      // Toggle open/close
-      trigger.addEventListener("click", function (e) {
-        e.stopPropagation();
-        var open = list.style.display === "block";
-        list.style.display = open ? "none" : "block";
-        trigger.setAttribute("aria-expanded", open ? "false" : "true");
-      });
-
-      // Close on outside click
-      document.addEventListener("click", function () {
-        list.style.display = "none";
-        trigger.setAttribute("aria-expanded", "false");
-      });
-    }
-
-    // ── Init ─────────────────────────────────────────────────
-    function init() {
-      var saved = null;
-      try { saved = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) {}
-
-      var activeCur = currencies.find(function (c) { return c.code === BASE; }) || currencies[0];
-      if (saved && currencies.find(function (c) { return c.code === saved.code; })) {
-        activeCur = saved;
-      }
-
-      buildDropdown(activeCur);
-
-      // Apply saved currency on page load
-      if (saved && saved.code !== BASE) {
-        storeOriginals();
-        fetchRates(function (r) { if (r) convertPrices(saved.code, saved.symbol); });
-      }
-
-      // Watch for dynamic price changes
-      if (window.MutationObserver) {
-        var obs = new MutationObserver(function () {
-          if (converting) return;
-          var cur = null;
-          try { cur = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) {}
-          if (cur && cur.code !== BASE) {
-            storeOriginals();
-            if (rates) convertPrices(cur.code, cur.symbol);
-          }
-        });
-        obs.observe(document.body, { childList: true, subtree: true, characterData: true });
-      }
-    }
-
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", init);
+function loyCsConvert(rate, symbol) {
+  loyCsConverting = true;
+  document.querySelectorAll(PRICE_SEL).forEach(function (el) {
+    if (!el.dataset.loyOrig) return;
+    var val = parseFloat(el.dataset.loyOrig) * rate;
+    var fmt = loyCsFmt;
+    var s;
+    if (fmt.indexOf("{{amount_no_decimals}}") !== -1) {
+      s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      fmt = fmt.replace("{{amount_no_decimals}}", s);
+    } else if (fmt.indexOf("{{amount_with_comma_separator}}") !== -1) {
+      s = val.toFixed(2).replace(".", ",");
+      fmt = fmt.replace("{{amount_with_comma_separator}}", s);
     } else {
-      init();
+      s = val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      fmt = fmt.replace("{{amount}}", s);
     }
-  })();
-  </script>
+    var baseSymbol = loyCsFmt.replace(/\{\{[^}]+\}\}/g, "").trim();
+    if (baseSymbol && symbol) fmt = fmt.split(baseSymbol).join(symbol);
+    el.textContent = fmt;
+  });
+  loyCsConverting = false;
+}
+
+function loyCsReset() {
+  loyCsConverting = true;
+  document.querySelectorAll(PRICE_SEL).forEach(function (el) {
+    if (el.dataset.loyOrigTxt) el.textContent = el.dataset.loyOrigTxt;
+  });
+  loyCsConverting = false;
+}
+
+// ── Apply saved currency on page load ────────────────────────────
+(function () {
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
+  if (!saved || saved.code === loyCsBase) return;
+
+  var flagEl = document.getElementById("loy-cs-flag");
+  var codeEl = document.getElementById("loy-cs-code");
+  if (flagEl) flagEl.textContent = saved.flag;
+  if (codeEl) codeEl.textContent = saved.code;
+
+  document.querySelectorAll(".loy-cs-opt").forEach(function (o) {
+    if (o.dataset.code === saved.code) o.classList.add("loy-active");
+  });
+
+  loyCsStoreOriginals();
+  loyCsFetchRates(loyCsBase, function (rates) {
+    if (rates && rates[saved.code]) loyCsConvert(rates[saved.code], saved.symbol);
+  });
+})();
+
+// ── MutationObserver for dynamic price updates ────────────────────
+if (window.MutationObserver) {
+  new MutationObserver(function () {
+    if (loyCsConverting) return;
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
+    if (!saved || saved.code === loyCsBase) return;
+    loyCsStoreOriginals();
+    if (loyCsRates && loyCsRates[saved.code]) loyCsConvert(loyCsRates[saved.code], saved.symbol);
+  }).observe(document.body, { childList: true, subtree: true, characterData: true });
+}
+</script>
 
 {% endunless %}
 
@@ -367,40 +281,6 @@
 {
   "name": "Currency Selector",
   "target": "body",
-  "settings": [
-    {
-      "type": "color",
-      "id": "background_color",
-      "label": "Button background",
-      "default": "#ffffff"
-    },
-    {
-      "type": "color",
-      "id": "hover_color",
-      "label": "Button hover background",
-      "default": "#f5f5f5"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text color",
-      "default": "#222222"
-    },
-    {
-      "type": "color",
-      "id": "border_color",
-      "label": "Border color",
-      "default": "#dddddd"
-    },
-    {
-      "type": "range",
-      "id": "border_radius",
-      "label": "Button border radius",
-      "min": 0,
-      "max": 24,
-      "step": 2,
-      "default": 6
-    }
-  ]
+  "settings": []
 }
 {% endschema %}
