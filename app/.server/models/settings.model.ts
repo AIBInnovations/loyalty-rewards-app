@@ -17,6 +17,7 @@ export interface ICurrencyOption {
   countryCode: string;
   label: string;
   symbol: string;
+  flag: string;
 }
 
 export interface ISettings extends Document {
@@ -88,9 +89,10 @@ const settingsSchema = new Schema<ISettings>(
           countryCode: { type: String, required: true },
           label: { type: String, required: true },
           symbol: { type: String, required: true },
+          flag: { type: String, default: "" },
         },
       ],
-      default: [{ currencyCode: "INR", countryCode: "IN", label: "India", symbol: "₹" }],
+      default: [{ currencyCode: "INR", countryCode: "IN", label: "India", symbol: "₹", flag: "🇮🇳" }],
     },
     isActive: { type: Boolean, default: true },
   },

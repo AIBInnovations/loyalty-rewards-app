@@ -26,38 +26,38 @@ import {
 
 // ─── Predefined currency list ─────────────────────────────────
 const ALL_CURRENCIES: ICurrencyOption[] = [
-  { currencyCode: "INR", countryCode: "IN", label: "India", symbol: "₹" },
-  { currencyCode: "USD", countryCode: "US", label: "United States", symbol: "$" },
-  { currencyCode: "EUR", countryCode: "DE", label: "Germany (Euro)", symbol: "€" },
-  { currencyCode: "GBP", countryCode: "GB", label: "United Kingdom", symbol: "£" },
-  { currencyCode: "AUD", countryCode: "AU", label: "Australia", symbol: "A$" },
-  { currencyCode: "CAD", countryCode: "CA", label: "Canada", symbol: "CA$" },
-  { currencyCode: "SGD", countryCode: "SG", label: "Singapore", symbol: "S$" },
-  { currencyCode: "AED", countryCode: "AE", label: "UAE", symbol: "د.إ" },
-  { currencyCode: "SAR", countryCode: "SA", label: "Saudi Arabia", symbol: "﷼" },
-  { currencyCode: "JPY", countryCode: "JP", label: "Japan", symbol: "¥" },
-  { currencyCode: "CNY", countryCode: "CN", label: "China", symbol: "¥" },
-  { currencyCode: "HKD", countryCode: "HK", label: "Hong Kong", symbol: "HK$" },
-  { currencyCode: "MYR", countryCode: "MY", label: "Malaysia", symbol: "RM" },
-  { currencyCode: "THB", countryCode: "TH", label: "Thailand", symbol: "฿" },
-  { currencyCode: "IDR", countryCode: "ID", label: "Indonesia", symbol: "Rp" },
-  { currencyCode: "PHP", countryCode: "PH", label: "Philippines", symbol: "₱" },
-  { currencyCode: "PKR", countryCode: "PK", label: "Pakistan", symbol: "₨" },
-  { currencyCode: "BDT", countryCode: "BD", label: "Bangladesh", symbol: "৳" },
-  { currencyCode: "LKR", countryCode: "LK", label: "Sri Lanka", symbol: "₨" },
-  { currencyCode: "NPR", countryCode: "NP", label: "Nepal", symbol: "₨" },
-  { currencyCode: "NZD", countryCode: "NZ", label: "New Zealand", symbol: "NZ$" },
-  { currencyCode: "CHF", countryCode: "CH", label: "Switzerland", symbol: "Fr" },
-  { currencyCode: "SEK", countryCode: "SE", label: "Sweden", symbol: "kr" },
-  { currencyCode: "NOK", countryCode: "NO", label: "Norway", symbol: "kr" },
-  { currencyCode: "DKK", countryCode: "DK", label: "Denmark", symbol: "kr" },
-  { currencyCode: "ZAR", countryCode: "ZA", label: "South Africa", symbol: "R" },
-  { currencyCode: "BRL", countryCode: "BR", label: "Brazil", symbol: "R$" },
-  { currencyCode: "MXN", countryCode: "MX", label: "Mexico", symbol: "$" },
-  { currencyCode: "KWD", countryCode: "KW", label: "Kuwait", symbol: "KD" },
-  { currencyCode: "QAR", countryCode: "QA", label: "Qatar", symbol: "QR" },
-  { currencyCode: "OMR", countryCode: "OM", label: "Oman", symbol: "﷼" },
-  { currencyCode: "BHD", countryCode: "BH", label: "Bahrain", symbol: "BD" },
+  { currencyCode: "INR", countryCode: "IN", label: "Indian Rupee",         symbol: "₹",    flag: "🇮🇳" },
+  { currencyCode: "USD", countryCode: "US", label: "US Dollar",            symbol: "$",    flag: "🇺🇸" },
+  { currencyCode: "EUR", countryCode: "DE", label: "Euro",                 symbol: "€",    flag: "🇪🇺" },
+  { currencyCode: "GBP", countryCode: "GB", label: "British Pound",        symbol: "£",    flag: "🇬🇧" },
+  { currencyCode: "AUD", countryCode: "AU", label: "Australian Dollar",    symbol: "A$",   flag: "🇦🇺" },
+  { currencyCode: "CAD", countryCode: "CA", label: "Canadian Dollar",      symbol: "CA$",  flag: "🇨🇦" },
+  { currencyCode: "SGD", countryCode: "SG", label: "Singapore Dollar",     symbol: "S$",   flag: "🇸🇬" },
+  { currencyCode: "AED", countryCode: "AE", label: "UAE Dirham",           symbol: "د.إ",  flag: "🇦🇪" },
+  { currencyCode: "SAR", countryCode: "SA", label: "Saudi Riyal",          symbol: "﷼",   flag: "🇸🇦" },
+  { currencyCode: "JPY", countryCode: "JP", label: "Japanese Yen",         symbol: "¥",    flag: "🇯🇵" },
+  { currencyCode: "CNY", countryCode: "CN", label: "Chinese Yuan",         symbol: "¥",    flag: "🇨🇳" },
+  { currencyCode: "HKD", countryCode: "HK", label: "Hong Kong Dollar",     symbol: "HK$",  flag: "🇭🇰" },
+  { currencyCode: "MYR", countryCode: "MY", label: "Malaysian Ringgit",    symbol: "RM",   flag: "🇲🇾" },
+  { currencyCode: "THB", countryCode: "TH", label: "Thai Baht",            symbol: "฿",    flag: "🇹🇭" },
+  { currencyCode: "IDR", countryCode: "ID", label: "Indonesian Rupiah",    symbol: "Rp",   flag: "🇮🇩" },
+  { currencyCode: "PHP", countryCode: "PH", label: "Philippine Peso",      symbol: "₱",    flag: "🇵🇭" },
+  { currencyCode: "PKR", countryCode: "PK", label: "Pakistani Rupee",      symbol: "₨",    flag: "🇵🇰" },
+  { currencyCode: "BDT", countryCode: "BD", label: "Bangladeshi Taka",     symbol: "৳",    flag: "🇧🇩" },
+  { currencyCode: "LKR", countryCode: "LK", label: "Sri Lankan Rupee",     symbol: "₨",    flag: "🇱🇰" },
+  { currencyCode: "NPR", countryCode: "NP", label: "Nepalese Rupee",       symbol: "₨",    flag: "🇳🇵" },
+  { currencyCode: "NZD", countryCode: "NZ", label: "New Zealand Dollar",   symbol: "NZ$",  flag: "🇳🇿" },
+  { currencyCode: "CHF", countryCode: "CH", label: "Swiss Franc",          symbol: "Fr",   flag: "🇨🇭" },
+  { currencyCode: "SEK", countryCode: "SE", label: "Swedish Krona",        symbol: "kr",   flag: "🇸🇪" },
+  { currencyCode: "NOK", countryCode: "NO", label: "Norwegian Krone",      symbol: "kr",   flag: "🇳🇴" },
+  { currencyCode: "DKK", countryCode: "DK", label: "Danish Krone",         symbol: "kr",   flag: "🇩🇰" },
+  { currencyCode: "ZAR", countryCode: "ZA", label: "South African Rand",   symbol: "R",    flag: "🇿🇦" },
+  { currencyCode: "BRL", countryCode: "BR", label: "Brazilian Real",       symbol: "R$",   flag: "🇧🇷" },
+  { currencyCode: "MXN", countryCode: "MX", label: "Mexican Peso",         symbol: "$",    flag: "🇲🇽" },
+  { currencyCode: "KWD", countryCode: "KW", label: "Kuwaiti Dinar",        symbol: "KD",   flag: "🇰🇼" },
+  { currencyCode: "QAR", countryCode: "QA", label: "Qatari Riyal",         symbol: "QR",   flag: "🇶🇦" },
+  { currencyCode: "OMR", countryCode: "OM", label: "Omani Rial",           symbol: "﷼",   flag: "🇴🇲" },
+  { currencyCode: "BHD", countryCode: "BH", label: "Bahraini Dinar",       symbol: "BD",   flag: "🇧🇭" },
 ];
 
 // ─── Loader ───────────────────────────────────────────────────
@@ -177,7 +177,7 @@ export default function CurrencySettings() {
   const addOptions = [
     { label: "— Select a currency —", value: "" },
     ...availableToAdd.map((c) => ({
-      label: `${c.symbol}  ${c.currencyCode} — ${c.label}`,
+      label: `${c.flag}  ${c.label} (${c.currencyCode})`,
       value: c.currencyCode,
     })),
   ];
@@ -282,22 +282,15 @@ export default function CurrencySettings() {
                     >
                       <InlineStack align="space-between" blockAlign="center">
                         <InlineStack gap="300" blockAlign="center">
-                          <Box
-                            padding="150"
-                            background="bg-surface"
-                            borderRadius="100"
-                            minWidth="36px"
-                          >
-                            <Text as="span" variant="bodyMd" fontWeight="bold" alignment="center">
-                              {cur.symbol}
-                            </Text>
-                          </Box>
+                          <Text as="span" variant="headingLg">
+                            {cur.flag}
+                          </Text>
                           <BlockStack gap="0">
                             <Text as="span" variant="bodyMd" fontWeight="semibold">
-                              {cur.currencyCode}
+                              {cur.label} ({cur.currencyCode})
                             </Text>
                             <Text as="span" variant="bodySm" tone="subdued">
-                              {cur.label} · {cur.countryCode}
+                              {cur.symbol} · {cur.countryCode}
                             </Text>
                           </BlockStack>
                         </InlineStack>
