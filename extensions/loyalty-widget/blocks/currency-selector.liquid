@@ -223,33 +223,47 @@
     }
 
     function injectWidget(wrap) {
-      // Try common header selectors across popular themes
-      var selectors = [
-        ".header__inline-menu",
-        ".header__icons",
-        "header .header__wrapper",
-        ".site-header__icons",
-        ".header-wrapper",
-        "header nav",
-        "header .container",
+      // Wrap in a full-width bar that sits below the header
+      var bar = document.createElement("div");
+      bar.id = "loy-cs-bar-{{ block.id }}";
+      bar.style.cssText = [
+        "width:100%",
+        "display:flex",
+        "align-items:center",
+        "padding:6px {{ block.settings.bar_padding_x }}px",
+        "background:{{ block.settings.bar_background }}",
+        "border-bottom:1px solid {{ block.settings.border_color }}",
+        "box-sizing:border-box",
+        "z-index:999",
+        "position:relative"
+      ].join(";");
+      bar.appendChild(wrap);
+
+      // Try to insert after the header element
+      var headerSelectors = [
+        "header",
         ".header",
-        "header"
+        ".site-header",
+        "#header",
+        ".header-wrapper",
+        ".shopify-section-header"
       ];
 
-      for (var i = 0; i < selectors.length; i++) {
-        var el = document.querySelector(selectors[i]);
+      var inserted = false;
+      for (var i = 0; i < headerSelectors.length; i++) {
+        var el = document.querySelector(headerSelectors[i]);
         if (el) {
-          el.appendChild(wrap);
-          return;
+          el.parentNode.insertBefore(bar, el.nextSibling);
+          inserted = true;
+          break;
         }
       }
 
-      // Last resort: fixed position top-left
-      wrap.style.position = "fixed";
-      wrap.style.top = "12px";
-      wrap.style.left = "12px";
-      wrap.style.zIndex = "99999";
-      document.body.appendChild(wrap);
+      // Fallback: prepend to main content
+      if (!inserted) {
+        var main = document.querySelector("main") || document.body;
+        main.insertBefore(bar, main.firstChild);
+      }
     }
 
     function init() {
@@ -290,6 +304,29 @@
   "target": "body",
   "settings": [
     {
+      "type": "header",
+      "content": "Bar"
+    },
+    {
+      "type": "color",
+      "id": "bar_background",
+      "label": "Bar background color",
+      "default": "#f8f8f8"
+    },
+    {
+      "type": "range",
+      "id": "bar_padding_x",
+      "label": "Bar side padding (px)",
+      "min": 0,
+      "max": 80,
+      "step": 4,
+      "default": 16
+    },
+    {
+      "type": "header",
+      "content": "Button"
+    },
+    {
       "type": "color",
       "id": "background_color",
       "label": "Button background",
@@ -316,7 +353,7 @@
     {
       "type": "range",
       "id": "border_radius",
-      "label": "Border radius",
+      "label": "Button border radius",
       "min": 0,
       "max": 24,
       "step": 2,
