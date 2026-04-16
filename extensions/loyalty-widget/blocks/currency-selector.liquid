@@ -38,13 +38,12 @@
   </div>
 
   {% comment %} The floating currency selector widget {% endcomment %}
-  <div id="loy-cs-widget-{{ block.id }}" class="loy-cs-widget">
+  <div class="loy-cs-widget" id="loy-cs-widget">
 
     {% comment %} Trigger button: flag + code + chevron {% endcomment %}
-    <button type="button" class="loy-cs-trigger" id="loy-cs-trigger-{{ block.id }}"
-      aria-haspopup="listbox" aria-expanded="false">
-      <span class="loy-cs-flag" id="loy-cs-flag-{{ block.id }}">🌐</span>
-      <span class="loy-cs-code" id="loy-cs-code-{{ block.id }}">{{ base_currency }}</span>
+    <button type="button" class="loy-cs-trigger" aria-haspopup="listbox" aria-expanded="false">
+      <span class="loy-cs-flag">🌐</span>
+      <span class="loy-cs-code">{{ base_currency }}</span>
       <span class="loy-cs-arrow">
         <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
           <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5"
@@ -54,15 +53,13 @@
     </button>
 
     {% comment %} Dropdown list {% endcomment %}
-    <ul class="loy-cs-dropdown" id="loy-cs-dropdown-{{ block.id }}"
-      role="listbox" aria-label="Select currency" style="display:none;">
-    </ul>
+    <ul class="loy-cs-dropdown" role="listbox" aria-label="Select currency" style="display:none;"></ul>
 
   </div>
 
   <style>
-    /* ── Widget container — fixed top-left like reference UI ── */
-    #loy-cs-widget-{{ block.id }} {
+    /* ── Widget container — fixed top-left ── */
+    #loy-cs-widget {
       position: fixed;
       top: 12px;
       left: 16px;
@@ -72,7 +69,7 @@
     }
 
     /* ── Trigger button ── */
-    #loy-cs-widget-{{ block.id }} .loy-cs-trigger {
+    #loy-cs-widget .loy-cs-trigger {
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -89,30 +86,30 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.10);
       transition: background 0.15s;
     }
-    #loy-cs-widget-{{ block.id }} .loy-cs-trigger:hover {
+    #loy-cs-widget .loy-cs-trigger:hover {
       background: {{ block.settings.hover_color }};
     }
-    #loy-cs-widget-{{ block.id }} .loy-cs-flag {
+    #loy-cs-widget .loy-cs-flag {
       font-size: 18px;
       line-height: 1;
     }
-    #loy-cs-widget-{{ block.id }} .loy-cs-code {
+    #loy-cs-widget .loy-cs-code {
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.3px;
     }
-    #loy-cs-widget-{{ block.id }} .loy-cs-arrow {
+    #loy-cs-widget .loy-cs-arrow {
       color: #888;
       display: flex;
       align-items: center;
       transition: transform 0.2s;
     }
-    #loy-cs-widget-{{ block.id }} .loy-cs-trigger[aria-expanded="true"] .loy-cs-arrow {
+    #loy-cs-widget .loy-cs-trigger[aria-expanded="true"] .loy-cs-arrow {
       transform: rotate(180deg);
     }
 
-    /* ── Dropdown list — opens downward ── */
-    #loy-cs-widget-{{ block.id }} .loy-cs-dropdown {
+    /* ── Dropdown list ── */
+    #loy-cs-widget .loy-cs-dropdown {
       position: absolute;
       top: calc(100% + 6px);
       left: 0;
@@ -130,7 +127,7 @@
     }
 
     /* ── Dropdown option ── */
-    #loy-cs-widget-{{ block.id }} .loy-cs-option {
+    #loy-cs-widget .loy-cs-option {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -141,21 +138,10 @@
       font-weight: 400;
       transition: background 0.12s;
     }
-    #loy-cs-widget-{{ block.id }} .loy-cs-option:hover {
-      background: #f5f5f5;
-    }
-    #loy-cs-widget-{{ block.id }} .loy-cs-option.active {
-      background: #f0f0f0;
-      font-weight: 600;
-    }
-    #loy-cs-widget-{{ block.id }} .loy-cs-opt-flag {
-      font-size: 20px;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-    #loy-cs-widget-{{ block.id }} .loy-cs-opt-name {
-      flex: 1;
-    }
+    #loy-cs-widget .loy-cs-option:hover { background: #f5f5f5; }
+    #loy-cs-widget .loy-cs-option.active { background: #f0f0f0; font-weight: 600; }
+    #loy-cs-widget .loy-cs-opt-flag { font-size: 20px; line-height: 1; flex-shrink: 0; }
+    #loy-cs-widget .loy-cs-opt-name { flex: 1; }
   </style>
 
   <script>
