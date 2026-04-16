@@ -1,32 +1,33 @@
 {% comment %}
   Currency Selector - App Block
-  Shows only the currencies manually configured in the app admin.
-  Uses Shopify's localization form to switch markets natively.
-  Enable/disable and the currency list are managed from the app admin.
+  Currencies configured from the app admin (Currency Selector page).
+  Falls back to localization.available_countries if no custom list is saved.
 {% endcomment %}
 
-{% assign cs_enabled = shop.metafields.loyalty_widget.currency_selector_enabled %}
+{% assign cs_enabled = shop.metafields.loyalty_widget.currency_selector_enabled | default: true %}
 {% assign custom_currencies = shop.metafields.loyalty_widget.currencies %}
 
-{% if cs_enabled != false %}
-  {% if custom_currencies and custom_currencies != blank %}
+{% unless cs_enabled == false %}
 
-    <div class="loy-currency-selector" id="loy-currency-selector-{{ block.id }}">
-      {% form 'localization', class: 'loy-currency-form' %}
-        <div class="loy-currency-wrapper">
-          {% if block.settings.show_label %}
-            <label class="loy-currency-label" for="loy-currency-{{ block.id }}">
-              {{ block.settings.label_text }}
-            </label>
-          {% endif %}
+  <div class="loy-currency-selector" id="loy-currency-selector-{{ block.id }}">
+    {% form 'localization', class: 'loy-currency-form' %}
+      <div class="loy-currency-wrapper">
 
-          <div class="loy-currency-select-wrap">
-            <select
-              name="country_code"
-              id="loy-currency-{{ block.id }}"
-              class="loy-currency-select"
-              aria-label="Select currency"
-            >
+        {% if block.settings.show_label %}
+          <label class="loy-currency-label" for="loy-currency-{{ block.id }}">
+            {{ block.settings.label_text }}
+          </label>
+        {% endif %}
+
+        <div class="loy-currency-select-wrap">
+          <select
+            name="country_code"
+            id="loy-currency-{{ block.id }}"
+            class="loy-currency-select"
+            aria-label="Select currency"
+          >
+            {% if custom_currencies != blank %}
+              {% comment %} Use manually configured currencies from admin {% endcomment %}
               {% for cur in custom_currencies %}
                 <option
                   value="{{ cur.countryCode }}"
@@ -37,81 +38,94 @@
                   {% if block.settings.show_country_name %} – {{ cur.label }}{% endif %}
                 </option>
               {% endfor %}
-            </select>
+            {% else %}
+              {% comment %} Fallback: show all Shopify Markets countries {% endcomment %}
+              {% for country in localization.available_countries %}
+                <option
+                  value="{{ country.iso_code }}"
+                  {% if country.iso_code == localization.country.iso_code %}selected{% endif %}
+                >
+                  {% if block.settings.show_currency_symbol %}{{ country.currency.symbol }} {% endif %}
+                  {{ country.currency.iso_code }}
+                  {% if block.settings.show_country_name %} – {{ country.name }}{% endif %}
+                </option>
+              {% endfor %}
+            {% endif %}
+          </select>
 
-            <span class="loy-currency-chevron" aria-hidden="true">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-          </div>
+          <span class="loy-currency-chevron" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
         </div>
-      {% endform %}
-    </div>
 
-    <style>
-      #loy-currency-selector-{{ block.id }} {
-        display: inline-flex;
-        align-items: center;
-        font-family: inherit;
-      }
-      #loy-currency-selector-{{ block.id }} .loy-currency-wrapper {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      #loy-currency-selector-{{ block.id }} .loy-currency-label {
-        font-size: 13px;
-        font-weight: 500;
-      }
-      #loy-currency-selector-{{ block.id }} .loy-currency-select-wrap {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-      }
-      #loy-currency-selector-{{ block.id }} .loy-currency-select {
-        appearance: none;
-        -webkit-appearance: none;
-        background: {{ block.settings.background_color }};
-        color: {{ block.settings.text_color }};
-        border: 1px solid {{ block.settings.border_color }};
-        border-radius: {{ block.settings.border_radius }}px;
-        padding: 6px 28px 6px 10px;
-        font-size: 13px;
-        font-weight: 500;
-        cursor: pointer;
-        outline: none;
-        min-width: 80px;
-        line-height: 1.4;
-      }
-      #loy-currency-selector-{{ block.id }} .loy-currency-select:focus {
-        border-color: {{ block.settings.text_color }};
-        box-shadow: 0 0 0 2px {{ block.settings.text_color }}33;
-      }
-      #loy-currency-selector-{{ block.id }} .loy-currency-chevron {
-        position: absolute;
-        right: 8px;
-        pointer-events: none;
-        color: {{ block.settings.text_color }};
-        display: flex;
-        align-items: center;
-      }
-    </style>
+      </div>
+    {% endform %}
+  </div>
 
-    <script>
-      (function () {
-        var sel = document.getElementById("loy-currency-{{ block.id }}");
-        if (!sel) return;
-        sel.addEventListener("change", function () {
-          var form = sel.closest("form");
-          if (form) form.submit();
-        });
-      })();
-    </script>
+  <style>
+    #loy-currency-selector-{{ block.id }} {
+      display: inline-flex;
+      align-items: center;
+      font-family: inherit;
+    }
+    #loy-currency-selector-{{ block.id }} .loy-currency-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #loy-currency-selector-{{ block.id }} .loy-currency-label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+    #loy-currency-selector-{{ block.id }} .loy-currency-select-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    #loy-currency-selector-{{ block.id }} .loy-currency-select {
+      appearance: none;
+      -webkit-appearance: none;
+      background: {{ block.settings.background_color }};
+      color: {{ block.settings.text_color }};
+      border: 1px solid {{ block.settings.border_color }};
+      border-radius: {{ block.settings.border_radius }}px;
+      padding: 6px 28px 6px 10px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      min-width: 80px;
+      line-height: 1.4;
+    }
+    #loy-currency-selector-{{ block.id }} .loy-currency-select:focus {
+      border-color: {{ block.settings.text_color }};
+      box-shadow: 0 0 0 2px {{ block.settings.text_color }}33;
+    }
+    #loy-currency-selector-{{ block.id }} .loy-currency-chevron {
+      position: absolute;
+      right: 8px;
+      pointer-events: none;
+      color: {{ block.settings.text_color }};
+      display: flex;
+      align-items: center;
+    }
+  </style>
 
-  {% endif %}
-{% endif %}
+  <script>
+    (function () {
+      var sel = document.getElementById("loy-currency-{{ block.id }}");
+      if (!sel) return;
+      sel.addEventListener("change", function () {
+        var form = sel.closest("form");
+        if (form) form.submit();
+      });
+    })();
+  </script>
+
+{% endunless %}
 
 {% schema %}
 {
