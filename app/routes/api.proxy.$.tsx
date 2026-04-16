@@ -89,6 +89,13 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
     return handleGetCartSettings(shop);
   }
 
+  if (path === "currency-settings") {
+    if (!checkRateLimit(`currency-settings:${shop}`, 60)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetCurrencySettings(shop);
+  }
+
   if (path === "timer-settings") {
     if (!checkRateLimit(`timer-settings:${shop}`, 60)) {
       return json({ error: "Rate limited" }, { status: 429 });
@@ -405,6 +412,19 @@ async function handleGetCartSettings(shop: string) {
     primaryColor: settings.primaryColor,
     interceptAddToCart: settings.interceptAddToCart,
   });
+}
+
+async function handleGetCurrencySettings(shop: string) {
+  const settings = await Settings.findOne({ shopId: shop }).lean();
+
+  if (!settings?.currencySelectorEnabled) {
+    return json({ enabled: false, currencies: [] }, { headers: { "Cache-Control": "no-store" } });
+  }
+
+  return json({
+    enabled: true,
+    currencies: settings.currencies || [],
+  }, { headers: { "Cache-Control": "no-store" } });
 }
 
 // ─── Balance (customer auth required) ────────────────────────────

@@ -1,27 +1,19 @@
-{% assign cs_enabled = shop.metafields.loyalty_widget.currency_selector_enabled | default: true %}
-{% assign custom_currencies = shop.metafields.loyalty_widget.currencies %}
 {% assign base_currency = shop.currency %}
 {% assign money_format = shop.money_format %}
 
-{% unless cs_enabled == false %}
-
 <div id="loy-cs-root"
-     data-currencies="{{ custom_currencies | json | escape }}"
      data-base="{{ base_currency }}"
      data-fmt="{{ money_format | escape }}"
-     style="position:fixed !important; bottom:162px !important; right:20px !important; z-index:9999999 !important; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif !important;">
-
+     style="position:fixed !important;bottom:162px !important;right:20px !important;z-index:9999999 !important;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif !important;">
   <button id="loy-cs-fab" type="button"
-          style="display:inline-flex !important; align-items:center !important; gap:6px !important; padding:8px 14px !important; background:#fff !important; border:1.5px solid #ddd !important; border-radius:24px !important; box-shadow:0 2px 10px rgba(0,0,0,.14) !important; cursor:pointer !important; white-space:nowrap !important; font-size:13px !important; font-weight:700 !important; color:#333 !important; outline:none !important; font-family:inherit !important;">
-    <span id="loy-cs-label"
-          style="font-size:13px !important; font-weight:700 !important; color:#333 !important; letter-spacing:.4px !important; line-height:1 !important;">{{ base_currency }}</span>
+          style="display:none !important;align-items:center !important;gap:6px !important;padding:8px 14px !important;background:#fff !important;border:1.5px solid #ddd !important;border-radius:24px !important;box-shadow:0 2px 10px rgba(0,0,0,.14) !important;cursor:pointer !important;white-space:nowrap !important;font-size:13px !important;font-weight:700 !important;color:#333 !important;outline:none !important;font-family:inherit !important;">
+    <span id="loy-cs-label" style="font-size:13px !important;font-weight:700 !important;color:#333 !important;letter-spacing:.4px !important;line-height:1 !important;">{{ base_currency }}</span>
     <svg id="loy-cs-chevron" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12"
          fill="none" stroke="#666" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
-         style="transition:transform .2s !important; display:inline-block !important; flex-shrink:0 !important;">
+         style="transition:transform .2s !important;flex-shrink:0 !important;display:inline-block !important;">
       <path d="M2 4l4 4 4-4"/>
     </svg>
   </button>
-
 </div>
 
 <script>
@@ -34,85 +26,97 @@
 
   var BASE = root.getAttribute("data-base") || "INR";
   var FMT  = root.getAttribute("data-fmt")  || "{{amount}}";
+  var dd   = null;
 
-  /* ── Parse currencies from data attribute (handles any Liquid output format) */
-  var rawData = root.getAttribute("data-currencies") || "";
-  var currencies = [];
-  try {
-    if (rawData && rawData !== "null" && rawData !== '""' && rawData !== "[]") {
-      var parsed = JSON.parse(rawData);
-      // Handle double-encoded strings (metafield returned as JSON-string-of-array)
-      if (typeof parsed === "string") { parsed = JSON.parse(parsed); }
-      if (Array.isArray(parsed)) currencies = parsed;
-    }
-  } catch (e) { currencies = []; }
+  /* ── Fetch currencies from app proxy (reads MongoDB directly) ── */
+  fetch("/apps/loyalty/currency-settings?t=" + Date.now())
+    .then(function (r) {
+      if (!r.ok) throw new Error("proxy " + r.status);
+      var ct = r.headers.get("content-type") || "";
+      if (ct.indexOf("application/json") === -1) throw new Error("not json");
+      return r.json();
+    })
+    .then(function (data) {
+      if (!data || data.enabled === false) return;
+      var currencies = Array.isArray(data.currencies) ? data.currencies : [];
+      if (!currencies.length) return;
 
-  /* ── Fallback if empty or parsing failed ──────────────────── */
-  if (!currencies.length) {
-    currencies = [
-      {currencyCode:"INR",symbol:"\u20B9",flag:"\uD83C\uDDEE\uD83C\uDDF3",label:"Indian Rupee"},
-      {currencyCode:"USD",symbol:"$",flag:"\uD83C\uDDFA\uD83C\uDDF8",label:"US Dollar"},
-      {currencyCode:"GBP",symbol:"\u00A3",flag:"\uD83C\uDDEC\uD83C\uDDE7",label:"British Pound"},
-      {currencyCode:"EUR",symbol:"\u20AC",flag:"\uD83C\uDDEA\uD83C\uDDFA",label:"Euro"},
-      {currencyCode:"AUD",symbol:"A$",flag:"\uD83C\uDDE6\uD83C\uDDFA",label:"Australian Dollar"},
-      {currencyCode:"AED",symbol:"AED",flag:"\uD83C\uDDE6\uD83C\uDDEA",label:"UAE Dirham"},
-      {currencyCode:"SAR",symbol:"SAR",flag:"\uD83C\uDDF8\uD83C\uDDE6",label:"Saudi Riyal"},
-      {currencyCode:"CAD",symbol:"CA$",flag:"\uD83C\uDDE8\uD83C\uDDE6",label:"Canadian Dollar"},
-      {currencyCode:"SGD",symbol:"S$",flag:"\uD83C\uDDF8\uD83C\uDDEC",label:"Singapore Dollar"},
-      {currencyCode:"JPY",symbol:"\u00A5",flag:"\uD83C\uDDEF\uD83C\uDDF5",label:"Japanese Yen"}
-    ];
+      fab.style.setProperty("display", "inline-flex", "important");
+      buildDropdown(currencies);
+    })
+    .catch(function () { /* silent — FAB stays hidden if fetch fails */ });
+
+  /* ── Build dropdown entirely in JS with inline styles ──────── */
+  function buildDropdown(currencies) {
+    dd = document.createElement("div");
+    dd.style.cssText = "display:none;position:fixed;z-index:10000000;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:250px;max-height:320px;overflow-y:auto;overflow-x:hidden;padding:6px 0;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
+
+    currencies.forEach(function (cur) {
+      var row = document.createElement("div");
+      row.setAttribute("data-code", cur.currencyCode);
+      row.style.cssText = "display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:13px;color:#333;background:transparent;width:100%;box-sizing:border-box;line-height:1.4;margin:0;";
+
+      var flag = document.createElement("span");
+      flag.textContent = cur.flag || "";
+      flag.style.cssText = "font-size:20px;line-height:1;flex-shrink:0;display:inline-block;color:#333;";
+
+      var name = document.createElement("span");
+      name.textContent = (cur.label || cur.currencyCode) + " (" + cur.currencyCode + ")";
+      name.style.cssText = "flex:1;font-size:13px;color:#333;display:inline-block;";
+
+      row.appendChild(flag);
+      row.appendChild(name);
+
+      row.addEventListener("mouseenter", function () {
+        if (!row._active) row.style.background = "#f5f5f5";
+      });
+      row.addEventListener("mouseleave", function () {
+        row.style.background = row._active ? "#eef2ff" : "transparent";
+      });
+      row.addEventListener("click", function (e) {
+        e.stopPropagation();
+        dd.querySelectorAll("[data-code]").forEach(function (r) {
+          r.style.background = "transparent"; r.style.fontWeight = "normal"; r._active = false;
+        });
+        row.style.background = "#eef2ff"; row.style.fontWeight = "600"; row._active = true;
+        labelEl.textContent = (cur.flag ? cur.flag + " " : "") + cur.currencyCode;
+        closeDD();
+        localStorage.setItem("loy_currency", JSON.stringify({
+          code: cur.currencyCode, symbol: cur.symbol, flag: cur.flag || "", label: cur.label
+        }));
+        applyRate(cur.currencyCode, cur.symbol);
+      });
+
+      dd.appendChild(row);
+    });
+
+    document.body.appendChild(dd);
+
+    fab.addEventListener("click", function (e) {
+      e.stopPropagation();
+      dd.style.display === "block" ? closeDD() : openDD();
+    });
+    document.addEventListener("click", function (e) {
+      if (dd.style.display === "block" && !dd.contains(e.target) && !fab.contains(e.target)) closeDD();
+    });
+
+    /* Restore previously selected currency (if any) */
+    try {
+      var saved = JSON.parse(localStorage.getItem("loy_currency") || "null");
+      if (saved && saved.code && saved.code !== BASE) {
+        labelEl.textContent = (saved.flag ? saved.flag + " " : "") + saved.code;
+        var selRow = dd.querySelector('[data-code="' + saved.code + '"]');
+        if (selRow) { selRow.style.background = "#eef2ff"; selRow.style.fontWeight = "600"; selRow._active = true; }
+        storeOrig();
+        fetchRates(function (r) { if (r && r[saved.code]) convertPrices(r[saved.code], saved.symbol); });
+      }
+    } catch (e) {}
   }
 
-  /* ── Build dropdown with full inline styles ────────────────── */
-  var dd = document.createElement("div");
-  dd.id = "loy-cs-dropdown";
-  dd.style.cssText = "display:none;position:fixed;z-index:10000000;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:250px;max-height:320px;overflow-y:auto;overflow-x:hidden;padding:6px 0;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
-
-  currencies.forEach(function (cur) {
-    var row = document.createElement("div");
-    row.setAttribute("data-code", cur.currencyCode || "");
-    row.style.cssText = "display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:13px;color:#333;background:transparent;margin:0;box-sizing:border-box;width:100%;line-height:1.4;";
-
-    var flag = document.createElement("span");
-    flag.textContent = cur.flag || "";
-    flag.style.cssText = "font-size:20px;line-height:1;flex-shrink:0;display:inline-block;color:#333;";
-
-    var name = document.createElement("span");
-    name.textContent = (cur.label || cur.currencyCode) + " (" + cur.currencyCode + ")";
-    name.style.cssText = "flex:1;font-size:13px;color:#333;display:inline-block;";
-
-    row.appendChild(flag);
-    row.appendChild(name);
-
-    row.addEventListener("mouseenter", function () {
-      if (!row._active) row.style.background = "#f5f5f5";
-    });
-    row.addEventListener("mouseleave", function () {
-      row.style.background = row._active ? "#eef2ff" : "transparent";
-    });
-    row.addEventListener("click", function (e) {
-      e.stopPropagation();
-      dd.querySelectorAll("[data-code]").forEach(function (r) {
-        r.style.background = "transparent"; r.style.fontWeight = "normal"; r._active = false;
-      });
-      row.style.background = "#eef2ff"; row.style.fontWeight = "600"; row._active = true;
-      if (labelEl) labelEl.textContent = (cur.flag ? cur.flag + " " : "") + cur.currencyCode;
-      closeDD();
-      localStorage.setItem("loy_currency", JSON.stringify({
-        code: cur.currencyCode, symbol: cur.symbol, flag: cur.flag || "", label: cur.label
-      }));
-      apply(cur.currencyCode, cur.symbol);
-    });
-
-    dd.appendChild(row);
-  });
-
-  document.body.appendChild(dd);
-
-  /* ── Toggle helpers ────────────────────────────────────────── */
   function openDD() {
     var rect  = fab.getBoundingClientRect();
-    var dropH = Math.min(320, currencies.length * 44 + 12);
+    var rows  = dd.querySelectorAll("[data-code]").length;
+    var dropH = Math.min(320, rows * 44 + 12);
     dd.style.right = (window.innerWidth - rect.right) + "px";
     dd.style.left  = "auto";
     if (window.innerHeight - rect.bottom >= dropH + 8) {
@@ -121,97 +125,77 @@
       dd.style.bottom = (window.innerHeight - rect.top + 6) + "px"; dd.style.top = "auto";
     }
     dd.style.display = "block";
-    if (chevron) chevron.style.transform = "rotate(180deg)";
+    chevron.style.transform = "rotate(180deg)";
   }
   function closeDD() {
     dd.style.display = "none";
-    if (chevron) chevron.style.transform = "rotate(0deg)";
+    chevron.style.transform = "rotate(0deg)";
   }
-  function isOpen() { return dd.style.display === "block"; }
-
-  fab.addEventListener("click", function (e) {
-    e.stopPropagation();
-    isOpen() ? closeDD() : openDD();
-  });
-  document.addEventListener("click", function (e) {
-    if (isOpen() && !dd.contains(e.target) && !fab.contains(e.target)) closeDD();
-  });
 
   /* ── Price conversion ──────────────────────────────────────── */
   var rates = null, converting = false;
   var SEL = ".price__regular .price-item,.price__sale .price-item,.price-item,.price__current,.product-price__price,.product__price .price,.cart-item__price,.cart__price,.totals__subtotal-value,[data-product-price],[class*='price__'],.price";
 
-  function store() {
+  function storeOrig() {
     document.querySelectorAll(SEL).forEach(function (el) {
       if (el.dataset.loyOrig) return;
-      var num = parseFloat(el.textContent.trim().replace(/[^\d.,]/g,"").replace(/,/g,"").replace(/\.(?=.*\.)/g,""));
-      if (!isNaN(num) && num > 0) { el.dataset.loyOrig = num; el.dataset.loyOrigTxt = el.textContent.trim(); }
+      var txt = el.textContent.trim();
+      var num = parseFloat(txt.replace(/[^\d.,]/g, "").replace(/,/g, "").replace(/\.(?=.*\.)/g, ""));
+      if (!isNaN(num) && num > 0) { el.dataset.loyOrig = num; el.dataset.loyOrigTxt = txt; }
     });
   }
-  function convert(rate, sym) {
+  function convertPrices(rate, sym) {
     converting = true;
     document.querySelectorAll(SEL).forEach(function (el) {
       if (!el.dataset.loyOrig) return;
       var val = parseFloat(el.dataset.loyOrig) * rate, fmt = FMT, s;
       if (fmt.indexOf("{{amount_no_decimals}}") !== -1) {
-        s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
-        fmt = fmt.replace("{{amount_no_decimals}}",s);
+        s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        fmt = fmt.replace("{{amount_no_decimals}}", s);
       } else if (fmt.indexOf("{{amount_with_comma_separator}}") !== -1) {
-        fmt = fmt.replace("{{amount_with_comma_separator}}",val.toFixed(2).replace(".",","));
+        fmt = fmt.replace("{{amount_with_comma_separator}}", val.toFixed(2).replace(".", ","));
       } else {
-        s = val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,",");
-        fmt = fmt.replace("{{amount}}",s);
+        s = val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        fmt = fmt.replace("{{amount}}", s);
       }
-      var base = FMT.replace(/\{\{[^}]+\}\}/g,"").trim();
+      var base = FMT.replace(/\{\{[^}]+\}\}/g, "").trim();
       if (base && sym) fmt = fmt.split(base).join(sym);
       el.textContent = fmt;
     });
     converting = false;
   }
-  function reset() {
+  function resetPrices() {
     converting = true;
-    document.querySelectorAll(SEL).forEach(function (el) { if (el.dataset.loyOrigTxt) el.textContent = el.dataset.loyOrigTxt; });
+    document.querySelectorAll(SEL).forEach(function (el) {
+      if (el.dataset.loyOrigTxt) el.textContent = el.dataset.loyOrigTxt;
+    });
     converting = false;
   }
   function fetchRates(cb) {
     if (rates) { cb(rates); return; }
     fetch("https://open.er-api.com/v6/latest/" + BASE)
-      .then(function(r){return r.json();})
-      .then(function(d){if(d&&d.rates)rates=d.rates; cb(rates);})
-      .catch(function(){cb(null);});
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.rates) rates = d.rates; cb(rates); })
+      .catch(function () { cb(null); });
   }
-  function apply(c, sym) {
-    store(); if (c === BASE) { reset(); return; }
-    fetchRates(function(r){ if(r&&r[c]) convert(r[c],sym); });
-  }
-
-  /* ── Restore on load ───────────────────────────────────────── */
-  var saved = null;
-  try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch(e) {}
-  if (saved && saved.code && saved.code !== BASE) {
-    if (labelEl) labelEl.textContent = (saved.flag ? saved.flag + " " : "") + saved.code;
-    dd.querySelectorAll("[data-code]").forEach(function (r) {
-      if (r.getAttribute("data-code") === saved.code) {
-        r.style.background = "#eef2ff"; r.style.fontWeight = "600"; r._active = true;
-      }
-    });
-    store();
-    fetchRates(function(r){ if(r&&r[saved.code]) convert(r[saved.code],saved.symbol); });
+  function applyRate(c, sym) {
+    storeOrig();
+    if (c === BASE) { resetPrices(); return; }
+    fetchRates(function (r) { if (r && r[c]) convertPrices(r[c], sym); });
   }
 
-  /* ── MutationObserver ──────────────────────────────────────── */
+  /* ── MutationObserver for dynamically loaded prices ────────── */
   if (window.MutationObserver) {
-    new MutationObserver(function(){
+    new MutationObserver(function () {
       if (converting) return;
-      var s=null; try{s=JSON.parse(localStorage.getItem("loy_currency"));}catch(e){}
-      if(!s||s.code===BASE) return;
-      store(); if(rates&&rates[s.code]) convert(rates[s.code],s.symbol);
-    }).observe(document.body,{childList:true,subtree:true,characterData:true});
+      var s = null; try { s = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
+      if (!s || s.code === BASE) return;
+      storeOrig();
+      if (rates && rates[s.code]) convertPrices(rates[s.code], s.symbol);
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
   }
 })();
 </script>
-
-{% endunless %}
 
 {% schema %}
 {
