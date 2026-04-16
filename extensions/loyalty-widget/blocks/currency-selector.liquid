@@ -5,22 +5,16 @@
 
 {% unless cs_enabled == false %}
 
-{% comment %} Active flag — shown on the FAB icon {% endcomment %}
-{% if custom_currencies != blank %}
-  {% assign first_cur = custom_currencies.first %}
-  {% assign active_flag = first_cur.flag %}
-{% else %}
-  {% assign active_flag = "🌐" %}
-{% endif %}
+<div id="loy-cs-root"
+  data-base="{{ base_currency }}"
+  data-fmt="{{ money_format | escape }}">
 
-<div id="loy-cs-root">
-
-  {% comment %} Flag FAB button {% endcomment %}
-  <button id="loy-cs-fab" type="button" aria-label="Select currency" onclick="loyCsToggle()">
-    <span id="loy-cs-fab-flag">{{ active_flag }}</span>
+  <button id="loy-cs-fab" type="button" aria-label="Select currency">
+    <span id="loy-cs-fab-flag">
+      {% if custom_currencies != blank %}{{ custom_currencies.first.flag }}{% else %}🌐{% endif %}
+    </span>
   </button>
 
-  {% comment %} Dropdown — opens upward, pre-rendered in Liquid {% endcomment %}
   <ul id="loy-cs-list" role="listbox">
     {% if custom_currencies != blank %}
       {% for cur in custom_currencies %}
@@ -28,30 +22,28 @@
           data-code="{{ cur.currencyCode }}"
           data-symbol="{{ cur.symbol | escape }}"
           data-flag="{{ cur.flag }}"
-          data-label="{{ cur.label | escape }}"
-          onclick="loyCsSelect(this)">
+          data-label="{{ cur.label | escape }}">
           <span class="loy-cs-opt-flag">{{ cur.flag }}</span>
           <span class="loy-cs-opt-name">{{ cur.label }} ({{ cur.currencyCode }})</span>
         </li>
       {% endfor %}
     {% else %}
-      <li class="loy-cs-opt" data-code="INR" data-symbol="₹"   data-flag="🇮🇳" data-label="Indian Rupee"      onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇮🇳</span><span class="loy-cs-opt-name">Indian Rupee (INR)</span></li>
-      <li class="loy-cs-opt" data-code="USD" data-symbol="$"   data-flag="🇺🇸" data-label="US Dollar"         onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇺🇸</span><span class="loy-cs-opt-name">US Dollar (USD)</span></li>
-      <li class="loy-cs-opt" data-code="GBP" data-symbol="£"   data-flag="🇬🇧" data-label="British Pound"     onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇬🇧</span><span class="loy-cs-opt-name">British Pound (GBP)</span></li>
-      <li class="loy-cs-opt" data-code="EUR" data-symbol="€"   data-flag="🇪🇺" data-label="Euro"              onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇪🇺</span><span class="loy-cs-opt-name">Euro (EUR)</span></li>
-      <li class="loy-cs-opt" data-code="AUD" data-symbol="A$"  data-flag="🇦🇺" data-label="Australian Dollar" onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇦🇺</span><span class="loy-cs-opt-name">Australian Dollar (AUD)</span></li>
-      <li class="loy-cs-opt" data-code="AED" data-symbol="د.إ" data-flag="🇦🇪" data-label="UAE Dirham"        onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇦🇪</span><span class="loy-cs-opt-name">UAE Dirham (AED)</span></li>
-      <li class="loy-cs-opt" data-code="SAR" data-symbol="﷼"  data-flag="🇸🇦" data-label="Saudi Riyal"       onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇸🇦</span><span class="loy-cs-opt-name">Saudi Riyal (SAR)</span></li>
-      <li class="loy-cs-opt" data-code="CAD" data-symbol="CA$" data-flag="🇨🇦" data-label="Canadian Dollar"   onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇨🇦</span><span class="loy-cs-opt-name">Canadian Dollar (CAD)</span></li>
-      <li class="loy-cs-opt" data-code="SGD" data-symbol="S$"  data-flag="🇸🇬" data-label="Singapore Dollar"  onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇸🇬</span><span class="loy-cs-opt-name">Singapore Dollar (SGD)</span></li>
-      <li class="loy-cs-opt" data-code="JPY" data-symbol="¥"   data-flag="🇯🇵" data-label="Japanese Yen"      onclick="loyCsSelect(this)"><span class="loy-cs-opt-flag">🇯🇵</span><span class="loy-cs-opt-name">Japanese Yen (JPY)</span></li>
+      <li class="loy-cs-opt" data-code="INR" data-symbol="₹"   data-flag="🇮🇳" data-label="Indian Rupee"><span class="loy-cs-opt-flag">🇮🇳</span><span class="loy-cs-opt-name">Indian Rupee (INR)</span></li>
+      <li class="loy-cs-opt" data-code="USD" data-symbol="$"   data-flag="🇺🇸" data-label="US Dollar"><span class="loy-cs-opt-flag">🇺🇸</span><span class="loy-cs-opt-name">US Dollar (USD)</span></li>
+      <li class="loy-cs-opt" data-code="GBP" data-symbol="£"   data-flag="🇬🇧" data-label="British Pound"><span class="loy-cs-opt-flag">🇬🇧</span><span class="loy-cs-opt-name">British Pound (GBP)</span></li>
+      <li class="loy-cs-opt" data-code="EUR" data-symbol="€"   data-flag="🇪🇺" data-label="Euro"><span class="loy-cs-opt-flag">🇪🇺</span><span class="loy-cs-opt-name">Euro (EUR)</span></li>
+      <li class="loy-cs-opt" data-code="AUD" data-symbol="A$"  data-flag="🇦🇺" data-label="Australian Dollar"><span class="loy-cs-opt-flag">🇦🇺</span><span class="loy-cs-opt-name">Australian Dollar (AUD)</span></li>
+      <li class="loy-cs-opt" data-code="AED" data-symbol="د.إ" data-flag="🇦🇪" data-label="UAE Dirham"><span class="loy-cs-opt-flag">🇦🇪</span><span class="loy-cs-opt-name">UAE Dirham (AED)</span></li>
+      <li class="loy-cs-opt" data-code="SAR" data-symbol="﷼"  data-flag="🇸🇦" data-label="Saudi Riyal"><span class="loy-cs-opt-flag">🇸🇦</span><span class="loy-cs-opt-name">Saudi Riyal (SAR)</span></li>
+      <li class="loy-cs-opt" data-code="CAD" data-symbol="CA$" data-flag="🇨🇦" data-label="Canadian Dollar"><span class="loy-cs-opt-flag">🇨🇦</span><span class="loy-cs-opt-name">Canadian Dollar (CAD)</span></li>
+      <li class="loy-cs-opt" data-code="SGD" data-symbol="S$"  data-flag="🇸🇬" data-label="Singapore Dollar"><span class="loy-cs-opt-flag">🇸🇬</span><span class="loy-cs-opt-name">Singapore Dollar (SGD)</span></li>
+      <li class="loy-cs-opt" data-code="JPY" data-symbol="¥"   data-flag="🇯🇵" data-label="Japanese Yen"><span class="loy-cs-opt-flag">🇯🇵</span><span class="loy-cs-opt-name">Japanese Yen (JPY)</span></li>
     {% endif %}
   </ul>
 
 </div>
 
 <style>
-  /* ── Root container: above the camera FAB ── */
   #loy-cs-root {
     position: fixed;
     bottom: 162px;
@@ -59,8 +51,6 @@
     z-index: 9999999;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
-
-  /* ── Flag FAB (same size/shape as camera icon) ── */
   #loy-cs-fab {
     width: 48px;
     height: 48px;
@@ -79,10 +69,8 @@
   }
   #loy-cs-fab:hover {
     transform: scale(1.08);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.24);
   }
-
-  /* ── Dropdown list — opens upward ── */
   #loy-cs-list {
     display: none;
     position: absolute;
@@ -99,9 +87,7 @@
     max-height: 320px;
     overflow-y: auto;
   }
-  #loy-cs-list.loy-open { display: block; }
-
-  /* ── Option row ── */
+  #loy-cs-list.open { display: block; }
   .loy-cs-opt {
     display: flex;
     align-items: center;
@@ -110,7 +96,6 @@
     cursor: pointer;
     font-size: 13px;
     color: #333;
-    transition: background 0.1s;
   }
   .loy-cs-opt:hover  { background: #f5f5f5; }
   .loy-cs-opt.active { background: #f0f0f0; font-weight: 600; }
@@ -119,139 +104,139 @@
 </style>
 
 <script>
-// ── Toggle dropdown ───────────────────────────────────────────────
-function loyCsToggle() {
-  var list = document.getElementById("loy-cs-list");
-  if (list) list.classList.toggle("loy-open");
-}
-
-// ── Close when clicking outside ───────────────────────────────────
-document.addEventListener("click", function (e) {
-  var root = document.getElementById("loy-cs-root");
-  var list = document.getElementById("loy-cs-list");
-  if (root && list && !root.contains(e.target)) {
-    list.classList.remove("loy-open");
-  }
-});
-
-// ── Select a currency ─────────────────────────────────────────────
-window.loyCsSelect = function (el) {
-  var code   = el.dataset.code;
-  var symbol = el.dataset.symbol;
-  var flag   = el.dataset.flag;
-  var label  = el.dataset.label;
-
-  // Update FAB flag
-  var fabFlag = document.getElementById("loy-cs-fab-flag");
-  if (fabFlag) fabFlag.textContent = flag;
-
-  // Mark active
-  document.querySelectorAll(".loy-cs-opt").forEach(function (o) {
-    o.classList.toggle("active", o === el);
-  });
-
-  // Close
-  var list = document.getElementById("loy-cs-list");
-  if (list) list.classList.remove("loy-open");
-
-  // Save + convert
-  localStorage.setItem("loy_currency", JSON.stringify({ code: code, symbol: symbol, flag: flag, label: label }));
-  loyCsApply(code, symbol);
-};
-
-// ── Price conversion ──────────────────────────────────────────────
-var loyCsRates     = null;
-var loyCsConverting = false;
-var loyCsFmt       = "{{ money_format | escape }}";
-var loyCsBase      = "{{ base_currency }}";
-
-function loyCsApply(code, symbol) {
-  loyCsStore();
-  if (code === loyCsBase) { loyCsReset(); return; }
-  loyCsFetch(function (r) { if (r && r[code]) loyCsConvert(r[code], symbol); });
-}
-
-function loyCsFetch(cb) {
-  if (loyCsRates) { cb(loyCsRates); return; }
-  fetch("https://open.er-api.com/v6/latest/" + loyCsBase)
-    .then(function (r) { return r.json(); })
-    .then(function (d) { if (d && d.rates) loyCsRates = d.rates; cb(loyCsRates); })
-    .catch(function () { cb(null); });
-}
-
-var LOY_SEL = [
-  ".price__regular .price-item", ".price__sale .price-item",
-  ".price-item", ".price__current", ".product-price__price",
-  ".product__price .price", ".cart-item__price", ".cart__price",
-  ".totals__subtotal-value", "[data-product-price]",
-  "[class*='price__']", ".price"
-].join(",");
-
-function loyCsStore() {
-  document.querySelectorAll(LOY_SEL).forEach(function (el) {
-    if (el.dataset.loyOrig) return;
-    var txt = el.textContent.trim();
-    var num = parseFloat(txt.replace(/[^\d.,]/g, "").replace(/,/g, "").replace(/\.(?=.*\.)/g, ""));
-    if (!isNaN(num) && num > 0) { el.dataset.loyOrig = num; el.dataset.loyOrigTxt = txt; }
-  });
-}
-
-function loyCsConvert(rate, symbol) {
-  loyCsConverting = true;
-  document.querySelectorAll(LOY_SEL).forEach(function (el) {
-    if (!el.dataset.loyOrig) return;
-    var val = parseFloat(el.dataset.loyOrig) * rate;
-    var fmt = loyCsFmt;
-    var s;
-    if (fmt.indexOf("{{amount_no_decimals}}") !== -1) {
-      s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-      fmt = fmt.replace("{{amount_no_decimals}}", s);
-    } else if (fmt.indexOf("{{amount_with_comma_separator}}") !== -1) {
-      fmt = fmt.replace("{{amount_with_comma_separator}}", val.toFixed(2).replace(".", ","));
-    } else {
-      s = val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-      fmt = fmt.replace("{{amount}}", s);
-    }
-    var base = loyCsFmt.replace(/\{\{[^}]+\}\}/g, "").trim();
-    if (base && symbol) fmt = fmt.split(base).join(symbol);
-    el.textContent = fmt;
-  });
-  loyCsConverting = false;
-}
-
-function loyCsReset() {
-  loyCsConverting = true;
-  document.querySelectorAll(LOY_SEL).forEach(function (el) {
-    if (el.dataset.loyOrigTxt) el.textContent = el.dataset.loyOrigTxt;
-  });
-  loyCsConverting = false;
-}
-
-// ── Restore saved currency on page load ───────────────────────────
 (function () {
+  var root    = document.getElementById("loy-cs-root");
+  var fab     = document.getElementById("loy-cs-fab");
+  var fabFlag = document.getElementById("loy-cs-fab-flag");
+  var list    = document.getElementById("loy-cs-list");
+
+  if (!fab || !list) return;
+
+  var BASE = (root && root.dataset.base) || "INR";
+  var FMT  = (root && root.dataset.fmt)  || "₹{{amount}}";
+
+  // ── Toggle dropdown ─────────────────────────────────────────
+  fab.addEventListener("click", function (e) {
+    e.stopPropagation();
+    list.classList.toggle("open");
+  });
+
+  // ── Close on outside click ──────────────────────────────────
+  document.addEventListener("click", function () {
+    list.classList.remove("open");
+  });
+
+  // ── Option click ────────────────────────────────────────────
+  list.querySelectorAll(".loy-cs-opt").forEach(function (opt) {
+    opt.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var code   = opt.dataset.code;
+      var symbol = opt.dataset.symbol;
+      var flag   = opt.dataset.flag;
+      var label  = opt.dataset.label;
+
+      if (fabFlag) fabFlag.textContent = flag;
+
+      list.querySelectorAll(".loy-cs-opt").forEach(function (o) {
+        o.classList.toggle("active", o === opt);
+      });
+
+      list.classList.remove("open");
+
+      localStorage.setItem("loy_currency", JSON.stringify({ code: code, symbol: symbol, flag: flag, label: label }));
+      apply(code, symbol);
+    });
+  });
+
+  // ── Price conversion ────────────────────────────────────────
+  var rates      = null;
+  var converting = false;
+
+  var SEL = [
+    ".price__regular .price-item", ".price__sale .price-item",
+    ".price-item", ".price__current", ".product-price__price",
+    ".product__price .price", ".cart-item__price", ".cart__price",
+    ".totals__subtotal-value", "[data-product-price]",
+    "[class*='price__']", ".price"
+  ].join(",");
+
+  function store() {
+    document.querySelectorAll(SEL).forEach(function (el) {
+      if (el.dataset.loyOrig) return;
+      var txt = el.textContent.trim();
+      var num = parseFloat(txt.replace(/[^\d.,]/g, "").replace(/,/g, "").replace(/\.(?=.*\.)/g, ""));
+      if (!isNaN(num) && num > 0) { el.dataset.loyOrig = num; el.dataset.loyOrigTxt = txt; }
+    });
+  }
+
+  function convert(rate, symbol) {
+    converting = true;
+    document.querySelectorAll(SEL).forEach(function (el) {
+      if (!el.dataset.loyOrig) return;
+      var val = parseFloat(el.dataset.loyOrig) * rate;
+      var fmt = FMT, s;
+      if (fmt.indexOf("{{amount_no_decimals}}") !== -1) {
+        s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        fmt = fmt.replace("{{amount_no_decimals}}", s);
+      } else if (fmt.indexOf("{{amount_with_comma_separator}}") !== -1) {
+        fmt = fmt.replace("{{amount_with_comma_separator}}", val.toFixed(2).replace(".", ","));
+      } else {
+        s = val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        fmt = fmt.replace("{{amount}}", s);
+      }
+      var base = FMT.replace(/\{\{[^}]+\}\}/g, "").trim();
+      if (base && symbol) fmt = fmt.split(base).join(symbol);
+      el.textContent = fmt;
+    });
+    converting = false;
+  }
+
+  function reset() {
+    converting = true;
+    document.querySelectorAll(SEL).forEach(function (el) {
+      if (el.dataset.loyOrigTxt) el.textContent = el.dataset.loyOrigTxt;
+    });
+    converting = false;
+  }
+
+  function fetchRates(cb) {
+    if (rates) { cb(rates); return; }
+    fetch("https://open.er-api.com/v6/latest/" + BASE)
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.rates) rates = d.rates; cb(rates); })
+      .catch(function () { cb(null); });
+  }
+
+  function apply(code, symbol) {
+    store();
+    if (code === BASE) { reset(); return; }
+    fetchRates(function (r) { if (r && r[code]) convert(r[code], symbol); });
+  }
+
+  // ── Restore saved currency on load ──────────────────────────
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
-  if (!saved || saved.code === loyCsBase) return;
-  var fabFlag = document.getElementById("loy-cs-fab-flag");
-  if (fabFlag) fabFlag.textContent = saved.flag;
-  document.querySelectorAll(".loy-cs-opt").forEach(function (o) {
-    if (o.dataset.code === saved.code) o.classList.add("active");
-  });
-  loyCsStore();
-  loyCsFetch(function (r) { if (r && r[saved.code]) loyCsConvert(r[saved.code], saved.symbol); });
-})();
+  if (saved && saved.code !== BASE) {
+    if (fabFlag) fabFlag.textContent = saved.flag;
+    list.querySelectorAll(".loy-cs-opt").forEach(function (o) {
+      if (o.dataset.code === saved.code) o.classList.add("active");
+    });
+    store();
+    fetchRates(function (r) { if (r && r[saved.code]) convert(r[saved.code], saved.symbol); });
+  }
 
-// ── Watch for dynamic price changes ──────────────────────────────
-if (window.MutationObserver) {
-  new MutationObserver(function () {
-    if (loyCsConverting) return;
-    var saved = null;
-    try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
-    if (!saved || saved.code === loyCsBase) return;
-    loyCsStore();
-    if (loyCsRates && loyCsRates[saved.code]) loyCsConvert(loyCsRates[saved.code], saved.symbol);
-  }).observe(document.body, { childList: true, subtree: true, characterData: true });
-}
+  // ── MutationObserver for dynamic price changes ──────────────
+  if (window.MutationObserver) {
+    new MutationObserver(function () {
+      if (converting) return;
+      var s = null;
+      try { s = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
+      if (!s || s.code === BASE) return;
+      store();
+      if (rates && rates[s.code]) convert(rates[s.code], s.symbol);
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
+})();
 </script>
 
 {% endunless %}
