@@ -5,13 +5,55 @@
 
 {% unless cs_enabled == false %}
 
+<style>
+  #loy-cs-root {
+    position: fixed;
+    bottom: 162px;
+    right: 20px;
+    z-index: 9999999;
+  }
+  #loy-cs-fab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: #fff;
+    border: 1.5px solid #ddd;
+    border-radius: 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.14);
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #333;
+    outline: none;
+  }
+  #loy-cs-fab:hover { border-color: #bbb; box-shadow: 0 4px 16px rgba(0,0,0,.20); }
+</style>
+
+<div id="loy-cs-root">
+  <button id="loy-cs-fab" type="button">
+    <span id="loy-cs-label">{{ base_currency }}</span>
+    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12"
+      fill="none" stroke="#666" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+      id="loy-cs-chevron" style="transition:transform .2s;">
+      <path d="M2 4l4 4 4-4"/>
+    </svg>
+  </button>
+</div>
+
 <script>
 (function () {
+  var fab     = document.getElementById("loy-cs-fab");
+  var labelEl = document.getElementById("loy-cs-label");
+  var chevron = document.getElementById("loy-cs-chevron");
+  if (!fab) return;
 
-  /* ── Currency data from Liquid ─────────────────────────────── */
   var BASE = {{ base_currency | json }};
   var FMT  = {{ money_format | json }};
 
+  /* ── Currency list ─────────────────────────────────────────── */
   var currencies = {% if custom_currencies != blank %}{{ custom_currencies | json }}{% else %}[
     {"currencyCode":"INR","symbol":"\u20B9","flag":"\uD83C\uDDEE\uD83C\uDDF3","label":"Indian Rupee"},
     {"currencyCode":"USD","symbol":"$","flag":"\uD83C\uDDFA\uD83C\uDDF8","label":"US Dollar"},
@@ -25,107 +67,71 @@
     {"currencyCode":"JPY","symbol":"\u00A5","flag":"\uD83C\uDDEF\uD83C\uDDF5","label":"Japanese Yen"}
   ]{% endif %};
 
-  if (!Array.isArray(currencies) || !currencies.length) return;
+  /* ── Build dropdown via createElement (100% inline styles) ─── */
+  var dd = document.createElement("div");
+  dd.style.cssText = "display:none;position:fixed;z-index:10000000;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:230px;max-height:300px;overflow-y:auto;padding:6px 0;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
 
-  /* ── Build FAB button ──────────────────────────────────────── */
-  var fab = document.createElement("button");
-  fab.type  = "button";
-  fab.title = "Select currency";
-  fab.setAttribute("aria-haspopup", "listbox");
-  fab.setAttribute("aria-expanded", "false");
-  fab.style.cssText = "position:fixed;bottom:162px;right:20px;z-index:9999999;display:inline-flex;flex-direction:row;align-items:center;gap:6px;padding:8px 14px;background:#fff;border:1.5px solid #ddd;border-radius:24px;box-shadow:0 2px 10px rgba(0,0,0,.14);cursor:pointer;white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;font-weight:700;color:#333;outline:none;";
+  if (Array.isArray(currencies)) {
+    currencies.forEach(function (cur) {
+      var row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:13px;color:#333;background:transparent;margin:0;box-sizing:border-box;width:100%;";
 
-  var codeEl = document.createElement("span");
-  codeEl.textContent = BASE;
-  codeEl.style.cssText = "font-size:13px;font-weight:700;color:#333;letter-spacing:.4px;line-height:1;";
+      var flag = document.createElement("span");
+      flag.textContent = cur.flag || "";
+      flag.style.cssText = "font-size:20px;line-height:1;flex-shrink:0;";
 
-  var chevronSvg = document.createElementNS("http://www.w3.org/2000/svg","svg");
-  chevronSvg.setAttribute("viewBox","0 0 12 12");
-  chevronSvg.setAttribute("fill","none");
-  chevronSvg.setAttribute("stroke","#666");
-  chevronSvg.setAttribute("stroke-width","1.8");
-  chevronSvg.setAttribute("stroke-linecap","round");
-  chevronSvg.setAttribute("stroke-linejoin","round");
-  chevronSvg.style.cssText = "width:10px;height:10px;flex-shrink:0;transition:transform .2s;";
-  var chevronPath = document.createElementNS("http://www.w3.org/2000/svg","path");
-  chevronPath.setAttribute("d","M2 4l4 4 4-4");
-  chevronSvg.appendChild(chevronPath);
+      var name = document.createElement("span");
+      name.textContent = (cur.label || "") + " (" + cur.currencyCode + ")";
+      name.style.cssText = "flex:1;font-size:13px;color:#333;";
 
-  fab.appendChild(codeEl);
-  fab.appendChild(chevronSvg);
-  document.body.appendChild(fab);
+      row.appendChild(flag);
+      row.appendChild(name);
 
-  /* ── Build dropdown ────────────────────────────────────────── */
-  var dropdown = document.createElement("div");
-  dropdown.style.cssText = "display:none;position:fixed;z-index:10000000;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:230px;max-height:300px;overflow-y:auto;overflow-x:hidden;padding:6px 0;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
+      row.addEventListener("mouseenter", function () { row.style.background = "#f5f5f5"; });
+      row.addEventListener("mouseleave", function () { row.style.background = row._active ? "#eef2ff" : "transparent"; });
 
-  currencies.forEach(function (cur) {
-    var row = document.createElement("div");
-    row.setAttribute("data-code", cur.currencyCode);
-    row.style.cssText = "display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:13px;color:#333;background:transparent;margin:0;box-sizing:border-box;width:100%;line-height:1.4;";
-
-    var flagSpan = document.createElement("span");
-    flagSpan.textContent = cur.flag || "";
-    flagSpan.style.cssText = "font-size:20px;line-height:1;flex-shrink:0;";
-
-    var nameSpan = document.createElement("span");
-    nameSpan.textContent = cur.label + " (" + cur.currencyCode + ")";
-    nameSpan.style.cssText = "flex:1;font-size:13px;color:#333;";
-
-    row.appendChild(flagSpan);
-    row.appendChild(nameSpan);
-
-    row.addEventListener("mouseenter", function () { row.style.background = "#f5f5f5"; });
-    row.addEventListener("mouseleave", function () { row.style.background = row._active ? "#eef2ff" : "transparent"; });
-
-    row.addEventListener("click", function (e) {
-      e.stopPropagation();
-      dropdown.querySelectorAll("[data-code]").forEach(function (r) {
-        r.style.background = "transparent"; r.style.fontWeight = "normal"; r._active = false;
+      row.addEventListener("click", function (e) {
+        e.stopPropagation();
+        dd.querySelectorAll("[data-loy-row]").forEach(function (r) {
+          r.style.background = "transparent"; r.style.fontWeight = "normal"; r._active = false;
+        });
+        row.style.background = "#eef2ff"; row.style.fontWeight = "600"; row._active = true;
+        if (labelEl) labelEl.textContent = (cur.flag ? cur.flag + " " : "") + cur.currencyCode;
+        close();
+        localStorage.setItem("loy_currency", JSON.stringify({ code: cur.currencyCode, symbol: cur.symbol, flag: cur.flag || "", label: cur.label }));
+        apply(cur.currencyCode, cur.symbol);
       });
-      row.style.background = "#eef2ff"; row.style.fontWeight = "600"; row._active = true;
-      codeEl.textContent = (cur.flag ? cur.flag + " " : "") + cur.currencyCode;
-      closeDropdown();
-      localStorage.setItem("loy_currency", JSON.stringify({ code: cur.currencyCode, symbol: cur.symbol, flag: cur.flag || "", label: cur.label }));
-      apply(cur.currencyCode, cur.symbol);
+
+      row.setAttribute("data-loy-row", cur.currencyCode);
+      dd.appendChild(row);
     });
+  }
 
-    dropdown.appendChild(row);
-  });
+  document.body.appendChild(dd);
 
-  document.body.appendChild(dropdown);
-
-  /* ── Toggle ────────────────────────────────────────────────── */
-  function openDropdown() {
-    var rect = fab.getBoundingClientRect();
-    var dropH = Math.min(300, currencies.length * 44 + 12);
-    dropdown.style.right = (window.innerWidth - rect.right) + "px";
-    dropdown.style.left  = "auto";
+  /* ── Toggle helpers ────────────────────────────────────────── */
+  function open() {
+    var rect  = fab.getBoundingClientRect();
+    var dropH = Math.min(300, (Array.isArray(currencies) ? currencies.length : 0) * 44 + 12);
+    dd.style.right = (window.innerWidth - rect.right) + "px";
+    dd.style.left  = "auto";
     if (window.innerHeight - rect.bottom >= dropH + 8) {
-      dropdown.style.top    = (rect.bottom + 6) + "px";
-      dropdown.style.bottom = "auto";
+      dd.style.top = (rect.bottom + 6) + "px"; dd.style.bottom = "auto";
     } else {
-      dropdown.style.bottom = (window.innerHeight - rect.top + 6) + "px";
-      dropdown.style.top    = "auto";
+      dd.style.bottom = (window.innerHeight - rect.top + 6) + "px"; dd.style.top = "auto";
     }
-    dropdown.style.display = "block";
-    fab.setAttribute("aria-expanded","true");
-    chevronSvg.style.transform = "rotate(180deg)";
+    dd.style.display = "block";
+    if (chevron) chevron.style.transform = "rotate(180deg)";
   }
-  function closeDropdown() {
-    dropdown.style.display = "none";
-    fab.setAttribute("aria-expanded","false");
-    chevronSvg.style.transform = "rotate(0deg)";
+  function close() {
+    dd.style.display = "none";
+    if (chevron) chevron.style.transform = "rotate(0deg)";
   }
-  function isOpen() { return dropdown.style.display === "block"; }
+  function isOpen() { return dd.style.display === "block"; }
 
-  fab.addEventListener("click", function (e) {
-    e.stopPropagation();
-    isOpen() ? closeDropdown() : openDropdown();
-  });
+  fab.addEventListener("click", function (e) { e.stopPropagation(); isOpen() ? close() : open(); });
   document.addEventListener("click", function (e) {
-    if (isOpen() && !dropdown.contains(e.target) && !fab.contains(e.target))
-      closeDropdown();
+    if (isOpen() && !dd.contains(e.target) && !fab.contains(e.target)) close();
   });
 
   /* ── Price conversion ──────────────────────────────────────── */
@@ -143,8 +149,7 @@
     converting = true;
     document.querySelectorAll(SEL).forEach(function (el) {
       if (!el.dataset.loyOrig) return;
-      var val = parseFloat(el.dataset.loyOrig) * rate;
-      var fmt = FMT, s;
+      var val = parseFloat(el.dataset.loyOrig) * rate, fmt = FMT, s;
       if (fmt.indexOf("{{amount_no_decimals}}") !== -1) {
         s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
         fmt = fmt.replace("{{amount_no_decimals}}",s);
@@ -173,8 +178,7 @@
       .catch(function(){cb(null);});
   }
   function apply(c, sym) {
-    store();
-    if (c === BASE) { reset(); return; }
+    store(); if (c === BASE) { reset(); return; }
     fetchRates(function(r){ if(r&&r[c]) convert(r[c],sym); });
   }
 
@@ -182,9 +186,9 @@
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch(e) {}
   if (saved && saved.code && saved.code !== BASE) {
-    codeEl.textContent = (saved.flag ? saved.flag + " " : "") + saved.code;
-    dropdown.querySelectorAll("[data-code]").forEach(function (r) {
-      if (r.getAttribute("data-code") === saved.code) { r.style.background="#eef2ff"; r.style.fontWeight="600"; r._active=true; }
+    if (labelEl) labelEl.textContent = (saved.flag ? saved.flag + " " : "") + saved.code;
+    dd.querySelectorAll("[data-loy-row]").forEach(function (r) {
+      if (r.getAttribute("data-loy-row") === saved.code) { r.style.background="#eef2ff"; r.style.fontWeight="600"; r._active=true; }
     });
     store();
     fetchRates(function(r){ if(r&&r[saved.code]) convert(r[saved.code],saved.symbol); });
@@ -199,7 +203,6 @@
       store(); if(rates&&rates[s.code]) convert(rates[s.code],s.symbol);
     }).observe(document.body,{childList:true,subtree:true,characterData:true});
   }
-
 })();
 </script>
 
