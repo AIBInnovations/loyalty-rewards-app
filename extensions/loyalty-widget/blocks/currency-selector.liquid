@@ -146,14 +146,17 @@
 
   <script>
   (function () {
-    var BID       = "{{ block.id }}";
-    var STORE_KEY = "loy_cur_" + BID;
+    var STORE_KEY = "loy_currency_sel";
 
-    var dataEl = document.getElementById("loy-cs-data-" + BID);
+    var dataEl = document.getElementById("loy-cs-data-{{ block.id }}");
+    if (!dataEl) {
+      // fallback: find by data-base attribute
+      dataEl = document.querySelector("[data-base]");
+    }
     if (!dataEl) return;
 
-    var BASE     = dataEl.dataset.base       || "{{ base_currency }}";
-    var FMT      = dataEl.dataset.moneyFormat || "{{ money_format | escape }}";
+    var BASE = dataEl.dataset.base        || "{{ base_currency }}";
+    var FMT  = dataEl.dataset.moneyFormat || "{{ money_format | escape }}";
 
     // ── Parse currencies ──────────────────────────────────────
     var currencies = [];
@@ -256,10 +259,13 @@
 
     // ── Build dropdown ────────────────────────────────────────
     function buildDropdown(activeCur) {
-      var flagEl = document.getElementById("loy-cs-flag-" + BID);
-      var codeEl = document.getElementById("loy-cs-code-" + BID);
-      var trigger = document.getElementById("loy-cs-trigger-" + BID);
-      var list    = document.getElementById("loy-cs-dropdown-" + BID);
+      var widget  = document.getElementById("loy-cs-widget");
+      if (!widget) return;
+
+      var trigger = widget.querySelector(".loy-cs-trigger");
+      var flagEl  = widget.querySelector(".loy-cs-flag");
+      var codeEl  = widget.querySelector(".loy-cs-code");
+      var list    = widget.querySelector(".loy-cs-dropdown");
       if (!trigger || !list) return;
 
       // Set trigger to active currency
@@ -270,19 +276,18 @@
       list.innerHTML = "";
       currencies.forEach(function (c) {
         var li = document.createElement("li");
-        li.className  = "loy-cs-option" + (c.code === activeCur.code ? " active" : "");
+        li.className = "loy-cs-option" + (c.code === activeCur.code ? " active" : "");
         li.setAttribute("role", "option");
         li.setAttribute("aria-selected", c.code === activeCur.code ? "true" : "false");
-        li.innerHTML  =
+        li.innerHTML =
           '<span class="loy-cs-opt-flag">' + c.flag + '</span>' +
           '<span class="loy-cs-opt-name">' + c.label + ' (' + c.code + ')</span>';
 
-        li.addEventListener("click", function () {
-          // Update trigger
+        li.addEventListener("click", function (e) {
+          e.stopPropagation();
           if (flagEl) flagEl.textContent = c.flag;
           if (codeEl) codeEl.textContent = c.code;
 
-          // Update active state
           list.querySelectorAll(".loy-cs-option").forEach(function (o) {
             o.classList.remove("active");
             o.setAttribute("aria-selected", "false");
@@ -290,11 +295,9 @@
           li.classList.add("active");
           li.setAttribute("aria-selected", "true");
 
-          // Close dropdown
           list.style.display = "none";
           trigger.setAttribute("aria-expanded", "false");
 
-          // Save and convert
           localStorage.setItem(STORE_KEY, JSON.stringify({ code: c.code, symbol: c.symbol, flag: c.flag, label: c.label }));
           apply(c);
         });
@@ -311,12 +314,9 @@
       });
 
       // Close on outside click
-      document.addEventListener("click", function (e) {
-        var widget = document.getElementById("loy-cs-widget-" + BID);
-        if (widget && !widget.contains(e.target)) {
-          list.style.display = "none";
-          trigger.setAttribute("aria-expanded", "false");
-        }
+      document.addEventListener("click", function () {
+        list.style.display = "none";
+        trigger.setAttribute("aria-expanded", "false");
       });
     }
 
