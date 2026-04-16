@@ -5,45 +5,52 @@
 
 {% unless cs_enabled == false %}
 
-<div id="loy-cs-root"
-  data-base="{{ base_currency }}"
-  data-fmt="{{ money_format | escape }}">
+<div id="loy-cs-root" data-base="{{ base_currency }}" data-fmt="{{ money_format | escape }}">
 
-  <button id="loy-cs-fab" type="button" aria-label="Select currency">
-    <span id="loy-cs-fab-flag">
-      {% if custom_currencies != blank %}{{ custom_currencies.first.flag }}{% else %}🌐{% endif %}
-    </span>
-  </button>
+  {% comment %} details/summary = native browser toggle, no JS needed {% endcomment %}
+  <details id="loy-cs-details">
 
-  <ul id="loy-cs-list" role="listbox">
-    {% if custom_currencies != blank %}
-      {% for cur in custom_currencies %}
-        <li class="loy-cs-opt"
-          data-code="{{ cur.currencyCode }}"
-          data-symbol="{{ cur.symbol | escape }}"
-          data-flag="{{ cur.flag }}"
-          data-label="{{ cur.label | escape }}">
-          <span class="loy-cs-opt-flag">{{ cur.flag }}</span>
-          <span class="loy-cs-opt-name">{{ cur.label }} ({{ cur.currencyCode }})</span>
-        </li>
-      {% endfor %}
-    {% else %}
-      <li class="loy-cs-opt" data-code="INR" data-symbol="₹"   data-flag="🇮🇳" data-label="Indian Rupee"><span class="loy-cs-opt-flag">🇮🇳</span><span class="loy-cs-opt-name">Indian Rupee (INR)</span></li>
-      <li class="loy-cs-opt" data-code="USD" data-symbol="$"   data-flag="🇺🇸" data-label="US Dollar"><span class="loy-cs-opt-flag">🇺🇸</span><span class="loy-cs-opt-name">US Dollar (USD)</span></li>
-      <li class="loy-cs-opt" data-code="GBP" data-symbol="£"   data-flag="🇬🇧" data-label="British Pound"><span class="loy-cs-opt-flag">🇬🇧</span><span class="loy-cs-opt-name">British Pound (GBP)</span></li>
-      <li class="loy-cs-opt" data-code="EUR" data-symbol="€"   data-flag="🇪🇺" data-label="Euro"><span class="loy-cs-opt-flag">🇪🇺</span><span class="loy-cs-opt-name">Euro (EUR)</span></li>
-      <li class="loy-cs-opt" data-code="AUD" data-symbol="A$"  data-flag="🇦🇺" data-label="Australian Dollar"><span class="loy-cs-opt-flag">🇦🇺</span><span class="loy-cs-opt-name">Australian Dollar (AUD)</span></li>
-      <li class="loy-cs-opt" data-code="AED" data-symbol="د.إ" data-flag="🇦🇪" data-label="UAE Dirham"><span class="loy-cs-opt-flag">🇦🇪</span><span class="loy-cs-opt-name">UAE Dirham (AED)</span></li>
-      <li class="loy-cs-opt" data-code="SAR" data-symbol="﷼"  data-flag="🇸🇦" data-label="Saudi Riyal"><span class="loy-cs-opt-flag">🇸🇦</span><span class="loy-cs-opt-name">Saudi Riyal (SAR)</span></li>
-      <li class="loy-cs-opt" data-code="CAD" data-symbol="CA$" data-flag="🇨🇦" data-label="Canadian Dollar"><span class="loy-cs-opt-flag">🇨🇦</span><span class="loy-cs-opt-name">Canadian Dollar (CAD)</span></li>
-      <li class="loy-cs-opt" data-code="SGD" data-symbol="S$"  data-flag="🇸🇬" data-label="Singapore Dollar"><span class="loy-cs-opt-flag">🇸🇬</span><span class="loy-cs-opt-name">Singapore Dollar (SGD)</span></li>
-      <li class="loy-cs-opt" data-code="JPY" data-symbol="¥"   data-flag="🇯🇵" data-label="Japanese Yen"><span class="loy-cs-opt-flag">🇯🇵</span><span class="loy-cs-opt-name">Japanese Yen (JPY)</span></li>
-    {% endif %}
-  </ul>
+    <summary id="loy-cs-fab" title="Select currency">
+      {% comment %} Globe SVG — always renders, no emoji font issues {% endcomment %}
+      <svg id="loy-cs-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      <span id="loy-cs-label">{{ base_currency }}</span>
+    </summary>
 
+    <ul id="loy-cs-list" role="listbox">
+      {% if custom_currencies != blank %}
+        {% for cur in custom_currencies %}
+          <li class="loy-cs-opt"
+            data-code="{{ cur.currencyCode }}"
+            data-symbol="{{ cur.symbol | escape }}"
+            data-flag="{{ cur.flag }}"
+            data-label="{{ cur.label | escape }}">
+            <span class="loy-cs-opt-flag">{{ cur.flag }}</span>
+            <span class="loy-cs-opt-name">{{ cur.label }} ({{ cur.currencyCode }})</span>
+          </li>
+        {% endfor %}
+      {% else %}
+        <li class="loy-cs-opt" data-code="INR" data-symbol="₹"   data-flag="🇮🇳" data-label="Indian Rupee"><span class="loy-cs-opt-flag">🇮🇳</span><span class="loy-cs-opt-name">Indian Rupee (INR)</span></li>
+        <li class="loy-cs-opt" data-code="USD" data-symbol="$"   data-flag="🇺🇸" data-label="US Dollar"><span class="loy-cs-opt-flag">🇺🇸</span><span class="loy-cs-opt-name">US Dollar (USD)</span></li>
+        <li class="loy-cs-opt" data-code="GBP" data-symbol="£"   data-flag="🇬🇧" data-label="British Pound"><span class="loy-cs-opt-flag">🇬🇧</span><span class="loy-cs-opt-name">British Pound (GBP)</span></li>
+        <li class="loy-cs-opt" data-code="EUR" data-symbol="€"   data-flag="🇪🇺" data-label="Euro"><span class="loy-cs-opt-flag">🇪🇺</span><span class="loy-cs-opt-name">Euro (EUR)</span></li>
+        <li class="loy-cs-opt" data-code="AUD" data-symbol="A$"  data-flag="🇦🇺" data-label="Australian Dollar"><span class="loy-cs-opt-flag">🇦🇺</span><span class="loy-cs-opt-name">Australian Dollar (AUD)</span></li>
+        <li class="loy-cs-opt" data-code="AED" data-symbol="د.إ" data-flag="🇦🇪" data-label="UAE Dirham"><span class="loy-cs-opt-flag">🇦🇪</span><span class="loy-cs-opt-name">UAE Dirham (AED)</span></li>
+        <li class="loy-cs-opt" data-code="SAR" data-symbol="﷼"  data-flag="🇸🇦" data-label="Saudi Riyal"><span class="loy-cs-opt-flag">🇸🇦</span><span class="loy-cs-opt-name">Saudi Riyal (SAR)</span></li>
+        <li class="loy-cs-opt" data-code="CAD" data-symbol="CA$" data-flag="🇨🇦" data-label="Canadian Dollar"><span class="loy-cs-opt-flag">🇨🇦</span><span class="loy-cs-opt-name">Canadian Dollar (CAD)</span></li>
+        <li class="loy-cs-opt" data-code="SGD" data-symbol="S$"  data-flag="🇸🇬" data-label="Singapore Dollar"><span class="loy-cs-opt-flag">🇸🇬</span><span class="loy-cs-opt-name">Singapore Dollar (SGD)</span></li>
+        <li class="loy-cs-opt" data-code="JPY" data-symbol="¥"   data-flag="🇯🇵" data-label="Japanese Yen"><span class="loy-cs-opt-flag">🇯🇵</span><span class="loy-cs-opt-name">Japanese Yen (JPY)</span></li>
+      {% endif %}
+    </ul>
+
+  </details>
 </div>
 
 <style>
+  /* ── Root: fixed above camera FAB ── */
   #loy-cs-root {
     position: fixed;
     bottom: 162px;
@@ -51,26 +58,51 @@
     z-index: 9999999;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
+
+  /* ── details wrapper ── */
+  #loy-cs-details {
+    position: relative;
+  }
+
+  /* ── FAB summary button ── */
   #loy-cs-fab {
     width: 48px;
     height: 48px;
     border-radius: 50%;
     background: #fff;
-    border: 2px solid #e5e5e5;
+    border: 2px solid #ddd;
     box-shadow: 0 4px 16px rgba(0,0,0,0.18);
     cursor: pointer;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-size: 26px;
-    line-height: 1;
-    padding: 0;
+    gap: 1px;
+    list-style: none;
+    user-select: none;
+    -webkit-user-select: none;
     transition: transform 0.15s, box-shadow 0.15s;
   }
+  #loy-cs-fab::-webkit-details-marker { display: none; }
+  #loy-cs-fab::marker { display: none; }
   #loy-cs-fab:hover {
-    transform: scale(1.08);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.24);
+    transform: scale(1.07);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.22);
   }
+  #loy-cs-fab svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+  #loy-cs-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: #444;
+    letter-spacing: 0.3px;
+    line-height: 1;
+  }
+
+  /* ── Dropdown — shown when details is open ── */
   #loy-cs-list {
     display: none;
     position: fixed;
@@ -78,9 +110,9 @@
     right: 20px;
     min-width: 220px;
     background: #fff;
-    border: 1px solid #e5e5e5;
+    border: 1px solid #e0e0e0;
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.16);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
     list-style: none;
     margin: 0;
     padding: 6px 0;
@@ -88,18 +120,23 @@
     overflow-y: auto;
     z-index: 9999999;
   }
-  #loy-cs-list.open { display: block; }
+  #loy-cs-details[open] #loy-cs-list {
+    display: block;
+  }
+
+  /* ── Option row ── */
   .loy-cs-opt {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 9px 14px;
+    padding: 10px 14px;
     cursor: pointer;
     font-size: 13px;
     color: #333;
+    transition: background 0.1s;
   }
   .loy-cs-opt:hover  { background: #f5f5f5; }
-  .loy-cs-opt.active { background: #f0f0f0; font-weight: 600; }
+  .loy-cs-opt.active { background: #eef2ff; font-weight: 600; }
   .loy-cs-opt-flag   { font-size: 22px; line-height: 1; flex-shrink: 0; }
   .loy-cs-opt-name   { flex: 1; }
 </style>
@@ -107,24 +144,20 @@
 <script>
 (function () {
   var root    = document.getElementById("loy-cs-root");
-  var fab     = document.getElementById("loy-cs-fab");
-  var fabFlag = document.getElementById("loy-cs-fab-flag");
+  var details = document.getElementById("loy-cs-details");
+  var label   = document.getElementById("loy-cs-label");
+  var icon    = document.getElementById("loy-cs-icon");
   var list    = document.getElementById("loy-cs-list");
-
-  if (!fab || !list) return;
+  if (!details || !list) return;
 
   var BASE = (root && root.dataset.base) || "INR";
-  var FMT  = (root && root.dataset.fmt)  || "₹{{amount}}";
+  var FMT  = (root && root.dataset.fmt)  || "{{amount}}";
 
-  // ── Toggle dropdown ─────────────────────────────────────────
-  fab.addEventListener("click", function (e) {
-    e.stopPropagation();
-    list.classList.toggle("open");
-  });
-
-  // ── Close on outside click ──────────────────────────────────
-  document.addEventListener("click", function () {
-    list.classList.remove("open");
+  // ── Close when clicking outside ─────────────────────────────
+  document.addEventListener("click", function (e) {
+    if (details.open && !details.contains(e.target)) {
+      details.open = false;
+    }
   });
 
   // ── Option click ────────────────────────────────────────────
@@ -134,17 +167,20 @@
       var code   = opt.dataset.code;
       var symbol = opt.dataset.symbol;
       var flag   = opt.dataset.flag;
-      var label  = opt.dataset.label;
+      var lbl    = opt.dataset.label;
 
-      if (fabFlag) fabFlag.textContent = flag;
+      // Update FAB: swap globe SVG for flag emoji + code
+      if (icon)  { icon.style.display = "none"; }
+      if (label) { label.style.fontSize = "18px"; label.style.lineHeight = "1"; label.textContent = flag || code; }
 
+      // Mark active
       list.querySelectorAll(".loy-cs-opt").forEach(function (o) {
         o.classList.toggle("active", o === opt);
       });
 
-      list.classList.remove("open");
+      details.open = false;
 
-      localStorage.setItem("loy_currency", JSON.stringify({ code: code, symbol: symbol, flag: flag, label: label }));
+      localStorage.setItem("loy_currency", JSON.stringify({ code: code, symbol: symbol, flag: flag, label: lbl }));
       apply(code, symbol);
     });
   });
@@ -175,7 +211,7 @@
     document.querySelectorAll(SEL).forEach(function (el) {
       if (!el.dataset.loyOrig) return;
       var val = parseFloat(el.dataset.loyOrig) * rate;
-      var fmt = FMT, s;
+      var fmt = FMT; var s;
       if (fmt.indexOf("{{amount_no_decimals}}") !== -1) {
         s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
         fmt = fmt.replace("{{amount_no_decimals}}", s);
@@ -218,7 +254,8 @@
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
   if (saved && saved.code !== BASE) {
-    if (fabFlag) fabFlag.textContent = saved.flag;
+    if (icon)  icon.style.display = "none";
+    if (label) { label.style.fontSize = "18px"; label.style.lineHeight = "1"; label.textContent = saved.flag || saved.code; }
     list.querySelectorAll(".loy-cs-opt").forEach(function (o) {
       if (o.dataset.code === saved.code) o.classList.add("active");
     });
@@ -226,7 +263,7 @@
     fetchRates(function (r) { if (r && r[saved.code]) convert(r[saved.code], saved.symbol); });
   }
 
-  // ── MutationObserver for dynamic price changes ──────────────
+  // ── MutationObserver ────────────────────────────────────────
   if (window.MutationObserver) {
     new MutationObserver(function () {
       if (converting) return;
