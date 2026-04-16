@@ -5,111 +5,64 @@
 
 {% unless cs_enabled == false %}
 
-<div id="loy-cs-root" data-base="{{ base_currency }}" data-fmt="{{ money_format | escape }}"></div>
-
-<script type="application/json" id="loy-cs-data">
-{% if custom_currencies != blank %}{{ custom_currencies | json }}{% else %}[{"currencyCode":"INR","symbol":"₹","flag":"🇮🇳","label":"Indian Rupee"},{"currencyCode":"USD","symbol":"$","flag":"🇺🇸","label":"US Dollar"},{"currencyCode":"GBP","symbol":"£","flag":"🇬🇧","label":"British Pound"},{"currencyCode":"EUR","symbol":"€","flag":"🇪🇺","label":"Euro"},{"currencyCode":"AUD","symbol":"A$","flag":"🇦🇺","label":"Australian Dollar"},{"currencyCode":"AED","symbol":"د.إ","flag":"🇦🇪","label":"UAE Dirham"},{"currencyCode":"SAR","symbol":"﷼","flag":"🇸🇦","label":"Saudi Riyal"},{"currencyCode":"CAD","symbol":"CA$","flag":"🇨🇦","label":"Canadian Dollar"},{"currencyCode":"SGD","symbol":"S$","flag":"🇸🇬","label":"Singapore Dollar"},{"currencyCode":"JPY","symbol":"¥","flag":"🇯🇵","label":"Japanese Yen"}]{% endif %}
-</script>
-
 <script>
 (function () {
 
-  /* ── Read data ─────────────────────────────────────────────── */
-  var root   = document.getElementById("loy-cs-root");
-  var dataEl = document.getElementById("loy-cs-data");
-  if (!root || !dataEl) return;
+  /* ── Currency data from Liquid ─────────────────────────────── */
+  var BASE = {{ base_currency | json }};
+  var FMT  = {{ money_format | json }};
 
-  var BASE = root.dataset.base || "INR";
-  var FMT  = root.dataset.fmt  || "{{amount}}";
+  var currencies = {% if custom_currencies != blank %}{{ custom_currencies | json }}{% else %}[
+    {"currencyCode":"INR","symbol":"\u20B9","flag":"\uD83C\uDDEE\uD83C\uDDF3","label":"Indian Rupee"},
+    {"currencyCode":"USD","symbol":"$","flag":"\uD83C\uDDFA\uD83C\uDDF8","label":"US Dollar"},
+    {"currencyCode":"GBP","symbol":"\u00A3","flag":"\uD83C\uDDEC\uD83C\uDDE7","label":"British Pound"},
+    {"currencyCode":"EUR","symbol":"\u20AC","flag":"\uD83C\uDDEA\uD83C\uDDFA","label":"Euro"},
+    {"currencyCode":"AUD","symbol":"A$","flag":"\uD83C\uDDE6\uD83C\uDDFA","label":"Australian Dollar"},
+    {"currencyCode":"AED","symbol":"AED","flag":"\uD83C\uDDE6\uD83C\uDDEA","label":"UAE Dirham"},
+    {"currencyCode":"SAR","symbol":"SAR","flag":"\uD83C\uDDF8\uD83C\uDDE6","label":"Saudi Riyal"},
+    {"currencyCode":"CAD","symbol":"CA$","flag":"\uD83C\uDDE8\uD83C\uDDE6","label":"Canadian Dollar"},
+    {"currencyCode":"SGD","symbol":"S$","flag":"\uD83C\uDDF8\uD83C\uDDEC","label":"Singapore Dollar"},
+    {"currencyCode":"JPY","symbol":"\u00A5","flag":"\uD83C\uDDEF\uD83C\uDDF5","label":"Japanese Yen"}
+  ]{% endif %};
 
-  var currencies = [];
-  try { currencies = JSON.parse(dataEl.textContent.trim()); } catch(e) { return; }
   if (!Array.isArray(currencies) || !currencies.length) return;
 
   /* ── Build FAB button ──────────────────────────────────────── */
   var fab = document.createElement("button");
-  fab.type = "button";
-  fab.id   = "loy-cs-fab";
+  fab.type  = "button";
   fab.title = "Select currency";
   fab.setAttribute("aria-haspopup", "listbox");
   fab.setAttribute("aria-expanded", "false");
-
-  fab.style.cssText = [
-    "position:fixed",
-    "bottom:162px",
-    "right:20px",
-    "z-index:9999999",
-    "display:inline-flex",
-    "flex-direction:row",
-    "align-items:center",
-    "gap:6px",
-    "padding:8px 14px",
-    "background:#ffffff",
-    "border:1.5px solid #ddd",
-    "border-radius:24px",
-    "box-shadow:0 2px 10px rgba(0,0,0,0.14)",
-    "cursor:pointer",
-    "white-space:nowrap",
-    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
-    "font-size:13px",
-    "font-weight:700",
-    "color:#333",
-    "outline:none"
-  ].join(";");
+  fab.style.cssText = "position:fixed;bottom:162px;right:20px;z-index:9999999;display:inline-flex;flex-direction:row;align-items:center;gap:6px;padding:8px 14px;background:#fff;border:1.5px solid #ddd;border-radius:24px;box-shadow:0 2px 10px rgba(0,0,0,.14);cursor:pointer;white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;font-weight:700;color:#333;outline:none;";
 
   var codeEl = document.createElement("span");
-  codeEl.id = "loy-cs-code";
   codeEl.textContent = BASE;
-  codeEl.style.cssText = "font-size:13px;font-weight:700;color:#333;letter-spacing:0.4px;line-height:1;";
+  codeEl.style.cssText = "font-size:13px;font-weight:700;color:#333;letter-spacing:.4px;line-height:1;";
 
-  var chevron = document.createElement("span");
-  chevron.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#555" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:block;transition:transform 0.2s;"><path d="M2 4l4 4 4-4"/></svg>';
+  var chevronSvg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+  chevronSvg.setAttribute("viewBox","0 0 12 12");
+  chevronSvg.setAttribute("fill","none");
+  chevronSvg.setAttribute("stroke","#666");
+  chevronSvg.setAttribute("stroke-width","1.8");
+  chevronSvg.setAttribute("stroke-linecap","round");
+  chevronSvg.setAttribute("stroke-linejoin","round");
+  chevronSvg.style.cssText = "width:10px;height:10px;flex-shrink:0;transition:transform .2s;";
+  var chevronPath = document.createElementNS("http://www.w3.org/2000/svg","path");
+  chevronPath.setAttribute("d","M2 4l4 4 4-4");
+  chevronSvg.appendChild(chevronPath);
 
   fab.appendChild(codeEl);
-  fab.appendChild(chevron);
+  fab.appendChild(chevronSvg);
   document.body.appendChild(fab);
 
   /* ── Build dropdown ────────────────────────────────────────── */
   var dropdown = document.createElement("div");
-  dropdown.id = "loy-cs-dropdown";
-  dropdown.style.cssText = [
-    "display:none",
-    "position:fixed",
-    "z-index:10000000",
-    "background:#fff",
-    "border:1px solid #e0e0e0",
-    "border-radius:12px",
-    "box-shadow:0 8px 32px rgba(0,0,0,0.18)",
-    "min-width:230px",
-    "max-height:300px",
-    "overflow-y:auto",
-    "overflow-x:hidden",
-    "padding:6px 0",
-    "margin:0",
-    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
-  ].join(";");
+  dropdown.style.cssText = "display:none;position:fixed;z-index:10000000;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:230px;max-height:300px;overflow-y:auto;overflow-x:hidden;padding:6px 0;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
 
   currencies.forEach(function (cur) {
     var row = document.createElement("div");
-    row.setAttribute("data-code",   cur.currencyCode);
-    row.setAttribute("data-symbol", cur.symbol || "");
-    row.setAttribute("data-flag",   cur.flag   || "");
-    row.setAttribute("data-label",  cur.label  || "");
-
-    row.style.cssText = [
-      "display:flex",
-      "align-items:center",
-      "gap:10px",
-      "padding:10px 16px",
-      "cursor:pointer",
-      "font-size:13px",
-      "color:#333",
-      "background:transparent",
-      "margin:0",
-      "box-sizing:border-box",
-      "width:100%",
-      "line-height:1.4"
-    ].join(";");
+    row.setAttribute("data-code", cur.currencyCode);
+    row.style.cssText = "display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:13px;color:#333;background:transparent;margin:0;box-sizing:border-box;width:100%;line-height:1.4;";
 
     var flagSpan = document.createElement("span");
     flagSpan.textContent = cur.flag || "";
@@ -128,14 +81,9 @@
     row.addEventListener("click", function (e) {
       e.stopPropagation();
       dropdown.querySelectorAll("[data-code]").forEach(function (r) {
-        r.style.background = "transparent";
-        r.style.fontWeight = "normal";
-        r._active = false;
+        r.style.background = "transparent"; r.style.fontWeight = "normal"; r._active = false;
       });
-      row.style.background = "#eef2ff";
-      row.style.fontWeight = "600";
-      row._active = true;
-
+      row.style.background = "#eef2ff"; row.style.fontWeight = "600"; row._active = true;
       codeEl.textContent = (cur.flag ? cur.flag + " " : "") + cur.currencyCode;
       closeDropdown();
       localStorage.setItem("loy_currency", JSON.stringify({ code: cur.currencyCode, symbol: cur.symbol, flag: cur.flag || "", label: cur.label }));
@@ -150,81 +98,61 @@
   /* ── Toggle ────────────────────────────────────────────────── */
   function openDropdown() {
     var rect = fab.getBoundingClientRect();
-    var spaceBelow = window.innerHeight - rect.bottom;
     var dropH = Math.min(300, currencies.length * 44 + 12);
-
     dropdown.style.right = (window.innerWidth - rect.right) + "px";
     dropdown.style.left  = "auto";
-
-    if (spaceBelow >= dropH + 8) {
-      // enough room below
+    if (window.innerHeight - rect.bottom >= dropH + 8) {
       dropdown.style.top    = (rect.bottom + 6) + "px";
       dropdown.style.bottom = "auto";
     } else {
-      // not enough room below — open above
       dropdown.style.bottom = (window.innerHeight - rect.top + 6) + "px";
       dropdown.style.top    = "auto";
     }
-
     dropdown.style.display = "block";
-    fab.setAttribute("aria-expanded", "true");
-    var svg = chevron.querySelector("svg");
-    if (svg) svg.style.transform = "rotate(180deg)";
+    fab.setAttribute("aria-expanded","true");
+    chevronSvg.style.transform = "rotate(180deg)";
   }
-
   function closeDropdown() {
     dropdown.style.display = "none";
-    fab.setAttribute("aria-expanded", "false");
-    var svg = chevron.querySelector("svg");
-    if (svg) svg.style.transform = "rotate(0deg)";
+    fab.setAttribute("aria-expanded","false");
+    chevronSvg.style.transform = "rotate(0deg)";
   }
-
   function isOpen() { return dropdown.style.display === "block"; }
 
   fab.addEventListener("click", function (e) {
     e.stopPropagation();
     isOpen() ? closeDropdown() : openDropdown();
   });
-
   document.addEventListener("click", function (e) {
-    if (isOpen() && !dropdown.contains(e.target) && e.target !== fab && !fab.contains(e.target))
+    if (isOpen() && !dropdown.contains(e.target) && !fab.contains(e.target))
       closeDropdown();
   });
 
   /* ── Price conversion ──────────────────────────────────────── */
-  var rates      = null;
-  var converting = false;
-  var SEL = [
-    ".price__regular .price-item",".price__sale .price-item",
-    ".price-item",".price__current",".product-price__price",
-    ".product__price .price",".cart-item__price",".cart__price",
-    ".totals__subtotal-value","[data-product-price]",
-    "[class*='price__']",".price"
-  ].join(",");
+  var rates = null, converting = false;
+  var SEL = ".price__regular .price-item,.price__sale .price-item,.price-item,.price__current,.product-price__price,.product__price .price,.cart-item__price,.cart__price,.totals__subtotal-value,[data-product-price],[class*='price__'],.price";
 
   function store() {
     document.querySelectorAll(SEL).forEach(function (el) {
       if (el.dataset.loyOrig) return;
-      var txt = el.textContent.trim();
-      var num = parseFloat(txt.replace(/[^\d.,]/g,"").replace(/,/g,"").replace(/\.(?=.*\.)/g,""));
-      if (!isNaN(num) && num > 0) { el.dataset.loyOrig = num; el.dataset.loyOrigTxt = txt; }
+      var num = parseFloat(el.textContent.trim().replace(/[^\d.,]/g,"").replace(/,/g,"").replace(/\.(?=.*\.)/g,""));
+      if (!isNaN(num) && num > 0) { el.dataset.loyOrig = num; el.dataset.loyOrigTxt = el.textContent.trim(); }
     });
   }
-
   function convert(rate, sym) {
     converting = true;
     document.querySelectorAll(SEL).forEach(function (el) {
       if (!el.dataset.loyOrig) return;
       var val = parseFloat(el.dataset.loyOrig) * rate;
-      var fmt = FMT; var s;
+      var fmt = FMT, s;
       if (fmt.indexOf("{{amount_no_decimals}}") !== -1) {
         s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
-        fmt = fmt.replace("{{amount_no_decimals}}", s);
+        fmt = fmt.replace("{{amount_no_decimals}}",s);
       } else if (fmt.indexOf("{{amount_with_comma_separator}}") !== -1) {
-        fmt = fmt.replace("{{amount_with_comma_separator}}", val.toFixed(2).replace(".",","));
+        fmt = fmt.replace("{{amount_with_comma_separator}}",val.toFixed(2).replace(".",","));
       } else {
         s = val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,",");
-        fmt = fmt.replace("{{amount}}", s);
+        fmt = fmt.replace("{{amount}}",s);
       }
       var base = FMT.replace(/\{\{[^}]+\}\}/g,"").trim();
       if (base && sym) fmt = fmt.split(base).join(sym);
@@ -232,15 +160,11 @@
     });
     converting = false;
   }
-
   function reset() {
     converting = true;
-    document.querySelectorAll(SEL).forEach(function (el) {
-      if (el.dataset.loyOrigTxt) el.textContent = el.dataset.loyOrigTxt;
-    });
+    document.querySelectorAll(SEL).forEach(function (el) { if (el.dataset.loyOrigTxt) el.textContent = el.dataset.loyOrigTxt; });
     converting = false;
   }
-
   function fetchRates(cb) {
     if (rates) { cb(rates); return; }
     fetch("https://open.er-api.com/v6/latest/" + BASE)
@@ -248,27 +172,22 @@
       .then(function(d){if(d&&d.rates)rates=d.rates; cb(rates);})
       .catch(function(){cb(null);});
   }
-
   function apply(c, sym) {
     store();
     if (c === BASE) { reset(); return; }
-    fetchRates(function(r){ if(r&&r[c]) convert(r[c], sym); });
+    fetchRates(function(r){ if(r&&r[c]) convert(r[c],sym); });
   }
 
-  /* ── Restore saved currency ────────────────────────────────── */
+  /* ── Restore on load ───────────────────────────────────────── */
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch(e) {}
   if (saved && saved.code && saved.code !== BASE) {
     codeEl.textContent = (saved.flag ? saved.flag + " " : "") + saved.code;
     dropdown.querySelectorAll("[data-code]").forEach(function (r) {
-      if (r.getAttribute("data-code") === saved.code) {
-        r.style.background = "#eef2ff";
-        r.style.fontWeight = "600";
-        r._active = true;
-      }
+      if (r.getAttribute("data-code") === saved.code) { r.style.background="#eef2ff"; r.style.fontWeight="600"; r._active=true; }
     });
     store();
-    fetchRates(function(r){ if(r&&r[saved.code]) convert(r[saved.code], saved.symbol); });
+    fetchRates(function(r){ if(r&&r[saved.code]) convert(r[saved.code],saved.symbol); });
   }
 
   /* ── MutationObserver ──────────────────────────────────────── */
@@ -277,8 +196,7 @@
       if (converting) return;
       var s=null; try{s=JSON.parse(localStorage.getItem("loy_currency"));}catch(e){}
       if(!s||s.code===BASE) return;
-      store();
-      if(rates&&rates[s.code]) convert(rates[s.code],s.symbol);
+      store(); if(rates&&rates[s.code]) convert(rates[s.code],s.symbol);
     }).observe(document.body,{childList:true,subtree:true,characterData:true});
   }
 
