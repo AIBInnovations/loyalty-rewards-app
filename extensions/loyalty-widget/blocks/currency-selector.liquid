@@ -7,45 +7,38 @@
 
 <div id="loy-cs-root" data-base="{{ base_currency }}" data-fmt="{{ money_format | escape }}">
 
-  <button id="loy-cs-fab" type="button" title="Select currency"
-          aria-haspopup="listbox" aria-expanded="false">
+  <button id="loy-cs-fab" type="button" title="Select currency" aria-haspopup="listbox" aria-expanded="false">
     <span id="loy-cs-code">{{ base_currency }}</span>
-    <svg id="loy-cs-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none"
-      stroke="#555" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none"
+      stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+      style="width:10px;height:10px;flex-shrink:0;transition:transform 0.2s;">
       <path d="M2 4l4 4 4-4"/>
     </svg>
   </button>
 
-  <ul id="loy-cs-list" role="listbox">
-    {% if custom_currencies != blank %}
-      {% for cur in custom_currencies %}
-        <li class="loy-cs-opt"
-          data-code="{{ cur.currencyCode }}"
-          data-symbol="{{ cur.symbol | escape }}"
-          data-flag="{{ cur.flag }}"
-          data-label="{{ cur.label | escape }}">
-          <span class="loy-cs-opt-flag">{{ cur.flag }}</span>
-          <span class="loy-cs-opt-name">{{ cur.label }} ({{ cur.currencyCode }})</span>
-        </li>
-      {% endfor %}
-    {% else %}
-      <li class="loy-cs-opt" data-code="INR" data-symbol="₹"   data-flag="🇮🇳" data-label="Indian Rupee"><span class="loy-cs-opt-flag">🇮🇳</span><span class="loy-cs-opt-name">Indian Rupee (INR)</span></li>
-      <li class="loy-cs-opt" data-code="USD" data-symbol="$"   data-flag="🇺🇸" data-label="US Dollar"><span class="loy-cs-opt-flag">🇺🇸</span><span class="loy-cs-opt-name">US Dollar (USD)</span></li>
-      <li class="loy-cs-opt" data-code="GBP" data-symbol="£"   data-flag="🇬🇧" data-label="British Pound"><span class="loy-cs-opt-flag">🇬🇧</span><span class="loy-cs-opt-name">British Pound (GBP)</span></li>
-      <li class="loy-cs-opt" data-code="EUR" data-symbol="€"   data-flag="🇪🇺" data-label="Euro"><span class="loy-cs-opt-flag">🇪🇺</span><span class="loy-cs-opt-name">Euro (EUR)</span></li>
-      <li class="loy-cs-opt" data-code="AUD" data-symbol="A$"  data-flag="🇦🇺" data-label="Australian Dollar"><span class="loy-cs-opt-flag">🇦🇺</span><span class="loy-cs-opt-name">Australian Dollar (AUD)</span></li>
-      <li class="loy-cs-opt" data-code="AED" data-symbol="د.إ" data-flag="🇦🇪" data-label="UAE Dirham"><span class="loy-cs-opt-flag">🇦🇪</span><span class="loy-cs-opt-name">UAE Dirham (AED)</span></li>
-      <li class="loy-cs-opt" data-code="SAR" data-symbol="﷼"  data-flag="🇸🇦" data-label="Saudi Riyal"><span class="loy-cs-opt-flag">🇸🇦</span><span class="loy-cs-opt-name">Saudi Riyal (SAR)</span></li>
-      <li class="loy-cs-opt" data-code="CAD" data-symbol="CA$" data-flag="🇨🇦" data-label="Canadian Dollar"><span class="loy-cs-opt-flag">🇨🇦</span><span class="loy-cs-opt-name">Canadian Dollar (CAD)</span></li>
-      <li class="loy-cs-opt" data-code="SGD" data-symbol="S$"  data-flag="🇸🇬" data-label="Singapore Dollar"><span class="loy-cs-opt-flag">🇸🇬</span><span class="loy-cs-opt-name">Singapore Dollar (SGD)</span></li>
-      <li class="loy-cs-opt" data-code="JPY" data-symbol="¥"   data-flag="🇯🇵" data-label="Japanese Yen"><span class="loy-cs-opt-flag">🇯🇵</span><span class="loy-cs-opt-name">Japanese Yen (JPY)</span></li>
-    {% endif %}
-  </ul>
-
 </div>
 
+{% comment %} Pass currency data to JS without rendering any li/ul elements {% endcomment %}
+<script type="application/json" id="loy-cs-data">
+  {% if custom_currencies != blank %}
+    {{ custom_currencies | json }}
+  {% else %}
+    [
+      {"currencyCode":"INR","symbol":"₹","flag":"🇮🇳","label":"Indian Rupee"},
+      {"currencyCode":"USD","symbol":"$","flag":"🇺🇸","label":"US Dollar"},
+      {"currencyCode":"GBP","symbol":"£","flag":"🇬🇧","label":"British Pound"},
+      {"currencyCode":"EUR","symbol":"€","flag":"🇪🇺","label":"Euro"},
+      {"currencyCode":"AUD","symbol":"A$","flag":"🇦🇺","label":"Australian Dollar"},
+      {"currencyCode":"AED","symbol":"د.إ","flag":"🇦🇪","label":"UAE Dirham"},
+      {"currencyCode":"SAR","symbol":"﷼","flag":"🇸🇦","label":"Saudi Riyal"},
+      {"currencyCode":"CAD","symbol":"CA$","flag":"🇨🇦","label":"Canadian Dollar"},
+      {"currencyCode":"SGD","symbol":"S$","flag":"🇸🇬","label":"Singapore Dollar"},
+      {"currencyCode":"JPY","symbol":"¥","flag":"🇯🇵","label":"Japanese Yen"}
+    ]
+  {% endif %}
+</script>
+
 <style>
-  /* ── Root wrapper ── */
   #loy-cs-root {
     position: fixed;
     bottom: 162px;
@@ -53,26 +46,21 @@
     z-index: 9999999;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
-
-  /* ── FAB pill button ── */
   #loy-cs-fab {
-    display: flex;
+    display: inline-flex;
     flex-direction: row;
     align-items: center;
     gap: 6px;
-    padding: 8px 12px;
+    padding: 8px 14px;
     background: #ffffff;
     border: 1.5px solid #ddd;
     border-radius: 24px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.14);
     cursor: pointer;
-    transition: box-shadow 0.15s, border-color 0.15s;
     white-space: nowrap;
+    font-family: inherit;
   }
-  #loy-cs-fab:hover {
-    border-color: #bbb;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.20);
-  }
+  #loy-cs-fab:hover { border-color: #bbb; box-shadow: 0 4px 16px rgba(0,0,0,0.20); }
   #loy-cs-code {
     font-size: 13px;
     font-weight: 700;
@@ -80,127 +68,147 @@
     letter-spacing: 0.4px;
     line-height: 1;
   }
-  #loy-cs-chevron {
-    width: 12px;
-    height: 12px;
-    transition: transform 0.2s;
-    flex-shrink: 0;
-  }
-  #loy-cs-fab[aria-expanded="true"] #loy-cs-chevron {
-    transform: rotate(180deg);
-  }
-
-  /* ── Dropdown — display toggled entirely by JS inline style ── */
-  #loy-cs-list {
-    position: fixed !important;
-    min-width: 225px !important;
-    background: #ffffff !important;
-    border: 1px solid #e0e0e0 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.18) !important;
-    list-style: none !important;
-    margin: 0 !important;
-    padding: 6px 0 !important;
-    max-height: 320px !important;
-    overflow-y: auto !important;
-    z-index: 9999999 !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-
-  /* ── Option rows — !important overrides any theme li/ul resets ── */
-  #loy-cs-list .loy-cs-opt {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    align-items: center !important;
-    gap: 10px !important;
-    padding: 10px 14px !important;
-    margin: 0 !important;
-    cursor: pointer !important;
-    font-size: 13px !important;
-    color: #333 !important;
-    background: transparent !important;
-    transition: background 0.1s;
-    list-style: none !important;
-    border: none !important;
-    height: auto !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
-  #loy-cs-list .loy-cs-opt:hover  { background: #f5f5f5 !important; }
-  #loy-cs-list .loy-cs-opt.active { background: #eef2ff !important; font-weight: 600 !important; }
-  #loy-cs-list .loy-cs-opt-flag   { font-size: 22px !important; line-height: 1 !important; flex-shrink: 0 !important; display: inline !important; visibility: visible !important; opacity: 1 !important; }
-  #loy-cs-list .loy-cs-opt-name   { flex: 1 !important; display: inline !important; visibility: visible !important; opacity: 1 !important; color: #333 !important; }
+  #loy-cs-fab[aria-expanded="true"] svg { transform: rotate(180deg); }
 </style>
 
 <script>
 (function () {
-  var root = document.getElementById("loy-cs-root");
-  var fab  = document.getElementById("loy-cs-fab");
-  var code = document.getElementById("loy-cs-code");
-  var list = document.getElementById("loy-cs-list");
-  if (!fab || !list) return;
-
-  // Move list to <body> so no parent stacking context can clip or hide it
-  document.body.appendChild(list);
-  // Hide immediately — inline style beats any stylesheet rule
-  list.style.display = "none";
+  var root     = document.getElementById("loy-cs-root");
+  var fab      = document.getElementById("loy-cs-fab");
+  var codeEl   = document.getElementById("loy-cs-code");
+  var dataEl   = document.getElementById("loy-cs-data");
+  if (!fab || !dataEl) return;
 
   var BASE = (root && root.dataset.base) || "INR";
   var FMT  = (root && root.dataset.fmt)  || "{{amount}}";
 
-  function openList() {
-    var rect = fab.getBoundingClientRect();
-    list.style.top     = (rect.bottom + 8) + "px";
-    list.style.right   = (window.innerWidth - rect.right) + "px";
-    list.style.display = "block";
-    fab.setAttribute("aria-expanded", "true");
-  }
-  function closeList() {
-    list.style.display = "none";
-    fab.setAttribute("aria-expanded", "false");
-  }
-  function isOpen() { return list.style.display === "block"; }
+  // ── Parse currencies ────────────────────────────────────────
+  var currencies = [];
+  try { currencies = JSON.parse(dataEl.textContent); } catch(e) {}
+  if (!currencies.length) return;
 
-  // ── FAB click — toggle dropdown ─────────────────────────────
-  fab.addEventListener("click", function (e) {
-    e.stopPropagation();
-    isOpen() ? closeList() : openList();
+  // ── Build dropdown entirely in JS with inline styles ────────
+  // (inline styles cannot be overridden by ANY stylesheet)
+  var dropdown = document.createElement("div");
+  dropdown.id = "loy-cs-dropdown";
+  Object.assign(dropdown.style, {
+    display:       "none",
+    position:      "fixed",
+    zIndex:        "9999999",
+    background:    "#ffffff",
+    border:        "1px solid #e0e0e0",
+    borderRadius:  "12px",
+    boxShadow:     "0 8px 32px rgba(0,0,0,0.18)",
+    minWidth:      "230px",
+    maxHeight:     "320px",
+    overflowY:     "auto",
+    overflowX:     "hidden",
+    padding:       "6px 0",
+    margin:        "0",
+    fontFamily:    "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
   });
 
-  // ── Close on outside click ──────────────────────────────────
-  document.addEventListener("click", function (e) {
-    if (isOpen() && !list.contains(e.target) && e.target !== fab)
-      closeList();
-  });
+  currencies.forEach(function (cur) {
+    var row = document.createElement("div");
+    Object.assign(row.style, {
+      display:    "flex",
+      alignItems: "center",
+      gap:        "10px",
+      padding:    "10px 16px",
+      cursor:     "pointer",
+      fontSize:   "13px",
+      color:      "#333333",
+      background: "transparent",
+      margin:     "0",
+      boxSizing:  "border-box",
+      width:      "100%"
+    });
+    row.dataset.code   = cur.currencyCode;
+    row.dataset.symbol = cur.symbol;
+    row.dataset.flag   = cur.flag || "";
+    row.dataset.label  = cur.label;
 
-  // ── Option selection ────────────────────────────────────────
-  list.querySelectorAll(".loy-cs-opt").forEach(function (opt) {
-    opt.addEventListener("click", function (e) {
+    var flag = document.createElement("span");
+    flag.textContent = cur.flag || "";
+    Object.assign(flag.style, {
+      fontSize:   "22px",
+      lineHeight: "1",
+      flexShrink: "0",
+      display:    "inline-block"
+    });
+
+    var name = document.createElement("span");
+    name.textContent = cur.label + " (" + cur.currencyCode + ")";
+    Object.assign(name.style, {
+      flex:     "1",
+      display:  "inline-block",
+      color:    "#333333",
+      fontSize: "13px"
+    });
+
+    row.appendChild(flag);
+    row.appendChild(name);
+
+    row.addEventListener("mouseenter", function () {
+      row.style.background = "#f5f5f5";
+    });
+    row.addEventListener("mouseleave", function () {
+      row.style.background = row._active ? "#eef2ff" : "transparent";
+    });
+
+    row.addEventListener("click", function (e) {
       e.stopPropagation();
-      var selCode   = opt.dataset.code;
-      var selSymbol = opt.dataset.symbol;
-      var selFlag   = opt.dataset.flag;
-      var selLabel  = opt.dataset.label;
+      // Mark active
+      dropdown.querySelectorAll("[data-code]").forEach(function (r) {
+        r.style.background = "transparent";
+        r.style.fontWeight = "normal";
+        r._active = false;
+      });
+      row.style.background = "#eef2ff";
+      row.style.fontWeight = "600";
+      row._active = true;
 
-      // Update FAB label: show flag + currency code
-      if (code) {
-        code.textContent = (selFlag ? selFlag + " " : "") + selCode;
+      // Update FAB label
+      if (codeEl) {
+        codeEl.textContent = (cur.flag ? cur.flag + " " : "") + cur.currencyCode;
       }
 
-      // Mark active option
-      list.querySelectorAll(".loy-cs-opt").forEach(function (o) {
-        o.classList.toggle("active", o === opt);
-      });
-
-      closeList();
+      closeDropdown();
 
       localStorage.setItem("loy_currency", JSON.stringify({
-        code: selCode, symbol: selSymbol, flag: selFlag, label: selLabel
+        code: cur.currencyCode, symbol: cur.symbol,
+        flag: cur.flag, label: cur.label
       }));
-      apply(selCode, selSymbol);
+      apply(cur.currencyCode, cur.symbol);
     });
+
+    dropdown.appendChild(row);
+  });
+
+  document.body.appendChild(dropdown);
+
+  // ── Toggle helpers ──────────────────────────────────────────
+  function openDropdown() {
+    var rect = fab.getBoundingClientRect();
+    dropdown.style.top   = (rect.bottom + 6) + "px";
+    dropdown.style.right = (window.innerWidth - rect.right) + "px";
+    dropdown.style.display = "block";
+    fab.setAttribute("aria-expanded", "true");
+  }
+  function closeDropdown() {
+    dropdown.style.display = "none";
+    fab.setAttribute("aria-expanded", "false");
+  }
+  function isOpen() { return dropdown.style.display === "block"; }
+
+  fab.addEventListener("click", function (e) {
+    e.stopPropagation();
+    isOpen() ? closeDropdown() : openDropdown();
+  });
+
+  document.addEventListener("click", function (e) {
+    if (isOpen() && !dropdown.contains(e.target) && e.target !== fab)
+      closeDropdown();
   });
 
   // ── Price conversion ────────────────────────────────────────
@@ -267,13 +275,17 @@
     fetchRates(function(r){ if(r&&r[c]) convert(r[c], sym); });
   }
 
-  // ── Restore saved currency on load ──────────────────────────
+  // ── Restore saved currency on page load ─────────────────────
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch(e) {}
   if (saved && saved.code !== BASE) {
-    if (code) { code.textContent = (saved.flag ? saved.flag + " " : "") + saved.code; }
-    list.querySelectorAll(".loy-cs-opt").forEach(function(o){
-      if (o.dataset.code === saved.code) o.classList.add("active");
+    if (codeEl) codeEl.textContent = (saved.flag ? saved.flag + " " : "") + saved.code;
+    dropdown.querySelectorAll("[data-code]").forEach(function (r) {
+      if (r.dataset.code === saved.code) {
+        r.style.background = "#eef2ff";
+        r.style.fontWeight = "600";
+        r._active = true;
+      }
     });
     store();
     fetchRates(function(r){ if(r&&r[saved.code]) convert(r[saved.code], saved.symbol); });
