@@ -14,11 +14,7 @@ import {
   Divider,
   Banner,
   Box,
-  ResourceList,
-  ResourceItem,
-  Thumbnail,
 } from "@shopify/polaris";
-import { DeleteIcon } from "@shopify/polaris-icons";
 import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
@@ -306,12 +302,12 @@ export default function CurrencySettings() {
                           </BlockStack>
                         </InlineStack>
                         <Button
-                          icon={DeleteIcon}
                           tone="critical"
                           variant="plain"
                           onClick={() => handleRemove(cur.currencyCode)}
-                          accessibilityLabel={`Remove ${cur.currencyCode}`}
-                        />
+                        >
+                          Remove
+                        </Button>
                       </InlineStack>
                     </Box>
                   ))}
