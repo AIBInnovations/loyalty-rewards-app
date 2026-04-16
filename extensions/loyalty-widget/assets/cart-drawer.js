@@ -50,10 +50,27 @@
 
   // ─── Format Money ─────────────────────────────────────────────
   function formatMoney(cents) {
-    var amount = (cents / 100).toFixed(2);
-    // Remove trailing zeros
-    amount = amount.replace(/\.00$/, "");
-    return "₹" + Number(amount).toLocaleString("en-IN");
+    var amount = cents / 100;
+    var format = config.moneyFormat || "₹{{amount}}";
+    var formatted;
+    if (format.indexOf("{{amount_no_decimals_with_comma_separator}}") !== -1) {
+      formatted = Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      return format.replace("{{amount_no_decimals_with_comma_separator}}", formatted);
+    }
+    if (format.indexOf("{{amount_with_comma_separator}}") !== -1) {
+      formatted = amount.toFixed(2).replace(".", ",");
+      var parts = formatted.split(",");
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      formatted = parts.join(",");
+      return format.replace("{{amount_with_comma_separator}}", formatted);
+    }
+    if (format.indexOf("{{amount_no_decimals}}") !== -1) {
+      formatted = Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      return format.replace("{{amount_no_decimals}}", formatted);
+    }
+    formatted = amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    formatted = formatted.replace(/\.00$/, "");
+    return format.replace("{{amount}}", formatted);
   }
 
   function formatMoneyNumber(cents) {
@@ -444,7 +461,7 @@
           '</div>' +
           '<span class="' + labelClass + '">' + esc(t.label) + '</span>' +
           '<span class="cd-tier-sublabel">' +
-            (t.type === "items" ? t.threshold + " item" + (t.threshold > 1 ? "s" : "") : "₹" + t.threshold) +
+            (t.type === "items" ? t.threshold + " item" + (t.threshold > 1 ? "s" : "") : formatMoney(t.threshold * 100)) +
           '</span>' +
         '</div>';
     }

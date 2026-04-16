@@ -19,6 +19,7 @@
     referralCode: container.dataset.referralCode || "",
     shopDomain: container.dataset.shopDomain,
     currency: container.dataset.currency || "INR",
+    moneyFormat: container.dataset.moneyFormat || "₹{{amount}}",
     primaryColor: container.dataset.primaryColor || "#5C6AC4",
     position: container.dataset.position || "bottom-right",
     widgetTitle: container.dataset.widgetTitle || "Rewards",
@@ -41,6 +42,37 @@
     css.setProperty("--loyalty-primary-shadow", `rgba(${r},${g},${b},0.4)`);
   }
   applyPrimaryColor(config.primaryColor);
+
+  // ─── Money Formatter ──────────────────────────────────────────
+  function formatMoney(value, formatOverride) {
+    var format = formatOverride || config.moneyFormat || "₹{{amount}}";
+    var amount = parseFloat(value) || 0;
+    var formatted;
+    if (format.indexOf("{{amount_no_decimals_with_comma_separator}}") !== -1) {
+      formatted = Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      return format.replace("{{amount_no_decimals_with_comma_separator}}", formatted);
+    }
+    if (format.indexOf("{{amount_with_comma_separator}}") !== -1) {
+      formatted = amount.toFixed(2).replace(".", ",");
+      var parts = formatted.split(",");
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      formatted = parts.join(",");
+      return format.replace("{{amount_with_comma_separator}}", formatted);
+    }
+    if (format.indexOf("{{amount_no_decimals}}") !== -1) {
+      formatted = Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      return format.replace("{{amount_no_decimals}}", formatted);
+    }
+    formatted = amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return format.replace("{{amount}}", formatted);
+  }
+
+  function formatPointsAsMoney(points, fallbackSymbol) {
+    if (config.moneyFormat && config.moneyFormat !== "₹{{amount}}") {
+      return formatMoney(points);
+    }
+    return (fallbackSymbol || "₹") + points.toLocaleString();
+  }
 
   // ─── State ────────────────────────────────────────────────────
   let state = {
@@ -250,7 +282,7 @@
           <hr class="loyalty-header-divider">
           <div class="loyalty-header-info">
             <span class="loyalty-tier-badge">${tierIcon} ${escapeHtml(state.tier)}</span>
-            <span>${state.nextTier ? `${state.nextTier.pointsNeeded.toLocaleString("en-IN")} pts to ${escapeHtml(state.nextTier.name)}` : "Top tier reached!"}</span>
+            <span>${state.nextTier ? `${state.nextTier.pointsNeeded.toLocaleString()} pts to ${escapeHtml(state.nextTier.name)}` : "Top tier reached!"}</span>
           </div>
         </div>
       </div>
@@ -295,7 +327,7 @@
           <span class="loyalty-points-hero-number" data-count-up="${state.balance}">0</span>
           <span class="loyalty-points-hero-unit">pts</span>
         </div>
-        <p class="loyalty-points-hero-value">≈ ₹${state.balance.toLocaleString("en-IN")} in rewards</p>
+        <p class="loyalty-points-hero-value">≈ ${formatPointsAsMoney(state.balance, state.settings?.currencySymbol)} in rewards</p>
       </div>
 
       ${state.nextTier ? `
@@ -307,7 +339,7 @@
           <div class="loyalty-progress-track">
             <div class="loyalty-progress-fill" style="width:0%" data-progress="${progress}"></div>
           </div>
-          <p class="loyalty-progress-hint">${state.nextTier.pointsNeeded.toLocaleString("en-IN")} more pts to unlock <strong>${escapeHtml(state.nextTier.name)}</strong></p>
+          <p class="loyalty-progress-hint">${state.nextTier.pointsNeeded.toLocaleString()} more pts to unlock <strong>${escapeHtml(state.nextTier.name)}</strong></p>
         </div>
       ` : `
         <div class="loyalty-progress-wrap" style="text-align:center;">
@@ -317,7 +349,7 @@
 
       <div class="loyalty-lifetime-stat">
         <span>Lifetime earned</span>
-        <span>${state.lifetimeEarned.toLocaleString("en-IN")} pts</span>
+        <span>${state.lifetimeEarned.toLocaleString()} pts</span>
       </div>
     `;
   }
@@ -397,23 +429,23 @@
 
   function renderRewardCard(r, index = 0) {
     const discountDisplay = r.discountType === "FIXED_AMOUNT"
-      ? `$${r.discountValue}`
+      ? formatPointsAsMoney(r.discountValue, state.settings?.currencySymbol)
       : `${r.discountValue}% off`;
     const dotColors = ["#4DA6E8", "#FF6B35", "#A855F7", "#10B981", "#F59E0B", "#EC4899"];
     const dotColor = dotColors[(r.pointsCost || 0) % dotColors.length];
     const pointsNeeded = Math.max(0, r.pointsCost - state.balance);
     const desc = r.canAfford
-      ? `Redeem this reward for ${r.pointsCost.toLocaleString("en-IN")} points`
-      : `Earn ${pointsNeeded.toLocaleString("en-IN")} more points to redeem this reward.`;
+      ? `Redeem this reward for ${r.pointsCost.toLocaleString()} points`
+      : `Earn ${pointsNeeded.toLocaleString()} more points to redeem this reward.`;
 
     return `
       <div class="loyalty-reward-card" style="animation-delay:${index * 0.07}s">
         <div class="loyalty-reward-card-top">
-          <span class="loyalty-reward-points-badge">${icons.trophySmall} ${r.pointsCost.toLocaleString("en-IN")} points</span>
+          <span class="loyalty-reward-points-badge">${icons.trophySmall} ${r.pointsCost.toLocaleString()} points</span>
           ${r.pointsCost !== 200 ? `<span class="loyalty-reward-dot" style="background:${dotColor};"></span>` : ""}
         </div>
         <p class="loyalty-reward-amount">${escapeHtml(discountDisplay)}</p>
-        <p class="loyalty-reward-desc">${escapeHtml(desc)}${r.minimumOrderAmount > 0 ? ` • Min ₹${r.minimumOrderAmount}` : ""}</p>
+        <p class="loyalty-reward-desc">${escapeHtml(desc)}${r.minimumOrderAmount > 0 ? ` • Min ${formatPointsAsMoney(r.minimumOrderAmount, state.settings?.currencySymbol)}` : ""}</p>
         <button
           class="loyalty-reward-btn ${r.canAfford ? "can-afford" : "cannot-afford"}"
           ${r.canAfford ? `data-action="redeem" data-reward-id="${r.id}"` : "disabled"}
@@ -437,7 +469,7 @@
         <div class="loyalty-history-item">
           <div>
             <p class="loyalty-history-desc">${escapeHtml(t.description || t.source)}</p>
-            <p class="loyalty-history-date">${new Date(t.date).toLocaleDateString("en-IN")}</p>
+            <p class="loyalty-history-date">${new Date(t.date).toLocaleDateString()}</p>
           </div>
           <span class="loyalty-history-pts ${t.points > 0 ? "positive" : "negative"}">
             ${t.points > 0 ? "+" : ""}${t.points}
@@ -592,7 +624,7 @@
     (function tick(now) {
       const p = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(2, -10 * p);
-      el.textContent = Math.round(eased * target).toLocaleString("en-IN");
+      el.textContent = Math.round(eased * target).toLocaleString();
       if (p < 1) requestAnimationFrame(tick);
     })(start);
   }

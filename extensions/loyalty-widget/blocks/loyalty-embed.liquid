@@ -16,6 +16,7 @@
     data-referral-code="{{ customer.metafields.app--341573861377--loyalty.referral_code | default: '' }}"
     data-shop-domain="{{ shop.permanent_domain }}"
     data-currency="{{ shop.currency }}"
+    data-money-format="{{ shop.money_format | escape }}"
     data-primary-color="{{ pc }}"
     data-position="{{ block.settings.position }}"
     data-widget-title="{{ block.settings.title | escape }}"
