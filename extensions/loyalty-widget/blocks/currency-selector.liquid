@@ -7,50 +7,52 @@
 
 <div id="loy-cs-root" data-base="{{ base_currency }}" data-fmt="{{ money_format | escape }}">
 
-  {% comment %} details/summary = native browser toggle, no JS needed {% endcomment %}
-  <details id="loy-cs-details">
+  {% comment %}
+    CSS checkbox hack — clicking the label toggles the checkbox.
+    :checked ~ sibling selector shows the dropdown. Zero JS needed for toggle.
+  {% endcomment %}
+  <input type="checkbox" id="loy-cs-chk">
 
-    <summary id="loy-cs-fab" title="Select currency">
-      {% comment %} Globe SVG — always renders, no emoji font issues {% endcomment %}
-      <svg id="loy-cs-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="2" y1="12" x2="22" y2="12"/>
-        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-      </svg>
-      <span id="loy-cs-label">{{ base_currency }}</span>
-    </summary>
+  <label for="loy-cs-chk" id="loy-cs-fab" title="Select currency">
+    <svg id="loy-cs-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+      stroke="#555" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+    <span id="loy-cs-code">{{ base_currency }}</span>
+  </label>
 
-    <ul id="loy-cs-list" role="listbox">
-      {% if custom_currencies != blank %}
-        {% for cur in custom_currencies %}
-          <li class="loy-cs-opt"
-            data-code="{{ cur.currencyCode }}"
-            data-symbol="{{ cur.symbol | escape }}"
-            data-flag="{{ cur.flag }}"
-            data-label="{{ cur.label | escape }}">
-            <span class="loy-cs-opt-flag">{{ cur.flag }}</span>
-            <span class="loy-cs-opt-name">{{ cur.label }} ({{ cur.currencyCode }})</span>
-          </li>
-        {% endfor %}
-      {% else %}
-        <li class="loy-cs-opt" data-code="INR" data-symbol="₹"   data-flag="🇮🇳" data-label="Indian Rupee"><span class="loy-cs-opt-flag">🇮🇳</span><span class="loy-cs-opt-name">Indian Rupee (INR)</span></li>
-        <li class="loy-cs-opt" data-code="USD" data-symbol="$"   data-flag="🇺🇸" data-label="US Dollar"><span class="loy-cs-opt-flag">🇺🇸</span><span class="loy-cs-opt-name">US Dollar (USD)</span></li>
-        <li class="loy-cs-opt" data-code="GBP" data-symbol="£"   data-flag="🇬🇧" data-label="British Pound"><span class="loy-cs-opt-flag">🇬🇧</span><span class="loy-cs-opt-name">British Pound (GBP)</span></li>
-        <li class="loy-cs-opt" data-code="EUR" data-symbol="€"   data-flag="🇪🇺" data-label="Euro"><span class="loy-cs-opt-flag">🇪🇺</span><span class="loy-cs-opt-name">Euro (EUR)</span></li>
-        <li class="loy-cs-opt" data-code="AUD" data-symbol="A$"  data-flag="🇦🇺" data-label="Australian Dollar"><span class="loy-cs-opt-flag">🇦🇺</span><span class="loy-cs-opt-name">Australian Dollar (AUD)</span></li>
-        <li class="loy-cs-opt" data-code="AED" data-symbol="د.إ" data-flag="🇦🇪" data-label="UAE Dirham"><span class="loy-cs-opt-flag">🇦🇪</span><span class="loy-cs-opt-name">UAE Dirham (AED)</span></li>
-        <li class="loy-cs-opt" data-code="SAR" data-symbol="﷼"  data-flag="🇸🇦" data-label="Saudi Riyal"><span class="loy-cs-opt-flag">🇸🇦</span><span class="loy-cs-opt-name">Saudi Riyal (SAR)</span></li>
-        <li class="loy-cs-opt" data-code="CAD" data-symbol="CA$" data-flag="🇨🇦" data-label="Canadian Dollar"><span class="loy-cs-opt-flag">🇨🇦</span><span class="loy-cs-opt-name">Canadian Dollar (CAD)</span></li>
-        <li class="loy-cs-opt" data-code="SGD" data-symbol="S$"  data-flag="🇸🇬" data-label="Singapore Dollar"><span class="loy-cs-opt-flag">🇸🇬</span><span class="loy-cs-opt-name">Singapore Dollar (SGD)</span></li>
-        <li class="loy-cs-opt" data-code="JPY" data-symbol="¥"   data-flag="🇯🇵" data-label="Japanese Yen"><span class="loy-cs-opt-flag">🇯🇵</span><span class="loy-cs-opt-name">Japanese Yen (JPY)</span></li>
-      {% endif %}
-    </ul>
+  <ul id="loy-cs-list" role="listbox">
+    {% if custom_currencies != blank %}
+      {% for cur in custom_currencies %}
+        <li class="loy-cs-opt"
+          data-code="{{ cur.currencyCode }}"
+          data-symbol="{{ cur.symbol | escape }}"
+          data-flag="{{ cur.flag }}"
+          data-label="{{ cur.label | escape }}">
+          <span class="loy-cs-opt-flag">{{ cur.flag }}</span>
+          <span class="loy-cs-opt-name">{{ cur.label }} ({{ cur.currencyCode }})</span>
+        </li>
+      {% endfor %}
+    {% else %}
+      <li class="loy-cs-opt" data-code="INR" data-symbol="₹"   data-flag="🇮🇳" data-label="Indian Rupee"><span class="loy-cs-opt-flag">🇮🇳</span><span class="loy-cs-opt-name">Indian Rupee (INR)</span></li>
+      <li class="loy-cs-opt" data-code="USD" data-symbol="$"   data-flag="🇺🇸" data-label="US Dollar"><span class="loy-cs-opt-flag">🇺🇸</span><span class="loy-cs-opt-name">US Dollar (USD)</span></li>
+      <li class="loy-cs-opt" data-code="GBP" data-symbol="£"   data-flag="🇬🇧" data-label="British Pound"><span class="loy-cs-opt-flag">🇬🇧</span><span class="loy-cs-opt-name">British Pound (GBP)</span></li>
+      <li class="loy-cs-opt" data-code="EUR" data-symbol="€"   data-flag="🇪🇺" data-label="Euro"><span class="loy-cs-opt-flag">🇪🇺</span><span class="loy-cs-opt-name">Euro (EUR)</span></li>
+      <li class="loy-cs-opt" data-code="AUD" data-symbol="A$"  data-flag="🇦🇺" data-label="Australian Dollar"><span class="loy-cs-opt-flag">🇦🇺</span><span class="loy-cs-opt-name">Australian Dollar (AUD)</span></li>
+      <li class="loy-cs-opt" data-code="AED" data-symbol="د.إ" data-flag="🇦🇪" data-label="UAE Dirham"><span class="loy-cs-opt-flag">🇦🇪</span><span class="loy-cs-opt-name">UAE Dirham (AED)</span></li>
+      <li class="loy-cs-opt" data-code="SAR" data-symbol="﷼"  data-flag="🇸🇦" data-label="Saudi Riyal"><span class="loy-cs-opt-flag">🇸🇦</span><span class="loy-cs-opt-name">Saudi Riyal (SAR)</span></li>
+      <li class="loy-cs-opt" data-code="CAD" data-symbol="CA$" data-flag="🇨🇦" data-label="Canadian Dollar"><span class="loy-cs-opt-flag">🇨🇦</span><span class="loy-cs-opt-name">Canadian Dollar (CAD)</span></li>
+      <li class="loy-cs-opt" data-code="SGD" data-symbol="S$"  data-flag="🇸🇬" data-label="Singapore Dollar"><span class="loy-cs-opt-flag">🇸🇬</span><span class="loy-cs-opt-name">Singapore Dollar (SGD)</span></li>
+      <li class="loy-cs-opt" data-code="JPY" data-symbol="¥"   data-flag="🇯🇵" data-label="Japanese Yen"><span class="loy-cs-opt-flag">🇯🇵</span><span class="loy-cs-opt-name">Japanese Yen (JPY)</span></li>
+    {% endif %}
+  </ul>
 
-  </details>
 </div>
 
 <style>
-  /* ── Root: fixed above camera FAB ── */
+  /* ── Root wrapper ── */
   #loy-cs-root {
     position: fixed;
     bottom: 162px;
@@ -59,72 +61,69 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 
-  /* ── details wrapper ── */
-  #loy-cs-details {
-    position: relative;
+  /* ── Hide the checkbox ── */
+  #loy-cs-chk {
+    display: none;
+    position: absolute;
   }
 
-  /* ── FAB summary button ── */
+  /* ── FAB label (acts as button) ── */
   #loy-cs-fab {
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
-    background: #fff;
+    background: #ffffff;
     border: 2px solid #ddd;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.20);
     cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1px;
-    list-style: none;
-    user-select: none;
-    -webkit-user-select: none;
+    gap: 2px;
     transition: transform 0.15s, box-shadow 0.15s;
   }
-  #loy-cs-fab::-webkit-details-marker { display: none; }
-  #loy-cs-fab::marker { display: none; }
   #loy-cs-fab:hover {
     transform: scale(1.07);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+    box-shadow: 0 6px 22px rgba(0,0,0,0.26);
   }
   #loy-cs-fab svg {
-    width: 22px;
-    height: 22px;
-    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
   }
-  #loy-cs-label {
+  #loy-cs-code {
     font-size: 9px;
     font-weight: 700;
     color: #444;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.4px;
     line-height: 1;
   }
 
-  /* ── Dropdown — shown when details is open ── */
+  /* ── Dropdown: hidden by default ── */
   #loy-cs-list {
     display: none;
     position: fixed;
-    bottom: 220px;
+    bottom: 224px;
     right: 20px;
-    min-width: 220px;
-    background: #fff;
+    min-width: 225px;
+    background: #ffffff;
     border: 1px solid #e0e0e0;
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.18);
     list-style: none;
     margin: 0;
     padding: 6px 0;
-    max-height: calc(100vh - 250px);
+    max-height: calc(100vh - 260px);
     overflow-y: auto;
     z-index: 9999999;
   }
-  #loy-cs-details[open] #loy-cs-list {
+
+  /* ── KEY: show dropdown when checkbox is checked ── */
+  #loy-cs-chk:checked ~ #loy-cs-list {
     display: block;
   }
 
-  /* ── Option row ── */
+  /* ── Option rows ── */
   .loy-cs-opt {
     display: flex;
     align-items: center;
@@ -143,52 +142,59 @@
 
 <script>
 (function () {
-  var root    = document.getElementById("loy-cs-root");
-  var details = document.getElementById("loy-cs-details");
-  var label   = document.getElementById("loy-cs-label");
-  var icon    = document.getElementById("loy-cs-icon");
-  var list    = document.getElementById("loy-cs-list");
-  if (!details || !list) return;
+  var root  = document.getElementById("loy-cs-root");
+  var chk   = document.getElementById("loy-cs-chk");
+  var fab   = document.getElementById("loy-cs-fab");
+  var icon  = document.getElementById("loy-cs-icon");
+  var code  = document.getElementById("loy-cs-code");
+  var list  = document.getElementById("loy-cs-list");
+  if (!chk || !list) return;
 
   var BASE = (root && root.dataset.base) || "INR";
   var FMT  = (root && root.dataset.fmt)  || "{{amount}}";
 
-  // ── Close when clicking outside ─────────────────────────────
+  // ── Close dropdown when clicking outside ────────────────────
   document.addEventListener("click", function (e) {
-    if (details.open && !details.contains(e.target)) {
-      details.open = false;
+    if (chk.checked && root && !root.contains(e.target) && !list.contains(e.target)) {
+      chk.checked = false;
     }
   });
 
-  // ── Option click ────────────────────────────────────────────
+  // ── Option selection ────────────────────────────────────────
   list.querySelectorAll(".loy-cs-opt").forEach(function (opt) {
     opt.addEventListener("click", function (e) {
       e.stopPropagation();
-      var code   = opt.dataset.code;
-      var symbol = opt.dataset.symbol;
-      var flag   = opt.dataset.flag;
-      var lbl    = opt.dataset.label;
+      var selCode   = opt.dataset.code;
+      var selSymbol = opt.dataset.symbol;
+      var selFlag   = opt.dataset.flag;
+      var selLabel  = opt.dataset.label;
 
-      // Update FAB: swap globe SVG for flag emoji + code
-      if (icon)  { icon.style.display = "none"; }
-      if (label) { label.style.fontSize = "18px"; label.style.lineHeight = "1"; label.textContent = flag || code; }
+      // Update FAB: show flag emoji instead of globe SVG
+      if (icon) icon.style.display = "none";
+      if (code) {
+        code.textContent  = selFlag || selCode;
+        code.style.fontSize = "22px";
+        code.style.lineHeight = "1";
+      }
 
-      // Mark active
+      // Mark active option
       list.querySelectorAll(".loy-cs-opt").forEach(function (o) {
         o.classList.toggle("active", o === opt);
       });
 
-      details.open = false;
+      // Close dropdown
+      chk.checked = false;
 
-      localStorage.setItem("loy_currency", JSON.stringify({ code: code, symbol: symbol, flag: flag, label: lbl }));
-      apply(code, symbol);
+      localStorage.setItem("loy_currency", JSON.stringify({
+        code: selCode, symbol: selSymbol, flag: selFlag, label: selLabel
+      }));
+      apply(selCode, selSymbol);
     });
   });
 
   // ── Price conversion ────────────────────────────────────────
   var rates      = null;
   var converting = false;
-
   var SEL = [
     ".price__regular .price-item", ".price__sale .price-item",
     ".price-item", ".price__current", ".product-price__price",
@@ -201,28 +207,28 @@
     document.querySelectorAll(SEL).forEach(function (el) {
       if (el.dataset.loyOrig) return;
       var txt = el.textContent.trim();
-      var num = parseFloat(txt.replace(/[^\d.,]/g, "").replace(/,/g, "").replace(/\.(?=.*\.)/g, ""));
+      var num = parseFloat(txt.replace(/[^\d.,]/g,"").replace(/,/g,"").replace(/\.(?=.*\.)/g,""));
       if (!isNaN(num) && num > 0) { el.dataset.loyOrig = num; el.dataset.loyOrigTxt = txt; }
     });
   }
 
-  function convert(rate, symbol) {
+  function convert(rate, sym) {
     converting = true;
     document.querySelectorAll(SEL).forEach(function (el) {
       if (!el.dataset.loyOrig) return;
       var val = parseFloat(el.dataset.loyOrig) * rate;
       var fmt = FMT; var s;
       if (fmt.indexOf("{{amount_no_decimals}}") !== -1) {
-        s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        s = Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
         fmt = fmt.replace("{{amount_no_decimals}}", s);
       } else if (fmt.indexOf("{{amount_with_comma_separator}}") !== -1) {
-        fmt = fmt.replace("{{amount_with_comma_separator}}", val.toFixed(2).replace(".", ","));
+        fmt = fmt.replace("{{amount_with_comma_separator}}", val.toFixed(2).replace(".",","));
       } else {
-        s = val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        s = val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,",");
         fmt = fmt.replace("{{amount}}", s);
       }
-      var base = FMT.replace(/\{\{[^}]+\}\}/g, "").trim();
-      if (base && symbol) fmt = fmt.split(base).join(symbol);
+      var base = FMT.replace(/\{\{[^}]+\}\}/g,"").trim();
+      if (base && sym) fmt = fmt.split(base).join(sym);
       el.textContent = fmt;
     });
     converting = false;
@@ -239,40 +245,39 @@
   function fetchRates(cb) {
     if (rates) { cb(rates); return; }
     fetch("https://open.er-api.com/v6/latest/" + BASE)
-      .then(function (r) { return r.json(); })
-      .then(function (d) { if (d && d.rates) rates = d.rates; cb(rates); })
-      .catch(function () { cb(null); });
+      .then(function(r){return r.json();})
+      .then(function(d){if(d&&d.rates)rates=d.rates; cb(rates);})
+      .catch(function(){cb(null);});
   }
 
-  function apply(code, symbol) {
+  function apply(c, sym) {
     store();
-    if (code === BASE) { reset(); return; }
-    fetchRates(function (r) { if (r && r[code]) convert(r[code], symbol); });
+    if (c === BASE) { reset(); return; }
+    fetchRates(function(r){ if(r&&r[c]) convert(r[c], sym); });
   }
 
   // ── Restore saved currency on load ──────────────────────────
   var saved = null;
-  try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
+  try { saved = JSON.parse(localStorage.getItem("loy_currency")); } catch(e) {}
   if (saved && saved.code !== BASE) {
-    if (icon)  icon.style.display = "none";
-    if (label) { label.style.fontSize = "18px"; label.style.lineHeight = "1"; label.textContent = saved.flag || saved.code; }
-    list.querySelectorAll(".loy-cs-opt").forEach(function (o) {
+    if (icon) icon.style.display = "none";
+    if (code) { code.textContent = saved.flag || saved.code; code.style.fontSize = "22px"; code.style.lineHeight = "1"; }
+    list.querySelectorAll(".loy-cs-opt").forEach(function(o){
       if (o.dataset.code === saved.code) o.classList.add("active");
     });
     store();
-    fetchRates(function (r) { if (r && r[saved.code]) convert(r[saved.code], saved.symbol); });
+    fetchRates(function(r){ if(r&&r[saved.code]) convert(r[saved.code], saved.symbol); });
   }
 
   // ── MutationObserver ────────────────────────────────────────
   if (window.MutationObserver) {
-    new MutationObserver(function () {
+    new MutationObserver(function(){
       if (converting) return;
-      var s = null;
-      try { s = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
-      if (!s || s.code === BASE) return;
+      var s=null; try{s=JSON.parse(localStorage.getItem("loy_currency"));}catch(e){}
+      if(!s||s.code===BASE) return;
       store();
-      if (rates && rates[s.code]) convert(rates[s.code], s.symbol);
-    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+      if(rates&&rates[s.code]) convert(rates[s.code],s.symbol);
+    }).observe(document.body,{childList:true,subtree:true,characterData:true});
   }
 })();
 </script>
