@@ -32,6 +32,7 @@ export interface ISettings extends Document {
   widgetConfig: IWidgetConfig;
   // General
   currencySymbol: string;
+  currencySelectorEnabled: boolean;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -71,6 +72,7 @@ const settingsSchema = new Schema<ISettings>(
       title: { type: String, default: "Rewards" },
     },
     currencySymbol: { type: String, default: "₹" },
+    currencySelectorEnabled: { type: Boolean, default: true },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true },

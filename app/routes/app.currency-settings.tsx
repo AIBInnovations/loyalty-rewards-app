@@ -1,6 +1,6 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -13,29 +13,100 @@ import {
   Box,
   InlineStack,
   Badge,
+  Button,
 } from "@shopify/polaris";
+import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
+import { connectDB } from "../db.server";
+import { getOrCreateSettings, Settings } from "../.server/models/settings.model";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
+  await connectDB();
 
-  const shopRes = await admin.graphql(`#graphql
-    query {
-      shop {
-        currencyCode
-        name
+  const [settings, shopRes] = await Promise.all([
+    getOrCreateSettings(session.shop),
+    admin.graphql(`#graphql
+      query {
+        shop {
+          currencyCode
+          name
+        }
       }
-    }
+    `),
+  ]);
+
+  const shopData = await shopRes.json();
+  const shop = shopData?.data?.shop || {};
+
+  return json({
+    shop,
+    currencySelectorEnabled: settings.currencySelectorEnabled ?? true,
+  });
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session, admin } = await authenticate.admin(request);
+  await connectDB();
+
+  const formData = await request.formData();
+  const enabled = formData.get("currencySelectorEnabled") === "true";
+
+  // Save to MongoDB
+  await Settings.findOneAndUpdate(
+    { shopId: session.shop },
+    { $set: { currencySelectorEnabled: enabled } },
+    { upsert: true },
+  );
+
+  // Sync to shop metafield so Liquid block can read it
+  const shopRes = await admin.graphql(`#graphql
+    query { shop { id } }
   `);
+  const shopData = await shopRes.json();
+  const shopGid = shopData.data.shop.id;
 
-  const data = await shopRes.json();
-  const shop = data?.data?.shop || {};
+  await admin.graphql(
+    `#graphql
+    mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        userErrors { field message }
+      }
+    }`,
+    {
+      variables: {
+        metafields: [
+          {
+            ownerId: shopGid,
+            namespace: "loyalty_widget",
+            key: "currency_selector_enabled",
+            value: String(enabled),
+            type: "boolean",
+          },
+        ],
+      },
+    },
+  );
 
-  return json({ shop });
+  return json({ success: true, enabled });
 };
 
 export default function CurrencySettings() {
-  const { shop } = useLoaderData<typeof loader>();
+  const { shop, currencySelectorEnabled } = useLoaderData<typeof loader>();
+  const submit = useSubmit();
+  const navigation = useNavigation();
+  const isSaving = navigation.state === "submitting";
+
+  const [enabled, setEnabled] = useState(currencySelectorEnabled);
+
+  const handleToggle = useCallback(() => {
+    const newValue = !enabled;
+    setEnabled(newValue);
+    submit(
+      { currencySelectorEnabled: String(newValue) },
+      { method: "POST" },
+    );
+  }, [enabled, submit]);
 
   return (
     <Page
@@ -43,22 +114,46 @@ export default function CurrencySettings() {
       subtitle="Add a native Shopify Markets currency selector to your storefront"
     >
       <Layout>
-        {/* Status Banner */}
+        {/* Enable / Disable */}
         <Layout.Section>
-          <Banner title="Currency selector is ready to use" tone="success">
-            <p>
-              The currency selector block is available to add to your theme. To
-              offer multiple currencies, configure markets in{" "}
-              <a
-                href="https://admin.shopify.com/settings/markets"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Settings → Markets
-              </a>
-              .
-            </p>
-          </Banner>
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">
+                    Currency Selector
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Enable or disable the currency selector on your storefront.
+                  </Text>
+                </BlockStack>
+                <InlineStack gap="300" blockAlign="center">
+                  <Badge tone={enabled ? "success" : "critical"}>
+                    {enabled ? "Enabled" : "Disabled"}
+                  </Badge>
+                  <Button
+                    onClick={handleToggle}
+                    loading={isSaving}
+                    tone={enabled ? "critical" : undefined}
+                    variant={enabled ? "secondary" : "primary"}
+                  >
+                    {enabled ? "Disable" : "Enable"}
+                  </Button>
+                </InlineStack>
+              </InlineStack>
+
+              {!enabled && (
+                <>
+                  <Divider />
+                  <Banner tone="warning">
+                    The currency selector block is currently disabled. It will
+                    not appear on your storefront even if it is added to the
+                    theme.
+                  </Banner>
+                </>
+              )}
+            </BlockStack>
+          </Card>
         </Layout.Section>
 
         {/* Store Currency */}
@@ -152,8 +247,8 @@ export default function CurrencySettings() {
                     >
                       Settings → Markets
                     </a>{" "}
-                    in your Shopify admin. Create markets for the regions you
-                    sell into and enable local currencies for each.
+                    and create markets for the regions you sell into. Enable
+                    local currencies for each market.
                   </Text>
                 </BlockStack>
 
