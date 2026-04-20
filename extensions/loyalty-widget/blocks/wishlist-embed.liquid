@@ -14,6 +14,9 @@
   data-floating-button="{{ block.settings.show_floating }}"
   data-floating-position="{{ block.settings.floating_position }}"
   data-floating-label="{{ block.settings.floating_label | escape }}"
+  data-header-icon="{{ block.settings.show_header_icon }}"
+  data-header-icon-color="{{ block.settings.header_icon_color }}"
+  data-drawer-title="{{ block.settings.drawer_title | escape }}"
   style="display: none;"
 ></div>
 
@@ -51,6 +54,29 @@
       "id": "floating_label",
       "label": "Floating button label",
       "default": "Wishlist"
+    },
+    {
+      "type": "header",
+      "content": "Header Icon"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_header_icon",
+      "label": "Show wishlist icon in site header",
+      "info": "Auto-injects a heart icon with count badge into your theme header. Customers can click it to open the wishlist drawer.",
+      "default": true
+    },
+    {
+      "type": "color",
+      "id": "header_icon_color",
+      "label": "Header icon color",
+      "default": "#222222"
+    },
+    {
+      "type": "text",
+      "id": "drawer_title",
+      "label": "Drawer title",
+      "default": "My Wishlist"
     }
   ]
 }

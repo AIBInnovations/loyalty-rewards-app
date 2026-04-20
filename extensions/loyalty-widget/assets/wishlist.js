@@ -591,6 +591,11 @@
   }
 
   // ── Floating wishlist button (optional, from app embed) ─────────
+  var HEART_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+      '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>' +
+    '</svg>';
+
   function renderFloatingButton() {
     var embed = readEmbed();
     if (!embed) return;
@@ -606,29 +611,205 @@
     btn.type = "button";
     btn.className = "wl-floating wl-floating-" + pos;
     btn.setAttribute("aria-label", label);
+    btn.setAttribute("data-wl-open", "");
     btn.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
-        '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>' +
-      '</svg>' +
-      '<span class="wl-floating-count" data-wl-floating-count>0</span>';
-    btn.addEventListener("click", function () {
-      window.location.href = "/pages/wishlist";
-    });
+      HEART_SVG +
+      '<span class="wl-count" data-wl-count>0</span>';
     document.body.appendChild(btn);
-    updateFloatingCount();
+    updateCounts();
   }
 
-  function updateFloatingCount() {
+  // ── Header icon injection ────────────────────────────────────────
+  function findHeaderAnchor() {
+    // Try common selectors used by Shopify themes for header action icons
+    // (cart icon, account, search). Insert next to one of those.
+    var selectors = [
+      ".header__icons",                  // Dawn
+      ".header__icon-list",
+      ".site-header__icons",             // older themes
+      ".site-header__icons-wrapper",
+      ".header-actions",
+      ".header__actions",
+      ".header-tools",
+      ".announcement-bar + header .header__inline-menu + *",
+      "header .header__icons",
+      "header [href*='/cart']",
+      "header [href*='/account']",
+      "header nav",
+      "header",
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function renderHeaderIcon() {
+    var embed = readEmbed();
+    if (!embed) return;
+    if (embed.dataset.headerIcon !== "true") return;
+    if (document.getElementById("wl-header-icon")) return;
+
+    var anchor = findHeaderAnchor();
+    if (!anchor) return;
+
+    var color = embed.dataset.headerIconColor || "#222";
+    var btn = document.createElement("a");
+    btn.id = "wl-header-icon";
+    btn.className = "wl-header-icon";
+    btn.href = "#wishlist";
+    btn.setAttribute("role", "button");
+    btn.setAttribute("aria-label", "Open wishlist");
+    btn.setAttribute("data-wl-open", "");
+    btn.style.color = color;
+    btn.innerHTML =
+      HEART_SVG +
+      '<span class="wl-count wl-header-count" data-wl-count>0</span>';
+
+    // Insert as the first child if the anchor looks like an icon container
+    // (so the heart sits alongside cart/account); otherwise append.
+    var insertAtStart =
+      /header__icons|site-header__icons|header-actions|header__actions|header-tools/i.test(
+        anchor.className || "",
+      );
+    if (insertAtStart && anchor.firstChild) {
+      anchor.insertBefore(btn, anchor.firstChild);
+    } else {
+      anchor.appendChild(btn);
+    }
+    updateCounts();
+  }
+
+  function updateCounts() {
     var count = state.wishlist.length + state.saved.length;
-    var el = document.querySelector("[data-wl-floating-count]");
-    if (el) {
+    document.querySelectorAll("[data-wl-count]").forEach(function (el) {
       el.textContent = String(count);
       el.style.display = count > 0 ? "" : "none";
+    });
+  }
+
+  // Keep counts in sync.
+  listeners.change.push(updateCounts);
+
+  // ── Drawer ───────────────────────────────────────────────────────
+  var drawerEl = null;
+
+  function ensureDrawer() {
+    if (drawerEl) return drawerEl;
+    var embed = readEmbed();
+    var title = (embed && embed.dataset.drawerTitle) || "My Wishlist";
+
+    drawerEl = document.createElement("div");
+    drawerEl.id = "wl-drawer-root";
+    drawerEl.innerHTML =
+      '<div class="wl-drawer-overlay" data-wl-close></div>' +
+      '<aside class="wl-drawer" role="dialog" aria-label="Wishlist drawer" aria-hidden="true">' +
+        '<header class="wl-drawer-header">' +
+          '<h2 class="wl-drawer-title">' + escapeHtml(title) + '</h2>' +
+          '<button type="button" class="wl-drawer-close" data-wl-close aria-label="Close">×</button>' +
+        '</header>' +
+        '<div class="wl-drawer-tabs" role="tablist">' +
+          '<button type="button" class="wl-tab is-active" data-wl-tab="wishlist" role="tab">Wishlist <span class="wl-tab-count" data-wl-tab-count="wishlist">0</span></button>' +
+          '<button type="button" class="wl-tab" data-wl-tab="saved" role="tab">Saved <span class="wl-tab-count" data-wl-tab-count="saved">0</span></button>' +
+        '</div>' +
+        '<div class="wl-drawer-body">' +
+          '<div class="wl-drawer-pane is-active" data-wl-pane="wishlist">' +
+            '<div class="wl-list" data-wl-list="wishlist"></div>' +
+            '<p class="wl-empty" data-wl-empty="wishlist" style="display:none;">Your wishlist is empty. Tap the heart on any product to save it for later.</p>' +
+          '</div>' +
+          '<div class="wl-drawer-pane" data-wl-pane="saved">' +
+            '<div class="wl-list" data-wl-list="saved"></div>' +
+            '<p class="wl-empty" data-wl-empty="saved" style="display:none;">Nothing saved for later yet.</p>' +
+          '</div>' +
+        '</div>' +
+      '</aside>';
+    document.body.appendChild(drawerEl);
+
+    // Tab switching
+    drawerEl.querySelectorAll("[data-wl-tab]").forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        var which = tab.dataset.wlTab;
+        drawerEl.querySelectorAll("[data-wl-tab]").forEach(function (t) {
+          t.classList.toggle("is-active", t.dataset.wlTab === which);
+        });
+        drawerEl.querySelectorAll("[data-wl-pane]").forEach(function (p) {
+          p.classList.toggle("is-active", p.dataset.wlPane === which);
+        });
+      });
+    });
+
+    return drawerEl;
+  }
+
+  function openDrawer() {
+    ensureDrawer();
+    drawerEl.classList.add("is-open");
+    drawerEl.querySelector(".wl-drawer").setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    renderDrawer();
+  }
+
+  function closeDrawer() {
+    if (!drawerEl) return;
+    drawerEl.classList.remove("is-open");
+    drawerEl.querySelector(".wl-drawer").setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  function renderDrawer() {
+    if (!drawerEl) return;
+    var wlList = drawerEl.querySelector('[data-wl-list="wishlist"]');
+    var wlEmpty = drawerEl.querySelector('[data-wl-empty="wishlist"]');
+    var svList = drawerEl.querySelector('[data-wl-list="saved"]');
+    var svEmpty = drawerEl.querySelector('[data-wl-empty="saved"]');
+
+    drawerEl.querySelector('[data-wl-tab-count="wishlist"]').textContent =
+      String(state.wishlist.length);
+    drawerEl.querySelector('[data-wl-tab-count="saved"]').textContent =
+      String(state.saved.length);
+
+    if (state.wishlist.length === 0) {
+      wlList.innerHTML = "";
+      wlEmpty.style.display = "";
+    } else {
+      wlEmpty.style.display = "none";
+      wlList.innerHTML = state.wishlist
+        .map(function (i) { return renderItemCard(i, "wishlist"); })
+        .join("");
+    }
+
+    if (state.saved.length === 0) {
+      svList.innerHTML = "";
+      svEmpty.style.display = "";
+    } else {
+      svEmpty.style.display = "none";
+      svList.innerHTML = state.saved
+        .map(function (i) { return renderItemCard(i, "saved"); })
+        .join("");
     }
   }
 
-  // Keep floating count in sync.
-  listeners.change.push(updateFloatingCount);
+  // Open drawer when any [data-wl-open] is clicked, close on overlay/X
+  document.addEventListener("click", function (e) {
+    var opener = e.target.closest && e.target.closest("[data-wl-open]");
+    if (opener) {
+      e.preventDefault();
+      openDrawer();
+      return;
+    }
+    var closer = e.target.closest && e.target.closest("[data-wl-close]");
+    if (closer) {
+      e.preventDefault();
+      closeDrawer();
+    }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeDrawer();
+  });
+
+  // Re-render drawer contents when state changes.
+  listeners.change.push(function () { renderDrawer(); });
 
   // ── Boot ─────────────────────────────────────────────────────────
   function boot() {
@@ -643,6 +824,18 @@
       bindAllButtons();
       maybeInjectPdpButton();
       renderFloatingButton();
+      renderHeaderIcon();
+      // Retry header injection a few times for themes that mount the
+      // header asynchronously (e.g. after sticky-header JS).
+      var tries = 0;
+      var retry = setInterval(function () {
+        tries++;
+        if (document.getElementById("wl-header-icon") || tries > 6) {
+          clearInterval(retry);
+          return;
+        }
+        renderHeaderIcon();
+      }, 500);
       init();
     });
   }
