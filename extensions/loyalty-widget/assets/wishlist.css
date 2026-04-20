@@ -30,6 +30,7 @@
   transition: fill 0.15s ease;
 }
 .wl-btn.is-active .wl-icon { fill: var(--wl-active, #e63946); }
+.wl-btn-injected { margin-top: 12px; }
 
 /* Page / list */
 .wl-page { padding: 24px 0; }

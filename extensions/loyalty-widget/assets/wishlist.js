@@ -641,6 +641,7 @@
         return;
       }
       bindAllButtons();
+      maybeInjectPdpButton();
       renderFloatingButton();
       init();
     });
