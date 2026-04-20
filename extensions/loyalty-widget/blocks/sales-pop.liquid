@@ -1,0 +1,24 @@
+{% comment %}
+  Sales Pop - App Embed Block
+  Shows recent-purchase social proof notifications on the storefront.
+{% endcomment %}
+
+<div
+  id="sales-pop-app"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-template="{{ template.name }}"
+  data-product-handle="{{ product.handle }}"
+  data-product-id="{{ product.id }}"
+  data-collection-id="{{ collection.id }}"
+  style="display:none;"
+></div>
+{{ 'sales-pop.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'sales-pop.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Sales Pop",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}

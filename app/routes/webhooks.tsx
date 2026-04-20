@@ -13,6 +13,7 @@ import {
 } from "../.server/services/webhook.service";
 import { handleCheckoutWebhook } from "../.server/services/abandoned-cart-poller.service";
 import { sendCodConfirmation } from "../.server/services/cod-whatsapp.service";
+import { ingestOrderForSalesPop } from "../.server/services/sales-pop.service";
 import {
   handleProductCreate,
   handleProductUpdate,
@@ -37,6 +38,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         sendCodConfirmation(shop, payload).catch((err) =>
           console.error("[COD-WhatsApp] Error:", err),
         );
+        // Fire-and-forget Sales Pop event ingestion (non-blocking)
+        if (admin) {
+          ingestOrderForSalesPop(shop, payload, admin as any).catch((err) =>
+            console.error("[SalesPop] Ingest error:", err),
+          );
+        }
         break;
 
       case "ORDERS_CANCELLED":

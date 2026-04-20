@@ -41,6 +41,13 @@ import {
 } from "../.server/services/wishlist.service";
 import { WishlistSettings } from "../.server/models/wishlist-settings.model";
 import { SizeGuideSettings } from "../.server/models/size-guide-settings.model";
+import { SalesPopSettings } from "../.server/models/sales-pop-settings.model";
+import { SalesPopEvent } from "../.server/models/sales-pop-event.model";
+import {
+  formatDisplayName,
+  formatDisplayLocation,
+  formatFreshness,
+} from "../.server/services/sales-pop.service";
 
 // Rate limit tracker (in-memory, per-instance)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -175,6 +182,20 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
       return json({ error: "Rate limited" }, { status: 429 });
     }
     return handleGetSizeGuideSettings(shop);
+  }
+
+  if (path === "sales-pop-settings") {
+    if (!checkRateLimit(`sales-pop-settings:${shop}`, 60)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetSalesPopSettings(shop);
+  }
+
+  if (path === "sales-pop-events") {
+    if (!checkRateLimit(`sales-pop-events:${shop}`, 120)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetSalesPopEvents(params, shop);
   }
 
   if (path === "image-search/status") {
@@ -1280,4 +1301,113 @@ async function handleWishlistMerge(
   });
 
   return json(merged, { headers: { "Cache-Control": "no-store" } });
+}
+
+// ─── Sales Pop ──────────────────────────────────────────────────
+
+async function handleGetSalesPopSettings(shop: string) {
+  const s = await SalesPopSettings.findOne({ shopId: shop }).lean();
+  if (!s?.enabled) {
+    return json({ enabled: false }, { headers: { "Cache-Control": "no-store" } });
+  }
+  return json(
+    {
+      enabled: true,
+      messageTemplate: s.messageTemplate,
+      ctaLabel: s.ctaLabel,
+      showCta: s.showCta,
+      showThumbnail: s.showThumbnail,
+      showOnProduct: s.showOnProduct,
+      showOnCollection: s.showOnCollection,
+      showOnHome: s.showOnHome,
+      matchMode: s.matchMode,
+      initialDelaySeconds: s.initialDelaySeconds,
+      minIntervalSeconds: s.minIntervalSeconds,
+      maxIntervalSeconds: s.maxIntervalSeconds,
+      maxPerSession: s.maxPerSession,
+      position: s.position,
+      accentColor: s.accentColor,
+      bgColor: s.bgColor,
+      textColor: s.textColor,
+      borderRadius: s.borderRadius,
+      showOnMobile: s.showOnMobile,
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
+async function handleGetSalesPopEvents(params: URLSearchParams, shop: string) {
+  const s = await SalesPopSettings.findOne({ shopId: shop }).lean();
+  if (!s?.enabled) return json({ events: [] });
+
+  const context = (params.get("context") || "global").toLowerCase();
+  const productHandle = (params.get("productHandle") || "").trim();
+  const collectionId = (params.get("collectionId") || "").trim();
+  const limit = Math.max(1, Math.min(20, Number(params.get("limit")) || 10));
+
+  const freshnessMs = (s.freshnessHours || 72) * 60 * 60 * 1000;
+  const minAgeMs = (s.minOrderAgeMinutes || 0) * 60 * 1000;
+  const now = Date.now();
+  const maxPurchasedAt = new Date(now - minAgeMs);
+  const minPurchasedAt = new Date(now - freshnessMs);
+
+  const baseQuery: Record<string, unknown> = {
+    shopId: shop,
+    isActive: true,
+    purchasedAt: { $gte: minPurchasedAt, $lte: maxPurchasedAt },
+  };
+
+  // Build a tiered match strategy depending on context + merchant setting
+  const tiers: Array<Record<string, unknown>> = [];
+  const wantsProduct =
+    context === "product" &&
+    productHandle &&
+    (s.matchMode === "product" || s.matchMode === "collection");
+  const wantsCollection =
+    (context === "product" || context === "collection") &&
+    collectionId &&
+    (s.matchMode === "collection" || s.matchMode === "global");
+
+  if (wantsProduct) tiers.push({ productHandle });
+  if (wantsCollection) tiers.push({ collectionIds: collectionId });
+  // Global fallback (for home page, or when product/collection feeds are empty)
+  tiers.push({});
+
+  const collected: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  for (const filter of tiers) {
+    if (collected.length >= limit) break;
+    const docs = await SalesPopEvent.find({ ...baseQuery, ...filter })
+      .sort({ purchasedAt: -1 })
+      .limit(limit * 2)
+      .lean();
+    for (const d of docs) {
+      const key = String(d._id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      collected.push(d);
+      if (collected.length >= limit) break;
+    }
+  }
+
+  const events = collected.slice(0, limit).map((d) => ({
+    id: String(d._id),
+    productHandle: d.productHandle,
+    productTitle: d.productTitle,
+    productImage: d.productImage || "",
+    displayName: formatDisplayName(
+      d.rawFirstName as string | undefined,
+      s.nameStyle,
+      s.genericFallback,
+    ),
+    displayLocation: formatDisplayLocation(
+      d.rawCity as string | undefined,
+      d.rawState as string | undefined,
+      d.rawCountry as string | undefined,
+      s.locationStyle,
+    ),
+    freshness: formatFreshness(new Date(d.purchasedAt as Date)),
+  }));
+
+  return json({ events }, { headers: { "Cache-Control": "no-store" } });
 }

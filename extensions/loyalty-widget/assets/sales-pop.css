@@ -1,0 +1,112 @@
+/* ─── Sales Pop ──────────────────────────────────────────────────── */
+
+.sp-toast {
+  position: fixed;
+  z-index: 9996;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--sp-bg, #ffffff);
+  color: var(--sp-text, #1a1a1a);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  border-radius: var(--sp-radius, 12px);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  max-width: 340px;
+  width: calc(100vw - 32px);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: auto;
+}
+.sp-toast.open {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.sp-toast.pos-bottom-left  { left: 16px; bottom: 16px; }
+.sp-toast.pos-bottom-right { right: 16px; bottom: 16px; }
+.sp-toast.pos-top-left     { left: 16px; top: 16px; }
+.sp-toast.pos-top-right    { right: 16px; top: 16px; }
+
+.sp-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: #f2f2f2 var(--sp-thumb, none) center/cover no-repeat;
+  flex-shrink: 0;
+}
+
+.sp-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.sp-message {
+  font-weight: 500;
+}
+.sp-message strong {
+  font-weight: 700;
+}
+
+.sp-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sp-verified {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2ea44f;
+  flex-shrink: 0;
+}
+
+.sp-cta {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sp-accent, #5C6AC4);
+  text-decoration: none;
+}
+.sp-cta:hover {
+  text-decoration: underline;
+}
+
+.sp-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+.sp-close:hover { color: #333; }
+
+@media (max-width: 480px) {
+  .sp-toast {
+    max-width: calc(100vw - 24px);
+    font-size: 12px;
+    padding: 10px 12px;
+  }
+  .sp-toast.pos-bottom-left,
+  .sp-toast.pos-bottom-right { left: 12px; right: 12px; bottom: 12px; }
+  .sp-toast.pos-top-left,
+  .sp-toast.pos-top-right    { left: 12px; right: 12px; top: 12px; }
+  .sp-thumb { width: 40px; height: 40px; }
+}
