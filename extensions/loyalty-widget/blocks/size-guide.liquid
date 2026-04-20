@@ -1,29 +1,35 @@
 {% comment %}
-  Size Guide - App Block (product pages)
-  All content (trigger label, chart rows, colors) is managed in the
-  app admin at /app/size-guide-settings. This block just renders an
-  empty shell and fetches data from the App Proxy on first open.
+  Size Guide - App Embed Block (product pages only)
+  All content (trigger label, chart rows, colors, enable/disable) is
+  managed in the app admin at /app/size-guide-settings. This embed
+  renders a hidden shell + modal on product pages and the JS injects
+  the trigger button near the variant/size selector.
 {% endcomment %}
 
+{% if template.name == 'product' %}
 <div
   class="sg-container"
+  id="sg-embed"
   data-sg-root
   data-shop-domain="{{ shop.permanent_domain }}"
   data-app-proxy-url="/apps/loyalty"
-  hidden
+  data-shop-name="{{ shop.name | escape }}"
+  data-anchor="{{ block.settings.anchor }}"
 >
-  <button type="button" class="sg-trigger" data-sg-open aria-haspopup="dialog">
-    <svg class="sg-trigger-icon" data-sg-icon viewBox="0 0 24 24" fill="none" aria-hidden="true" hidden>
-      <path d="M2 9h20v6H2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-      <path d="M6 9v3M10 9v4M14 9v3M18 9v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>
-    <span data-sg-label>Size Chart</span>
-  </button>
+  <template data-sg-trigger-tpl>
+    <button type="button" class="sg-trigger" data-sg-open aria-haspopup="dialog">
+      <svg class="sg-trigger-icon" data-sg-icon viewBox="0 0 24 24" fill="none" aria-hidden="true" hidden>
+        <path d="M2 9h20v6H2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M6 9v3M10 9v4M14 9v3M18 9v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span data-sg-label>Size Chart</span>
+    </button>
+  </template>
 
   <div class="sg-overlay" data-sg-overlay role="dialog" aria-modal="true" aria-labelledby="sg-title" hidden>
     <div class="sg-modal" role="document">
       <div class="sg-header">
-        <span class="sg-logo-text">{{ shop.name }}</span>
+        <span class="sg-logo-text" data-sg-shop-name>{{ shop.name }}</span>
         <h2 class="sg-header-title" id="sg-title" data-sg-modal-title>Size Charts</h2>
         <button type="button" class="sg-close" data-sg-close aria-label="Close size chart">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="22" height="22">
@@ -56,16 +62,28 @@
 
 {{ 'size-guide.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'size-guide.js' | asset_url }}" defer></script>
+{% endif %}
 
 {% schema %}
 {
   "name": "Size Guide",
-  "target": "section",
-  "templates": ["product"],
+  "target": "body",
   "settings": [
     {
       "type": "paragraph",
-      "content": "All size guide content (labels, chart rows, colors, enable/disable) is managed in the app admin under 'Size Guide'. Just add this block to the product page and open the app to configure it."
+      "content": "All chart content and colors are managed in the app admin under 'Size Guide' (enable/disable, edit rows, etc). This embed only controls where the trigger button is placed on the product page."
+    },
+    {
+      "type": "select",
+      "id": "anchor",
+      "label": "Trigger Placement",
+      "options": [
+        { "value": "above-variants", "label": "Above size/variant selector" },
+        { "value": "below-variants", "label": "Below size/variant selector" },
+        { "value": "above-atc", "label": "Above Add to Cart" },
+        { "value": "below-atc", "label": "Below Add to Cart" }
+      ],
+      "default": "above-variants"
     }
   ]
 }

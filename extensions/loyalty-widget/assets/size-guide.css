@@ -1,9 +1,17 @@
 /* ─── Size Guide Widget ──────────────────────────────────────────── */
 
 .sg-container {
-  margin: 12px 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--sg-text, #1f2937);
+}
+
+#sg-embed {
+  /* Embed host is just a modal container — no visible footprint. */
+  display: contents;
+}
+
+.sg-trigger-wrap {
+  margin: 10px 0;
 }
 
 /* ─── Trigger ────────────────────────────────────────────────────── */
