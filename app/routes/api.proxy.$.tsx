@@ -41,6 +41,7 @@ import {
 } from "../.server/services/wishlist.service";
 import { WishlistSettings } from "../.server/models/wishlist-settings.model";
 import { SizeGuideSettings } from "../.server/models/size-guide-settings.model";
+import { FaqSettings } from "../.server/models/faq-settings.model";
 import { SalesPopSettings } from "../.server/models/sales-pop-settings.model";
 import { SalesPopEvent } from "../.server/models/sales-pop-event.model";
 import {
@@ -182,6 +183,13 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
       return json({ error: "Rate limited" }, { status: 429 });
     }
     return handleGetSizeGuideSettings(shop);
+  }
+
+  if (path === "faq-settings") {
+    if (!checkRateLimit(`faq-settings:${shop}`, 60)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetFaqSettings(shop);
   }
 
   if (path === "sales-pop-settings") {
@@ -447,6 +455,53 @@ async function handleGetTimerSettings(shop: string) {
     hideWhenExpired: settings.hideWhenExpired,
     showDismissButton: settings.showDismissButton,
   }, { headers: { "Cache-Control": "no-store" } });
+}
+
+async function handleGetFaqSettings(shop: string) {
+  const settings = await FaqSettings.findOne({ shopId: shop }).lean();
+
+  if (!settings?.enabled) {
+    return json({ enabled: false }, { headers: { "Cache-Control": "no-store" } });
+  }
+
+  const maxItems = typeof settings.maxItems === "number" ? settings.maxItems : 0;
+  const all = Array.isArray(settings.items) ? settings.items : [];
+  const filtered = all.filter(
+    (it: any) =>
+      it &&
+      it.active !== false &&
+      typeof it.question === "string" &&
+      typeof it.answer === "string" &&
+      it.question.trim() !== "" &&
+      it.answer.trim() !== "",
+  );
+  const items = maxItems > 0 ? filtered.slice(0, maxItems) : filtered;
+
+  return json(
+    {
+      enabled: true,
+      heading: settings.heading || "",
+      subheading: settings.subheading || "",
+      restrictToProduct: settings.restrictToProduct !== false,
+      placement: settings.placement || "before-footer",
+      iconStyle: settings.iconStyle || "chevron",
+      allowMultiple: !!settings.allowMultiple,
+      firstOpen: settings.firstOpen !== false,
+      enableSchema: settings.enableSchema !== false,
+      backgroundColor: settings.backgroundColor || "#ffffff",
+      textColor: settings.textColor || "#111827",
+      accentColor: settings.accentColor || "#5C6AC4",
+      borderColor: settings.borderColor || "#e5e7eb",
+      borderRadius: settings.borderRadius ?? 8,
+      itemGap: settings.itemGap ?? 8,
+      maxWidth: settings.maxWidth ?? 880,
+      items: items.map((it: any) => ({
+        question: it.question,
+        answer: it.answer,
+      })),
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 async function handleGetSizeGuideSettings(shop: string) {
