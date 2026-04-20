@@ -375,7 +375,24 @@
   // If the merchant enabled the embed but didn't add the section block,
   // we still want the heart to appear on PDPs. Detect product context
   // and inject a button next to the add-to-cart form.
+  function readMetaContent(selector) {
+    var el = document.querySelector(selector);
+    return el ? (el.getAttribute("content") || "").trim() : "";
+  }
+
   function getProductMeta() {
+    var handle = window.location.pathname.split("/products/")[1]
+      ? window.location.pathname.split("/products/")[1].split(/[?#/]/)[0]
+      : undefined;
+
+    // Title fallbacks: OG → JSON-LD → document.title (strip site suffix).
+    var titleFallback =
+      readMetaContent('meta[property="og:title"]') ||
+      readMetaContent('meta[name="twitter:title"]') ||
+      (document.title || "").split(/[|–—-]/)[0].trim();
+
+    var imageFallback = readMetaContent('meta[property="og:image"]');
+
     if (
       window.ShopifyAnalytics &&
       window.ShopifyAnalytics.meta &&
@@ -384,17 +401,17 @@
       var p = window.ShopifyAnalytics.meta.product;
       return {
         id: String(p.id),
-        title: p.vendor ? p.title : p.title || "",
-        handle: window.location.pathname.split("/products/")[1]
-          ? window.location.pathname.split("/products/")[1].split(/[?#/]/)[0]
-          : undefined,
+        title: p.title || titleFallback || "Product",
+        handle: handle,
+        imageUrl: imageFallback,
       };
     }
     if (window.product && window.product.id) {
       return {
         id: String(window.product.id),
-        title: window.product.title,
-        handle: window.product.handle,
+        title: window.product.title || titleFallback || "Product",
+        handle: window.product.handle || handle,
+        imageUrl: window.product.featured_image || imageFallback,
       };
     }
     return null;
@@ -424,9 +441,11 @@
     var anchor = findATCAnchor();
     if (!anchor) return;
 
-    var img = "";
-    var imgEl = document.querySelector(".product__media img, .product-media img, .product__photo img");
-    if (imgEl && imgEl.src) img = imgEl.src;
+    var img = meta.imageUrl || "";
+    if (!img) {
+      var imgEl = document.querySelector(".product__media img, .product-media img, .product__photo img, .product-single__photo img");
+      if (imgEl && imgEl.src) img = imgEl.src;
+    }
 
     var btn = document.createElement("button");
     btn.type = "button";
@@ -519,33 +538,19 @@
 
   function renderPages() {
     document.querySelectorAll("[data-wl-page]").forEach(function (page) {
-      var wlList = page.querySelector('[data-wl-list="wishlist"]');
-      var wlEmpty = page.querySelector('[data-wl-empty="wishlist"]');
-      var svList = page.querySelector('[data-wl-list="saved"]');
-      var svEmpty = page.querySelector('[data-wl-empty="saved"]');
+      var list = page.querySelector('[data-wl-list="all"]');
+      var empty = page.querySelector('[data-wl-empty="all"]');
+      if (!list) return;
 
-      if (wlList) {
-        if (state.wishlist.length === 0) {
-          wlList.innerHTML = "";
-          if (wlEmpty) wlEmpty.style.display = "";
-        } else {
-          if (wlEmpty) wlEmpty.style.display = "none";
-          wlList.innerHTML = state.wishlist
-            .map(function (i) { return renderItemCard(i, "wishlist"); })
-            .join("");
-        }
-      }
-
-      if (svList) {
-        if (state.saved.length === 0) {
-          svList.innerHTML = "";
-          if (svEmpty) svEmpty.style.display = "";
-        } else {
-          if (svEmpty) svEmpty.style.display = "none";
-          svList.innerHTML = state.saved
-            .map(function (i) { return renderItemCard(i, "saved"); })
-            .join("");
-        }
+      var all = combinedList();
+      if (all.length === 0) {
+        list.innerHTML = "";
+        if (empty) empty.style.display = "";
+      } else {
+        if (empty) empty.style.display = "none";
+        list.innerHTML = all
+          .map(function (entry) { return renderItemCard(entry.item, entry.kind); })
+          .join("");
       }
     });
   }
@@ -759,6 +764,10 @@
       el.textContent = String(count);
       el.style.display = count > 0 ? "" : "none";
     });
+    // Drawer title count: always visible (even at 0).
+    document.querySelectorAll("[data-wl-total]").forEach(function (el) {
+      el.textContent = String(count);
+    });
   }
 
   // Keep counts in sync.
@@ -778,39 +787,17 @@
       '<div class="wl-drawer-overlay" data-wl-close></div>' +
       '<aside class="wl-drawer" role="dialog" aria-label="Wishlist drawer" aria-hidden="true">' +
         '<header class="wl-drawer-header">' +
-          '<h2 class="wl-drawer-title">' + escapeHtml(title) + '</h2>' +
+          '<h2 class="wl-drawer-title">' + escapeHtml(title) + ' <span class="wl-drawer-count" data-wl-total>0</span></h2>' +
           '<button type="button" class="wl-drawer-close" data-wl-close aria-label="Close">×</button>' +
         '</header>' +
-        '<div class="wl-drawer-tabs" role="tablist">' +
-          '<button type="button" class="wl-tab is-active" data-wl-tab="wishlist" role="tab">Wishlist <span class="wl-tab-count" data-wl-tab-count="wishlist">0</span></button>' +
-          '<button type="button" class="wl-tab" data-wl-tab="saved" role="tab">Saved <span class="wl-tab-count" data-wl-tab-count="saved">0</span></button>' +
-        '</div>' +
         '<div class="wl-drawer-body">' +
-          '<div class="wl-drawer-pane is-active" data-wl-pane="wishlist">' +
-            '<div class="wl-list" data-wl-list="wishlist"></div>' +
-            '<p class="wl-empty" data-wl-empty="wishlist" style="display:none;">Your wishlist is empty. Tap the heart on any product to save it for later.</p>' +
-          '</div>' +
-          '<div class="wl-drawer-pane" data-wl-pane="saved">' +
-            '<div class="wl-list" data-wl-list="saved"></div>' +
-            '<p class="wl-empty" data-wl-empty="saved" style="display:none;">Nothing saved for later yet.</p>' +
+          '<div class="wl-drawer-pane is-active">' +
+            '<div class="wl-list" data-wl-list="all"></div>' +
+            '<p class="wl-empty" data-wl-empty="all" style="display:none;">Your wishlist is empty. Tap the heart on any product to save it.</p>' +
           '</div>' +
         '</div>' +
       '</aside>';
     document.body.appendChild(drawerEl);
-
-    // Tab switching
-    drawerEl.querySelectorAll("[data-wl-tab]").forEach(function (tab) {
-      tab.addEventListener("click", function () {
-        var which = tab.dataset.wlTab;
-        drawerEl.querySelectorAll("[data-wl-tab]").forEach(function (t) {
-          t.classList.toggle("is-active", t.dataset.wlTab === which);
-        });
-        drawerEl.querySelectorAll("[data-wl-pane]").forEach(function (p) {
-          p.classList.toggle("is-active", p.dataset.wlPane === which);
-        });
-      });
-    });
-
     return drawerEl;
   }
 
@@ -829,35 +816,36 @@
     document.body.style.overflow = "";
   }
 
+  function combinedList() {
+    // Show wishlist (product-level) + saved (variant-level) as one stream,
+    // newest first. Items keep their kind so the right action button shows
+    // ("Move to cart" for variant-level entries, "View product" otherwise).
+    var all = state.wishlist
+      .map(function (i) { return { item: i, kind: "wishlist" }; })
+      .concat(
+        state.saved.map(function (i) { return { item: i, kind: "saved" }; }),
+      );
+    all.sort(function (a, b) {
+      var ta = new Date(a.item.savedAt || 0).getTime();
+      var tb = new Date(b.item.savedAt || 0).getTime();
+      return tb - ta;
+    });
+    return all;
+  }
+
   function renderDrawer() {
     if (!drawerEl) return;
-    var wlList = drawerEl.querySelector('[data-wl-list="wishlist"]');
-    var wlEmpty = drawerEl.querySelector('[data-wl-empty="wishlist"]');
-    var svList = drawerEl.querySelector('[data-wl-list="saved"]');
-    var svEmpty = drawerEl.querySelector('[data-wl-empty="saved"]');
+    var list = drawerEl.querySelector('[data-wl-list="all"]');
+    var empty = drawerEl.querySelector('[data-wl-empty="all"]');
+    var all = combinedList();
 
-    drawerEl.querySelector('[data-wl-tab-count="wishlist"]').textContent =
-      String(state.wishlist.length);
-    drawerEl.querySelector('[data-wl-tab-count="saved"]').textContent =
-      String(state.saved.length);
-
-    if (state.wishlist.length === 0) {
-      wlList.innerHTML = "";
-      wlEmpty.style.display = "";
+    if (all.length === 0) {
+      list.innerHTML = "";
+      empty.style.display = "";
     } else {
-      wlEmpty.style.display = "none";
-      wlList.innerHTML = state.wishlist
-        .map(function (i) { return renderItemCard(i, "wishlist"); })
-        .join("");
-    }
-
-    if (state.saved.length === 0) {
-      svList.innerHTML = "";
-      svEmpty.style.display = "";
-    } else {
-      svEmpty.style.display = "none";
-      svList.innerHTML = state.saved
-        .map(function (i) { return renderItemCard(i, "saved"); })
+      empty.style.display = "none";
+      list.innerHTML = all
+        .map(function (entry) { return renderItemCard(entry.item, entry.kind); })
         .join("");
     }
   }

@@ -248,7 +248,21 @@
   padding: 16px 20px;
   border-bottom: 1px solid #eee;
 }
-.wl-drawer-title { margin: 0; font-size: 18px; font-weight: 600; }
+.wl-drawer-title { margin: 0; font-size: 18px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.wl-drawer-count {
+  position: static;
+  display: inline-block;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  background: #111;
+  color: #fff;
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+  font-weight: 700;
+}
 .wl-drawer-close {
   width: 32px; height: 32px;
   border: none; background: transparent;
@@ -257,40 +271,8 @@
 }
 .wl-drawer-close:hover { color: #000; }
 
-.wl-drawer-tabs {
-  display: flex;
-  border-bottom: 1px solid #eee;
-  flex-shrink: 0;
-}
-.wl-tab {
-  flex: 1;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 12px 8px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  color: #666;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-.wl-tab.is-active { color: #111; border-bottom-color: #111; }
-.wl-tab-count {
-  background: #f1f1f1;
-  border-radius: 10px;
-  padding: 1px 7px;
-  font-size: 11px;
-  color: #555;
-}
-.wl-tab.is-active .wl-tab-count { background: #111; color: #fff; }
-
 .wl-drawer-body { flex: 1; overflow-y: auto; }
-.wl-drawer-pane { display: none; padding: 16px; }
-.wl-drawer-pane.is-active { display: block; }
+.wl-drawer-pane { padding: 16px; }
 .wl-drawer-pane .wl-list {
   grid-template-columns: 1fr;
   gap: 12px;

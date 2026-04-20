@@ -1,7 +1,7 @@
 {% comment %}
-  Wishlist & Saved Items - App Block
-  Renders both lists (Wishlist + Save for Later). Place on the cart page,
-  account page, or a dedicated /pages/wishlist page.
+  Wishlist - App Block
+  Renders the customer's full wishlist (product-level saves + cart-side
+  saves shown together). Place on /pages/wishlist or the cart page.
 {% endcomment %}
 
 <section
@@ -10,8 +10,6 @@
   data-shop-domain="{{ shop.permanent_domain }}"
   data-customer-id="{{ customer.id }}"
   data-cart-currency="{{ shop.currency }}"
-  data-show-wishlist="{{ block.settings.show_wishlist }}"
-  data-show-saved="{{ block.settings.show_saved }}"
   style="
     --wl-color: {{ block.settings.icon_color }};
     --wl-active: {{ block.settings.active_color }};
@@ -19,25 +17,13 @@
   "
 >
   <div class="wl-page-inner">
-    {% if block.settings.show_wishlist %}
-      <div class="wl-section" data-wl-section="wishlist">
-        <h2 class="wl-section-title">{{ block.settings.wishlist_title }}</h2>
-        <div class="wl-list" data-wl-list="wishlist"></div>
-        <p class="wl-empty" data-wl-empty="wishlist" style="display:none;">
-          {{ block.settings.wishlist_empty }}
-        </p>
-      </div>
-    {% endif %}
-
-    {% if block.settings.show_saved %}
-      <div class="wl-section" data-wl-section="saved">
-        <h2 class="wl-section-title">{{ block.settings.saved_title }}</h2>
-        <div class="wl-list" data-wl-list="saved"></div>
-        <p class="wl-empty" data-wl-empty="saved" style="display:none;">
-          {{ block.settings.saved_empty }}
-        </p>
-      </div>
-    {% endif %}
+    <div class="wl-section" data-wl-section="all">
+      <h2 class="wl-section-title">{{ block.settings.title }}</h2>
+      <div class="wl-list" data-wl-list="all"></div>
+      <p class="wl-empty" data-wl-empty="all" style="display:none;">
+        {{ block.settings.empty_message }}
+      </p>
+    </div>
   </div>
 </section>
 
@@ -46,44 +32,20 @@
 
 {% schema %}
 {
-  "name": "Wishlist & Saved Items",
+  "name": "Wishlist Page",
   "target": "section",
   "settings": [
     {
-      "type": "checkbox",
-      "id": "show_wishlist",
-      "label": "Show Wishlist section",
-      "default": true
+      "type": "text",
+      "id": "title",
+      "label": "Heading",
+      "default": "My Wishlist"
     },
     {
       "type": "text",
-      "id": "wishlist_title",
-      "label": "Wishlist heading",
-      "default": "Your Wishlist"
-    },
-    {
-      "type": "text",
-      "id": "wishlist_empty",
-      "label": "Wishlist empty message",
-      "default": "Your wishlist is empty. Tap the heart on any product to save it for later."
-    },
-    {
-      "type": "checkbox",
-      "id": "show_saved",
-      "label": "Show Saved for Later section",
-      "default": true
-    },
-    {
-      "type": "text",
-      "id": "saved_title",
-      "label": "Save for Later heading",
-      "default": "Saved for Later"
-    },
-    {
-      "type": "text",
-      "id": "saved_empty",
-      "label": "Save for Later empty message",
-      "default": "Nothing saved for later. Move cart items here to keep them for next time."
+      "id": "empty_message",
+      "label": "Empty message",
+      "default": "Your wishlist is empty. Tap the heart on any product to save it."
     },
     {
       "type": "color",
