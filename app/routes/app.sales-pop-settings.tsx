@@ -13,8 +13,11 @@ import {
   InlineGrid,
   Banner,
   Box,
+  Button,
+  InlineStack,
 } from "@shopify/polaris";
 import { useState, useCallback } from "react";
+import { useActionData } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import {
@@ -22,6 +25,7 @@ import {
   SalesPopSettings,
 } from "../.server/models/sales-pop-settings.model";
 import { SalesPopEvent } from "../.server/models/sales-pop-event.model";
+import { seedRecentOrders } from "../.server/services/sales-pop.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -31,16 +35,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shopId: session.shop,
     isActive: true,
   });
+  const latest = await SalesPopEvent.findOne({ shopId: session.shop })
+    .sort({ purchasedAt: -1 })
+    .select("purchasedAt")
+    .lean();
   return json({
     settings: JSON.parse(JSON.stringify(settings)),
     eventCount,
+    latestEventAt: latest?.purchasedAt
+      ? new Date(latest.purchasedAt).toISOString()
+      : null,
   });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   await connectDB();
   const data = Object.fromEntries(await request.formData());
+
+  if (data._intent === "seed") {
+    const result = await seedRecentOrders(
+      session.shop,
+      admin as any,
+      Number(data.daysBack) || 7,
+      Number(data.maxOrders) || 50,
+    );
+    return json({ success: true, seed: result });
+  }
 
   await SalesPopSettings.findOneAndUpdate(
     { shopId: session.shop },
@@ -84,7 +105,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SalesPopSettingsPage() {
-  const { settings, eventCount } = useLoaderData<typeof loader>();
+  const { settings, eventCount, latestEventAt } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const submit = useSubmit();
   const nav = useNavigation();
 
@@ -107,6 +129,16 @@ export default function SalesPopSettingsPage() {
     submit(fd, { method: "post" });
   }, [s, submit]);
 
+  const seed = useCallback(() => {
+    const fd = new FormData();
+    fd.set("_intent", "seed");
+    fd.set("daysBack", "7");
+    fd.set("maxOrders", "50");
+    submit(fd, { method: "post" });
+  }, [submit]);
+
+  const seedResult = actionData && (actionData as any).seed;
+
   const preview = buildPreview(s);
 
   return (
@@ -123,14 +155,54 @@ export default function SalesPopSettingsPage() {
         <Layout>
           <Layout.AnnotatedSection
             title="Status"
-            description={`Eligible events ready to display: ${eventCount}`}
+            description="Enable, then backfill recent orders so the widget has a feed to rotate through."
           >
             <Card>
-              <Checkbox
-                label="Enable Sales Pop"
-                checked={s.enabled}
-                onChange={u("enabled")}
-              />
+              <BlockStack gap="400">
+                <Checkbox
+                  label="Enable Sales Pop"
+                  checked={s.enabled}
+                  onChange={u("enabled")}
+                />
+                <InlineStack gap="200" align="space-between" blockAlign="center">
+                  <BlockStack gap="100">
+                    <Text as="p" variant="bodyMd">
+                      Events in feed: <b>{eventCount}</b>
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {latestEventAt
+                        ? `Most recent: ${new Date(latestEventAt).toLocaleString()}`
+                        : "No events yet — orders placed after enabling will appear here."}
+                    </Text>
+                  </BlockStack>
+                  <Button
+                    onClick={seed}
+                    loading={
+                      nav.state === "submitting" &&
+                      nav.formData?.get("_intent") === "seed"
+                    }
+                  >
+                    Seed from last 7 days
+                  </Button>
+                </InlineStack>
+                {seedResult && (
+                  <Banner tone="success">
+                    <p>
+                      Scanned {seedResult.scanned} orders, added{" "}
+                      {seedResult.ingested} new events.
+                    </p>
+                  </Banner>
+                )}
+                {eventCount === 0 && (
+                  <Banner tone="warning">
+                    <p>
+                      The widget stays hidden when no eligible events exist.
+                      Seed recent orders above, or wait for new paid orders to
+                      flow in via the webhook.
+                    </p>
+                  </Banner>
+                )}
+              </BlockStack>
             </Card>
           </Layout.AnnotatedSection>
 

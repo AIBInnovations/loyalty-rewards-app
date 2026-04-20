@@ -56,7 +56,7 @@ const salesPopSettingsSchema = new Schema<ISalesPopSettings>(
     nameStyle: {
       type: String,
       enum: ["masked", "generic", "first_name"],
-      default: "masked",
+      default: "first_name",
     },
     locationStyle: {
       type: String,
