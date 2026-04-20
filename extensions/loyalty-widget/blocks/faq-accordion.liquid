@@ -9,6 +9,10 @@
 {% endcomment %}
 
 {%- liquid
+  assign restrict = block.settings.restrict_to_product
+  if restrict and template.name != 'product'
+    assign skip_render = true
+  endif
   assign source_mode = block.settings.source_mode
   assign max_items = block.settings.max_items | default: 0
 
@@ -51,7 +55,7 @@
   endif
 -%}
 
-{%- if visible_count > 0 -%}
+{%- if visible_count > 0 and skip_render != true -%}
 <section
   class="faq-accordion faq-style-{{ block.settings.icon_style }}"
   id="faq-{{ block.id }}"
@@ -232,6 +236,16 @@
   "name": "FAQ Accordion",
   "target": "section",
   "settings": [
+    {
+      "type": "header",
+      "content": "Placement"
+    },
+    {
+      "type": "checkbox",
+      "id": "restrict_to_product",
+      "label": "Only render on product pages",
+      "default": true
+    },
     {
       "type": "header",
       "content": "Content"
