@@ -40,6 +40,7 @@ export default function App() {
         <Link to="/app/cod-settings">COD WhatsApp</Link>
         <Link to="/app/reviews-settings">Reviews & Q&A</Link>
         <Link to="/app/currency-settings">Currency Selector</Link>
+        <Link to="/app/size-guide-settings">Size Guide</Link>
         <Link to="/app/settings">Settings</Link>
       </NavMenu>
       <Outlet />

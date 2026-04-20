@@ -40,6 +40,7 @@ import {
   mergeGuestItems,
 } from "../.server/services/wishlist.service";
 import { WishlistSettings } from "../.server/models/wishlist-settings.model";
+import { SizeGuideSettings } from "../.server/models/size-guide-settings.model";
 
 // Rate limit tracker (in-memory, per-instance)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -167,6 +168,13 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
       return json({ error: "Rate limited" }, { status: 429 });
     }
     return handleGetWishlistSettings(shop);
+  }
+
+  if (path === "size-guide-settings") {
+    if (!checkRateLimit(`size-guide-settings:${shop}`, 60)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetSizeGuideSettings(shop);
   }
 
   if (path === "image-search/status") {
@@ -418,6 +426,34 @@ async function handleGetTimerSettings(shop: string) {
     hideWhenExpired: settings.hideWhenExpired,
     showDismissButton: settings.showDismissButton,
   }, { headers: { "Cache-Control": "no-store" } });
+}
+
+async function handleGetSizeGuideSettings(shop: string) {
+  const settings = await SizeGuideSettings.findOne({ shopId: shop }).lean();
+
+  if (!settings?.enabled) {
+    return json({ enabled: false }, { headers: { "Cache-Control": "no-store" } });
+  }
+
+  return json(
+    {
+      enabled: true,
+      triggerLabel: settings.triggerLabel,
+      showIcon: settings.showIcon,
+      modalTitle: settings.modalTitle,
+      chartTitle: settings.chartTitle,
+      note: settings.note,
+      headersCm: settings.headersCm || [],
+      rowsCm: settings.rowsCm || [],
+      headersInches: settings.headersInches || [],
+      rowsInches: settings.rowsInches || [],
+      accentColor: settings.accentColor,
+      textColor: settings.textColor,
+      rowAltColor: settings.rowAltColor,
+      borderColor: settings.borderColor,
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 async function handleGetCartSettings(shop: string) {
