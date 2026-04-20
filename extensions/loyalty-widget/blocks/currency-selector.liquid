@@ -197,30 +197,21 @@
   }
 
   function convertPrices(rate, sym) {
-    converting = true;
-    if (mo) mo.disconnect();
     document.querySelectorAll("[data-loy-orig]").forEach(function (el) {
       var val = parseFloat(el.dataset.loyOrig) * rate;
       var next = (sym || "") + formatNumber(val);
-      // Skip write if already correct — avoids pointless DOM churn.
-      if (el.textContent === next) return;
-      el.textContent = next;
+      if (el.textContent !== next) el.textContent = next;
     });
-    if (mo) { mo.takeRecords(); mo.observe(document.body, { childList: true, subtree: true }); }
-    converting = false;
   }
 
   function resetPrices() {
-    converting = true;
-    if (mo) mo.disconnect();
     document.querySelectorAll("[data-loy-orig]").forEach(function (el) {
       if (el.dataset.loyOrigTxt && el.textContent !== el.dataset.loyOrigTxt) {
         el.textContent = el.dataset.loyOrigTxt;
       }
     });
-    if (mo) { mo.takeRecords(); mo.observe(document.body, { childList: true, subtree: true }); }
-    converting = false;
   }
+
   // External rate API has no guaranteed SLA — cap fetches so a hung request
   // never keeps the browser tab in a "loading" state indefinitely.
   function fetchWithTimeout(url, ms) {
@@ -239,48 +230,16 @@
   }
   function applyRate(c, sym) {
     storeOrig();
-    if (c === BASE) { resetPrices(); stopObserver(); return; }
-    fetchRates(function (r) {
-      if (r && r[c]) { convertPrices(r[c], sym); startObserver(); }
-    });
+    if (c === BASE) { resetPrices(); return; }
+    fetchRates(function (r) { if (r && r[c]) convertPrices(r[c], sym); });
   }
 
-  /* ── MutationObserver for dynamically loaded prices ──────────
-     Only runs when a non-base currency is active. Watches childList
-     additions (not characterData) so our own textContent writes don't
-     re-trigger it. Debounced + processes only newly added subtrees. */
-  var mo = null;
-  var moTimer = null;
-  function startObserver() {
-    if (!window.MutationObserver || mo) return;
-    mo = new MutationObserver(function (records) {
-      if (converting || moTimer) return;
-      // Quick check: did any added node potentially contain a price?
-      var hasAddedNodes = false;
-      for (var i = 0; i < records.length; i++) {
-        if (records[i].addedNodes && records[i].addedNodes.length) { hasAddedNodes = true; break; }
-      }
-      if (!hasAddedNodes) return;
-      moTimer = setTimeout(function () {
-        moTimer = null;
-        var s = null; try { s = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
-        if (!s || s.code === BASE) { stopObserver(); return; }
-        storeOrig();
-        if (rates && rates[s.code]) convertPrices(rates[s.code], s.symbol);
-      }, 150);
-    });
-    mo.observe(document.body, { childList: true, subtree: true });
-  }
-  function stopObserver() {
-    if (moTimer) { clearTimeout(moTimer); moTimer = null; }
-    if (mo) { mo.disconnect(); mo = null; }
-  }
-
-  // Kick off the observer only if a non-base currency was previously selected.
-  try {
-    var initSaved = JSON.parse(localStorage.getItem("loy_currency") || "null");
-    if (initSaved && initSaved.code && initSaved.code !== BASE) startObserver();
-  } catch (e) {}
+  // NOTE: Previously this block used a MutationObserver to re-convert
+  // dynamically-loaded prices. It caused infinite loops on themes that
+  // re-render price markup (cart drawer, quick-view, etc.) because our own
+  // textContent writes replace child nodes, which re-fired the observer.
+  // Conversion now runs once on load and once on selection — sufficient for
+  // most flows and guaranteed not to freeze the page.
 })();
 </script>
 
