@@ -807,6 +807,7 @@
     drawerEl.querySelector(".wl-drawer").setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
     renderDrawer();
+    updateCounts();
   }
 
   function closeDrawer() {
@@ -848,6 +849,7 @@
         .map(function (entry) { return renderItemCard(entry.item, entry.kind); })
         .join("");
     }
+    updateCounts();
   }
 
   // Open drawer when any [data-wl-open] is clicked, close on overlay/X
