@@ -1,0 +1,69 @@
+{% comment %}
+  Wishlist Button - App Block (product pages)
+  Heart icon that toggles a product in the customer's wishlist.
+  Works for guests (localStorage) and logged-in customers (app proxy).
+{% endcomment %}
+
+{% assign selected_variant = product.selected_or_first_available_variant %}
+{% assign image = product.featured_image | image_url: width: 300 %}
+
+<button
+  type="button"
+  class="wl-btn"
+  data-wl-button
+  data-product-id="{{ product.id }}"
+  data-product-handle="{{ product.handle }}"
+  data-product-title="{{ product.title | escape }}"
+  data-image-url="{{ image }}"
+  data-price="{{ selected_variant.price | money_without_currency | strip_html }}"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-customer-id="{{ customer.id }}"
+  aria-pressed="false"
+  style="
+    --wl-color: {{ block.settings.icon_color }};
+    --wl-active: {{ block.settings.active_color }};
+  "
+>
+  <svg class="wl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+  </svg>
+  <span class="wl-label" data-wl-label-add>{{ block.settings.label_add }}</span>
+  <span class="wl-label" data-wl-label-saved style="display:none;">{{ block.settings.label_saved }}</span>
+</button>
+
+{{ 'wishlist.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'wishlist.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Wishlist Button",
+  "target": "section",
+  "templates": ["product"],
+  "settings": [
+    {
+      "type": "text",
+      "id": "label_add",
+      "label": "Label - Not saved",
+      "default": "Add to Wishlist"
+    },
+    {
+      "type": "text",
+      "id": "label_saved",
+      "label": "Label - Saved",
+      "default": "In Wishlist"
+    },
+    {
+      "type": "color",
+      "id": "icon_color",
+      "label": "Icon color",
+      "default": "#222222"
+    },
+    {
+      "type": "color",
+      "id": "active_color",
+      "label": "Active color",
+      "default": "#e63946"
+    }
+  ]
+}
+{% endschema %}

@@ -32,6 +32,7 @@ export default function App() {
         <Link to="/app/popup-settings">Exit Popup</Link>
         <Link to="/app/wheel-settings">Spin Wheel</Link>
         <Link to="/app/stock-alerts">Stock Alerts</Link>
+        <Link to="/app/wishlist">Wishlist</Link>
         <Link to="/app/voice-agent">Voice Agent</Link>
         <Link to="/app/pincode-settings">Pincode Estimator</Link>
         <Link to="/app/upsell-settings">Post-Purchase Upsell</Link>

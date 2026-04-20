@@ -1,0 +1,108 @@
+{% comment %}
+  Wishlist & Saved Items - App Block
+  Renders both lists (Wishlist + Save for Later). Place on the cart page,
+  account page, or a dedicated /pages/wishlist page.
+{% endcomment %}
+
+<section
+  class="wl-page"
+  data-wl-page
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-customer-id="{{ customer.id }}"
+  data-cart-currency="{{ shop.currency }}"
+  data-show-wishlist="{{ block.settings.show_wishlist }}"
+  data-show-saved="{{ block.settings.show_saved }}"
+  style="
+    --wl-color: {{ block.settings.icon_color }};
+    --wl-active: {{ block.settings.active_color }};
+    --wl-cta: {{ block.settings.cta_color }};
+  "
+>
+  <div class="wl-page-inner">
+    {% if block.settings.show_wishlist %}
+      <div class="wl-section" data-wl-section="wishlist">
+        <h2 class="wl-section-title">{{ block.settings.wishlist_title }}</h2>
+        <div class="wl-list" data-wl-list="wishlist"></div>
+        <p class="wl-empty" data-wl-empty="wishlist" style="display:none;">
+          {{ block.settings.wishlist_empty }}
+        </p>
+      </div>
+    {% endif %}
+
+    {% if block.settings.show_saved %}
+      <div class="wl-section" data-wl-section="saved">
+        <h2 class="wl-section-title">{{ block.settings.saved_title }}</h2>
+        <div class="wl-list" data-wl-list="saved"></div>
+        <p class="wl-empty" data-wl-empty="saved" style="display:none;">
+          {{ block.settings.saved_empty }}
+        </p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+{{ 'wishlist.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'wishlist.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Wishlist & Saved Items",
+  "target": "section",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_wishlist",
+      "label": "Show Wishlist section",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "wishlist_title",
+      "label": "Wishlist heading",
+      "default": "Your Wishlist"
+    },
+    {
+      "type": "text",
+      "id": "wishlist_empty",
+      "label": "Wishlist empty message",
+      "default": "Your wishlist is empty. Tap the heart on any product to save it for later."
+    },
+    {
+      "type": "checkbox",
+      "id": "show_saved",
+      "label": "Show Saved for Later section",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "saved_title",
+      "label": "Save for Later heading",
+      "default": "Saved for Later"
+    },
+    {
+      "type": "text",
+      "id": "saved_empty",
+      "label": "Save for Later empty message",
+      "default": "Nothing saved for later. Move cart items here to keep them for next time."
+    },
+    {
+      "type": "color",
+      "id": "icon_color",
+      "label": "Icon color",
+      "default": "#222222"
+    },
+    {
+      "type": "color",
+      "id": "active_color",
+      "label": "Active color",
+      "default": "#e63946"
+    },
+    {
+      "type": "color",
+      "id": "cta_color",
+      "label": "CTA color",
+      "default": "#1a1a1a"
+    }
+  ]
+}
+{% endschema %}

@@ -684,6 +684,8 @@ export const action = async ({ request, params: routeParams }: ActionFunctionArg
       return handleSubmitReview(request, shop);
     case "reviews/question":
       return handleSubmitQuestion(request, shop);
+    case "wishlist/merge":
+      return handleWishlistMerge(request, shop, shopifyCustomerId);
     default:
       return json({ error: "Not found" }, { status: 404 });
   }
@@ -1070,4 +1072,131 @@ async function handleImageSearchEvent(request: Request, shop: string) {
   } catch {
     return json({ success: false });
   }
+}
+
+// ─── Wishlist / Save for Later ───────────────────────────────────
+
+async function handleWishlistGet(shop: string, shopifyCustomerId: string) {
+  const data = await listWishlist(shop, shopifyCustomerId);
+  return json(data, { headers: { "Cache-Control": "no-store" } });
+}
+
+function metaFromParams(params: URLSearchParams) {
+  return {
+    productHandle: params.get("productHandle") || undefined,
+    productTitle: params.get("productTitle") || undefined,
+    variantTitle: params.get("variantTitle") || undefined,
+    imageUrl: params.get("imageUrl") || undefined,
+    price: params.get("price") ? Number(params.get("price")) : undefined,
+    quantity: params.get("quantity") ? Number(params.get("quantity")) : 1,
+  };
+}
+
+async function handleWishlistAddGet(
+  params: URLSearchParams,
+  shop: string,
+  shopifyCustomerId: string,
+  kind: "wishlist" | "saved",
+) {
+  if (!checkRateLimit(`wishlist-add:${shopifyCustomerId}`, 60)) {
+    return json({ error: "Rate limited" }, { status: 429 });
+  }
+
+  const productId = params.get("productId");
+  const variantId = params.get("variantId") || undefined;
+  if (!productId) return json({ error: "productId required" }, { status: 400 });
+  if (kind === "saved" && !variantId) {
+    return json({ error: "variantId required" }, { status: 400 });
+  }
+
+  try {
+    await addWishlistItem({
+      shopId: shop,
+      shopifyCustomerId,
+      kind,
+      productId,
+      variantId,
+      ...metaFromParams(params),
+    });
+    return json({ success: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return json({ error: message }, { status: 400 });
+  }
+}
+
+async function handleWishlistRemoveGet(
+  params: URLSearchParams,
+  shop: string,
+  shopifyCustomerId: string,
+  kind: "wishlist" | "saved",
+) {
+  if (!checkRateLimit(`wishlist-remove:${shopifyCustomerId}`, 60)) {
+    return json({ error: "Rate limited" }, { status: 429 });
+  }
+
+  if (kind === "wishlist") {
+    const productId = params.get("productId");
+    if (!productId) return json({ error: "productId required" }, { status: 400 });
+    await removeWishlistProduct(shop, shopifyCustomerId, productId);
+  } else {
+    const variantId = params.get("variantId");
+    if (!variantId) return json({ error: "variantId required" }, { status: 400 });
+    await removeSavedVariant(shop, shopifyCustomerId, variantId);
+  }
+  return json({ success: true });
+}
+
+async function handleWishlistMerge(
+  request: Request,
+  shop: string,
+  shopifyCustomerId: string,
+) {
+  if (!checkRateLimit(`wishlist-merge:${shopifyCustomerId}`, 5)) {
+    return json({ error: "Rate limited" }, { status: 429 });
+  }
+
+  let body: { wishlist?: any[]; saved?: any[] } = {};
+  try {
+    const ct = request.headers.get("content-type") || "";
+    body = ct.includes("application/json")
+      ? await request.json()
+      : Object.fromEntries(await request.formData());
+    if (typeof body.wishlist === "string") {
+      try { body.wishlist = JSON.parse(body.wishlist); } catch { body.wishlist = []; }
+    }
+    if (typeof body.saved === "string") {
+      try { body.saved = JSON.parse(body.saved); } catch { body.saved = []; }
+    }
+  } catch {
+    return json({ error: "Invalid body" }, { status: 400 });
+  }
+
+  const merged = await mergeGuestItems(shop, shopifyCustomerId, {
+    wishlist: (body.wishlist || []).map((w: any) => ({
+      shopId: shop,
+      shopifyCustomerId,
+      kind: "wishlist" as const,
+      productId: String(w.productId || ""),
+      productHandle: w.productHandle,
+      productTitle: w.productTitle,
+      imageUrl: w.imageUrl,
+      price: w.price ? Number(w.price) : undefined,
+    })),
+    saved: (body.saved || []).map((s: any) => ({
+      shopId: shop,
+      shopifyCustomerId,
+      kind: "saved" as const,
+      productId: String(s.productId || ""),
+      variantId: String(s.variantId || ""),
+      productHandle: s.productHandle,
+      productTitle: s.productTitle,
+      variantTitle: s.variantTitle,
+      imageUrl: s.imageUrl,
+      price: s.price ? Number(s.price) : undefined,
+      quantity: s.quantity ? Number(s.quantity) : 1,
+    })),
+  });
+
+  return json(merged, { headers: { "Cache-Control": "no-store" } });
 }
