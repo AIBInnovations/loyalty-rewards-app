@@ -371,6 +371,89 @@
     document.querySelectorAll("[data-wl-button]").forEach(bindButton);
   }
 
+  // ── Auto-inject heart on product pages ───────────────────────────
+  // If the merchant enabled the embed but didn't add the section block,
+  // we still want the heart to appear on PDPs. Detect product context
+  // and inject a button next to the add-to-cart form.
+  function getProductMeta() {
+    if (
+      window.ShopifyAnalytics &&
+      window.ShopifyAnalytics.meta &&
+      window.ShopifyAnalytics.meta.product
+    ) {
+      var p = window.ShopifyAnalytics.meta.product;
+      return {
+        id: String(p.id),
+        title: p.vendor ? p.title : p.title || "",
+        handle: window.location.pathname.split("/products/")[1]
+          ? window.location.pathname.split("/products/")[1].split(/[?#/]/)[0]
+          : undefined,
+      };
+    }
+    if (window.product && window.product.id) {
+      return {
+        id: String(window.product.id),
+        title: window.product.title,
+        handle: window.product.handle,
+      };
+    }
+    return null;
+  }
+
+  function findATCAnchor() {
+    // Try the most common Shopify selectors, in order of specificity.
+    var selectors = [
+      ".product-form__buttons",
+      "form[action*='/cart/add'] .product-form__buttons",
+      "form[action*='/cart/add']",
+      "[name='add']",
+      ".product__info-wrapper",
+      ".product__info",
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function maybeInjectPdpButton() {
+    if (document.querySelector("[data-wl-button]")) return; // section block already placed
+    var meta = getProductMeta();
+    if (!meta) return;
+    var anchor = findATCAnchor();
+    if (!anchor) return;
+
+    var img = "";
+    var imgEl = document.querySelector(".product__media img, .product-media img, .product__photo img");
+    if (imgEl && imgEl.src) img = imgEl.src;
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "wl-btn wl-btn-injected";
+    btn.setAttribute("data-wl-button", "");
+    btn.setAttribute("data-product-id", meta.id);
+    if (meta.handle) btn.setAttribute("data-product-handle", meta.handle);
+    if (meta.title) btn.setAttribute("data-product-title", meta.title);
+    if (img) btn.setAttribute("data-image-url", img);
+    btn.setAttribute("aria-pressed", "false");
+    btn.style.cssText =
+      "--wl-color:" + (settings.iconColor || "#222") +
+      ";--wl-active:" + (settings.activeColor || "#e63946") + ";";
+    btn.innerHTML =
+      '<svg class="wl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+        '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>' +
+      '</svg>' +
+      '<span class="wl-label" data-wl-label-add>' + (settings.buttonLabelAdd || "Add to Wishlist") + '</span>' +
+      '<span class="wl-label" data-wl-label-saved style="display:none;">' + (settings.buttonLabelSaved || "In Wishlist") + '</span>';
+
+    // Insert AFTER the anchor (next to / below the ATC button).
+    if (anchor.parentNode) {
+      anchor.parentNode.insertBefore(btn, anchor.nextSibling);
+    }
+    bindButton(btn);
+  }
+
   window.LoyaltyWishlist.on("change", function () {
     document.querySelectorAll("[data-wl-button]").forEach(renderButton);
     renderPages();
