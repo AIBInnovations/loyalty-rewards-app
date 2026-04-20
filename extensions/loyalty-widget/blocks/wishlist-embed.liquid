@@ -1,0 +1,57 @@
+{% comment %}
+  Wishlist - App Embed Block (loads on every page).
+  This is the master "on" switch that loads the wishlist storefront JS so
+  the heart button, Save-for-Later actions, and the wishlist page all work.
+  The actual visible UI comes from the section blocks (Wishlist Button,
+  Wishlist & Saved Items). Keep this embed enabled for the feature to work.
+{% endcomment %}
+
+<div
+  id="loyalty-wishlist-embed"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-customer-id="{{ customer.id }}"
+  data-app-proxy-url="/apps/loyalty"
+  data-floating-button="{{ block.settings.show_floating }}"
+  data-floating-position="{{ block.settings.floating_position }}"
+  data-floating-label="{{ block.settings.floating_label | escape }}"
+  style="display: none;"
+></div>
+
+{{ 'wishlist.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'wishlist.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Wishlist & Save for Later",
+  "target": "body",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Master switch for the Wishlist feature. Enable this app embed, then add the 'Wishlist Button' block to product pages and 'Wishlist & Saved Items' block wherever you want the list to show (cart page, /pages/wishlist, etc)."
+    },
+    {
+      "type": "checkbox",
+      "id": "show_floating",
+      "label": "Show floating wishlist button",
+      "info": "Adds a small floating button in the corner that opens the wishlist drawer.",
+      "default": false
+    },
+    {
+      "type": "select",
+      "id": "floating_position",
+      "label": "Floating button position",
+      "options": [
+        { "value": "bottom-right", "label": "Bottom right" },
+        { "value": "bottom-left", "label": "Bottom left" }
+      ],
+      "default": "bottom-right"
+    },
+    {
+      "type": "text",
+      "id": "floating_label",
+      "label": "Floating button label",
+      "default": "Wishlist"
+    }
+  ]
+}
+{% endschema %}

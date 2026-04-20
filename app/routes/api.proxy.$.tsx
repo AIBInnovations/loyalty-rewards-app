@@ -39,6 +39,7 @@ import {
   removeSavedVariant,
   mergeGuestItems,
 } from "../.server/services/wishlist.service";
+import { WishlistSettings } from "../.server/models/wishlist-settings.model";
 
 // Rate limit tracker (in-memory, per-instance)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -159,6 +160,13 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
       return json({ error: "Rate limited" }, { status: 429 });
     }
     return handleGetImageSearchConfig(shop);
+  }
+
+  if (path === "wishlist-settings") {
+    if (!checkRateLimit(`wishlist-settings:${shop}`, 60)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetWishlistSettings(shop);
   }
 
   if (path === "image-search/status") {
@@ -1076,7 +1084,39 @@ async function handleImageSearchEvent(request: Request, shop: string) {
 
 // ─── Wishlist / Save for Later ───────────────────────────────────
 
+async function handleGetWishlistSettings(shop: string) {
+  const s = await WishlistSettings.findOne({ shopId: shop }).lean();
+  if (!s?.enabled) {
+    return json(
+      { enabled: false },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  return json(
+    {
+      enabled: true,
+      showWishlistButton: s.showWishlistButton,
+      showSavedForLater: s.showSavedForLater,
+      buttonLabelAdd: s.buttonLabelAdd,
+      buttonLabelSaved: s.buttonLabelSaved,
+      iconColor: s.iconColor,
+      activeColor: s.activeColor,
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
+async function isWishlistEnabled(shop: string): Promise<boolean> {
+  const s = await WishlistSettings.findOne({ shopId: shop })
+    .select("enabled")
+    .lean();
+  return !!s?.enabled;
+}
+
 async function handleWishlistGet(shop: string, shopifyCustomerId: string) {
+  if (!(await isWishlistEnabled(shop))) {
+    return json({ enabled: false, wishlist: [], saved: [] });
+  }
   const data = await listWishlist(shop, shopifyCustomerId);
   return json(data, { headers: { "Cache-Control": "no-store" } });
 }
@@ -1100,6 +1140,9 @@ async function handleWishlistAddGet(
 ) {
   if (!checkRateLimit(`wishlist-add:${shopifyCustomerId}`, 60)) {
     return json({ error: "Rate limited" }, { status: 429 });
+  }
+  if (!(await isWishlistEnabled(shop))) {
+    return json({ error: "Wishlist disabled" }, { status: 403 });
   }
 
   const productId = params.get("productId");
@@ -1134,6 +1177,8 @@ async function handleWishlistRemoveGet(
   if (!checkRateLimit(`wishlist-remove:${shopifyCustomerId}`, 60)) {
     return json({ error: "Rate limited" }, { status: 429 });
   }
+  // Removal is allowed even when disabled, so customers can clean up
+  // existing items.
 
   if (kind === "wishlist") {
     const productId = params.get("productId");

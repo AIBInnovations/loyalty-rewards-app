@@ -1,19 +1,28 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
+import { useState, useCallback } from "react";
 import {
   Page,
+  Layout,
   Card,
   BlockStack,
   Text,
+  TextField,
+  Checkbox,
   IndexTable,
   InlineGrid,
   EmptyState,
   Badge,
+  Banner,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { WishlistItem } from "../.server/models/wishlist.model";
+import {
+  WishlistSettings,
+  getOrCreateWishlistSettings,
+} from "../.server/models/wishlist-settings.model";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -22,12 +31,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = session.shop;
 
   const [
+    settings,
     totalWishlist,
     totalSaved,
     uniqueCustomersAgg,
     topProductsAgg,
     recent,
   ] = await Promise.all([
+    getOrCreateWishlistSettings(shop),
     WishlistItem.countDocuments({ shopId: shop, kind: "wishlist" }),
     WishlistItem.countDocuments({ shopId: shop, kind: "saved" }),
     WishlistItem.distinct("shopifyCustomerId", { shopId: shop }),
@@ -51,6 +62,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   ]);
 
   return json({
+    settings: JSON.parse(JSON.stringify(settings)),
     totalWishlist,
     totalSaved,
     uniqueCustomers: uniqueCustomersAgg.length,
@@ -71,16 +83,158 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 };
 
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  await connectDB();
+
+  const data = Object.fromEntries(await request.formData());
+
+  await WishlistSettings.findOneAndUpdate(
+    { shopId: session.shop },
+    {
+      $set: {
+        enabled: data.enabled === "true",
+        showWishlistButton: data.showWishlistButton === "true",
+        showSavedForLater: data.showSavedForLater === "true",
+        buttonLabelAdd: (data.buttonLabelAdd as string) || "Add to Wishlist",
+        buttonLabelSaved: (data.buttonLabelSaved as string) || "In Wishlist",
+        iconColor: (data.iconColor as string) || "#222222",
+        activeColor: (data.activeColor as string) || "#e63946",
+      },
+    },
+    { upsert: true },
+  );
+
+  return json({ success: true });
+};
+
 export default function WishlistAdminPage() {
-  const { totalWishlist, totalSaved, uniqueCustomers, topProducts, recent } =
-    useLoaderData<typeof loader>();
+  const {
+    settings,
+    totalWishlist,
+    totalSaved,
+    uniqueCustomers,
+    topProducts,
+    recent,
+  } = useLoaderData<typeof loader>();
+  const submit = useSubmit();
+  const nav = useNavigation();
+
+  const [s, setS] = useState({ ...settings });
+  const u = (f: string) => (v: string | boolean) =>
+    setS((p: any) => ({ ...p, [f]: v }));
+
+  const save = useCallback(() => {
+    const fd = new FormData();
+    Object.entries(s).forEach(([k, v]) => {
+      if (
+        k !== "_id" &&
+        k !== "__v" &&
+        k !== "shopId" &&
+        k !== "createdAt" &&
+        k !== "updatedAt"
+      ) {
+        fd.set(k, String(v));
+      }
+    });
+    submit(fd, { method: "post" });
+  }, [s, submit]);
 
   return (
     <Page
       title="Wishlist & Save for Later"
       backAction={{ content: "Dashboard", url: "/app" }}
+      primaryAction={{
+        content: "Save",
+        onAction: save,
+        loading: nav.state === "submitting",
+      }}
     >
       <BlockStack gap="500">
+        <Layout>
+          <Layout.AnnotatedSection
+            title="Status"
+            description={
+              s.enabled
+                ? "Wishlist is live on your storefront."
+                : "Wishlist is currently OFF. Storefront blocks will not render."
+            }
+          >
+            <Card>
+              <BlockStack gap="300">
+                <Checkbox
+                  label="Enable Wishlist & Save for Later"
+                  checked={s.enabled}
+                  onChange={u("enabled")}
+                  helpText="When off, the heart button and saved-items page hide on the storefront."
+                />
+                <Checkbox
+                  label="Show wishlist button on product pages"
+                  checked={s.showWishlistButton}
+                  onChange={u("showWishlistButton")}
+                  disabled={!s.enabled}
+                />
+                <Checkbox
+                  label="Show 'Save for Later' on cart"
+                  checked={s.showSavedForLater}
+                  onChange={u("showSavedForLater")}
+                  disabled={!s.enabled}
+                />
+              </BlockStack>
+            </Card>
+          </Layout.AnnotatedSection>
+
+          <Layout.AnnotatedSection
+            title="Appearance"
+            description="Customize the wishlist heart button labels and colors."
+          >
+            <Card>
+              <BlockStack gap="400">
+                <TextField
+                  label="Button label - Not saved"
+                  value={s.buttonLabelAdd}
+                  onChange={u("buttonLabelAdd")}
+                  autoComplete="off"
+                  disabled={!s.enabled}
+                />
+                <TextField
+                  label="Button label - Saved"
+                  value={s.buttonLabelSaved}
+                  onChange={u("buttonLabelSaved")}
+                  autoComplete="off"
+                  disabled={!s.enabled}
+                />
+                <InlineGrid columns={2} gap="300">
+                  <TextField
+                    label="Icon color"
+                    value={s.iconColor}
+                    onChange={u("iconColor")}
+                    autoComplete="off"
+                    disabled={!s.enabled}
+                  />
+                  <TextField
+                    label="Active (saved) color"
+                    value={s.activeColor}
+                    onChange={u("activeColor")}
+                    autoComplete="off"
+                    disabled={!s.enabled}
+                  />
+                </InlineGrid>
+              </BlockStack>
+            </Card>
+          </Layout.AnnotatedSection>
+        </Layout>
+
+        <Banner tone="info">
+          <p>
+            After saving, open Theme Editor → <b>App embeds</b> and enable
+            "Wishlist &amp; Save for Later". Then add the "Wishlist Button"
+            block to your product template and the "Wishlist &amp; Saved
+            Items" block to a page (e.g. <code>/pages/wishlist</code>) or
+            the cart page.
+          </p>
+        </Banner>
+
         <InlineGrid columns={3} gap="400">
           <Card>
             <BlockStack gap="200">
@@ -163,9 +317,8 @@ export default function WishlistAdminPage() {
                 image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
               >
                 <p>
-                  Customers will appear here when they tap the wishlist heart on a product
-                  page or move a cart line to "Save for Later". Enable the
-                  "Wishlist Button" and "Wishlist & Saved Items" blocks in your theme editor.
+                  Customers will appear here when they tap the wishlist heart
+                  on a product page or move a cart line to "Save for Later".
                 </p>
               </EmptyState>
             )}

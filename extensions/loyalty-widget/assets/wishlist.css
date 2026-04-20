@@ -142,3 +142,42 @@
   .wl-card-body { padding: 10px; }
   .wl-cta { font-size: 12px; padding: 8px 10px; }
 }
+
+/* Floating wishlist button */
+.wl-floating {
+  position: fixed;
+  bottom: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #fff;
+  color: #e63946;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  z-index: 9998;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.wl-floating:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16); }
+.wl-floating-bottom-right { right: 24px; }
+.wl-floating-bottom-left  { left:  24px; }
+.wl-floating svg { width: 22px; height: 22px; fill: currentColor; }
+.wl-floating-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #e63946;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  display: none;
+}

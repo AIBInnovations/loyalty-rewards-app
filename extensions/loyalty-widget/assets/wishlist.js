@@ -22,16 +22,22 @@
 
   // ── State ────────────────────────────────────────────────────────
   var state = { wishlist: [], saved: [] };
-  var listeners = { change: [], ready: [] };
+  var settings = { enabled: false };
+  var listeners = { change: [], ready: [], settings: [] };
   var customerId = readCustomerId();
   var ready = false;
 
   function readCustomerId() {
     var el =
       document.querySelector("[data-wl-button][data-customer-id]") ||
-      document.querySelector("[data-wl-page][data-customer-id]");
+      document.querySelector("[data-wl-page][data-customer-id]") ||
+      document.querySelector("#loyalty-wishlist-embed");
     var raw = el ? el.dataset.customerId : "";
     return raw && raw !== "0" ? raw : "";
+  }
+
+  function readEmbed() {
+    return document.getElementById("loyalty-wishlist-embed");
   }
 
   // ── Storage ──────────────────────────────────────────────────────
@@ -108,8 +114,39 @@
   }
 
   // ── Initial load + guest→customer merge ──────────────────────────
+  function loadSettings() {
+    return proxyGet("/wishlist-settings")
+      .then(function (data) {
+        settings = data || { enabled: false };
+        emit("settings", settings);
+        return settings;
+      })
+      .catch(function () {
+        settings = { enabled: false };
+        emit("settings", settings);
+        return settings;
+      });
+  }
+
+  function applyDisabledUI() {
+    // Hide all wishlist UI when the merchant has turned the feature off.
+    document.querySelectorAll("[data-wl-button]").forEach(function (b) {
+      b.style.display = "none";
+    });
+    document.querySelectorAll("[data-wl-page]").forEach(function (p) {
+      p.style.display = "none";
+    });
+  }
+
   function init() {
     var local = readLocal();
+
+    if (!settings.enabled) {
+      applyDisabledUI();
+      ready = true;
+      emit("ready", state);
+      return;
+    }
 
     if (!customerId) {
       setState(local);
@@ -470,11 +507,60 @@
     });
   }
 
+  // ── Floating wishlist button (optional, from app embed) ─────────
+  function renderFloatingButton() {
+    var embed = readEmbed();
+    if (!embed) return;
+    if (embed.dataset.floatingButton !== "true") return;
+
+    var existing = document.getElementById("wl-floating");
+    if (existing) existing.remove();
+
+    var pos = embed.dataset.floatingPosition || "bottom-right";
+    var label = embed.dataset.floatingLabel || "Wishlist";
+    var btn = document.createElement("button");
+    btn.id = "wl-floating";
+    btn.type = "button";
+    btn.className = "wl-floating wl-floating-" + pos;
+    btn.setAttribute("aria-label", label);
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+        '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>' +
+      '</svg>' +
+      '<span class="wl-floating-count" data-wl-floating-count>0</span>';
+    btn.addEventListener("click", function () {
+      window.location.href = "/pages/wishlist";
+    });
+    document.body.appendChild(btn);
+    updateFloatingCount();
+  }
+
+  function updateFloatingCount() {
+    var count = state.wishlist.length + state.saved.length;
+    var el = document.querySelector("[data-wl-floating-count]");
+    if (el) {
+      el.textContent = String(count);
+      el.style.display = count > 0 ? "" : "none";
+    }
+  }
+
+  // Keep floating count in sync.
+  listeners.change.push(updateFloatingCount);
+
   // ── Boot ─────────────────────────────────────────────────────────
   function boot() {
-    bindAllButtons();
     bindPageActions();
-    init();
+    loadSettings().then(function () {
+      if (!settings.enabled) {
+        applyDisabledUI();
+        ready = true;
+        emit("ready", state);
+        return;
+      }
+      bindAllButtons();
+      renderFloatingButton();
+      init();
+    });
   }
 
   if (document.readyState === "loading") {
