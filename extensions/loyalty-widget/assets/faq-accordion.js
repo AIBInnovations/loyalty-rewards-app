@@ -1,9 +1,35 @@
 (function () {
   'use strict';
 
+  function relocate(root) {
+    if (root.dataset.faqPlaced === '1') return;
+    var anchor = root.dataset.faqAnchor || 'before-footer';
+    var target = null;
+    var mode = 'before';
+
+    if (anchor === 'before-footer') {
+      target = document.querySelector(
+        'footer[role="contentinfo"], footer.site-footer, .site-footer, #shopify-section-footer, footer'
+      );
+      mode = 'before';
+    } else if (anchor === 'after-main') {
+      target = document.querySelector('main, #MainContent, [role="main"]');
+      mode = 'after';
+    }
+
+    if (target && target.parentNode) {
+      if (mode === 'before') target.parentNode.insertBefore(root, target);
+      else if (target.nextSibling) target.parentNode.insertBefore(root, target.nextSibling);
+      else target.parentNode.appendChild(root);
+    }
+    root.dataset.faqPlaced = '1';
+  }
+
   function initRoot(root) {
     if (!root || root.dataset.faqInit === '1') return;
     root.dataset.faqInit = '1';
+
+    relocate(root);
 
     var allowMultiple = root.dataset.allowMultiple === 'true';
     var triggers = root.querySelectorAll('[data-faq-trigger]');

@@ -62,6 +62,7 @@
   data-faq-root
   data-allow-multiple="{{ block.settings.allow_multiple }}"
   data-first-open="{{ block.settings.first_open }}"
+  data-faq-anchor="{{ block.settings.anchor | default: 'before-footer' }}"
   aria-labelledby="faq-heading-{{ block.id }}"
   style="
     --faq-bg: {{ block.settings.background_color }};
@@ -234,7 +235,7 @@
 {% schema %}
 {
   "name": "FAQ Accordion",
-  "target": "section",
+  "target": "body",
   "settings": [
     {
       "type": "header",
@@ -245,6 +246,17 @@
       "id": "restrict_to_product",
       "label": "Only render on product pages",
       "default": true
+    },
+    {
+      "type": "select",
+      "id": "anchor",
+      "label": "Position",
+      "options": [
+        { "value": "before-footer", "label": "Above footer" },
+        { "value": "after-main", "label": "Below main content" },
+        { "value": "end-of-body", "label": "End of page" }
+      ],
+      "default": "before-footer"
     },
     {
       "type": "header",
