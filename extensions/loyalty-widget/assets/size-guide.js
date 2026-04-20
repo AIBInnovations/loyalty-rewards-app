@@ -37,49 +37,78 @@
     });
   }
 
-  function findAnchorTarget(anchor) {
-    // Try specific size/variant selector selectors first, then fall back
-    // to add-to-cart button, then the product form as a last resort.
-    var form = document.querySelector('form[action*="/cart/add"]');
-    if (!form) return null;
+  function findSizeFieldset(form) {
+    // Prefer an element whose label/legend text contains "Size" (case-insensitive).
+    var candidates = form.querySelectorAll(
+      'fieldset, variant-selects, variant-radios, .product-form__input, [data-variant-selector]'
+    );
+    for (var i = 0; i < candidates.length; i++) {
+      var node = candidates[i];
+      var labelText = "";
+      var legend = node.querySelector("legend");
+      if (legend) labelText = legend.textContent || "";
+      if (!labelText) {
+        var label = node.querySelector("label");
+        if (label) labelText = label.textContent || "";
+      }
+      if (!labelText) {
+        labelText = node.getAttribute("data-option-name") ||
+          node.getAttribute("data-option") || "";
+      }
+      if (/size/i.test(labelText)) return node;
+    }
+    return null;
+  }
 
-    var variantSelectors = [
+  function findFirstVariant(form) {
+    // Any variant selector as fallback.
+    var generic = [
       'variant-selects',
       'variant-radios',
-      'fieldset[name="Size"]',
-      'fieldset:has(legend)',
-      '[data-product-form] fieldset',
+      'fieldset.product-form__input',
+      'fieldset[data-product-option]',
       '.product-form__input--pill',
+      '.product-form__input--dropdown',
       '.product-form__input',
+      'fieldset',
     ];
-    var atcSelectors = [
+    for (var i = 0; i < generic.length; i++) {
+      var el = form.querySelector(generic[i]);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function findATC(form) {
+    var sel = [
       'button[name="add"]',
       '[data-add-to-cart]',
       '.product-form__submit',
+      'button.add-to-cart',
       'button[type="submit"]',
     ];
-
-    function firstMatch(selectors, scope) {
-      for (var i = 0; i < selectors.length; i++) {
-        try {
-          var el = (scope || form).querySelector(selectors[i]);
-          if (el) return el;
-        } catch (e) { /* :has() may throw in old browsers */ }
-      }
-      return null;
+    for (var i = 0; i < sel.length; i++) {
+      var el = form.querySelector(sel[i]);
+      if (el) return el;
     }
+    return null;
+  }
+
+  function findAnchorTarget(anchor) {
+    var form = document.querySelector('form[action*="/cart/add"]');
+    if (!form) return null;
 
     if (anchor === "above-atc" || anchor === "below-atc") {
-      var atc = firstMatch(atcSelectors);
+      var atc = findATC(form);
       if (atc) return { el: atc, position: anchor === "above-atc" ? "before" : "after" };
     }
 
-    var sizeEl = firstMatch(variantSelectors);
-    if (sizeEl) {
-      return { el: sizeEl, position: anchor === "below-variants" ? "after" : "before" };
+    var size = findSizeFieldset(form) || findFirstVariant(form);
+    if (size) {
+      return { el: size, position: anchor === "below-variants" ? "after" : "before" };
     }
 
-    var atc2 = firstMatch(atcSelectors);
+    var atc2 = findATC(form);
     if (atc2) return { el: atc2, position: "before" };
 
     return { el: form, position: "prepend" };
@@ -173,7 +202,9 @@
     });
 
     function wireTrigger() {
+      if (triggerWrap && document.body.contains(triggerWrap)) return;
       var target = findAnchorTarget(anchor);
+      if (!target) return;
       triggerWrap = injectTrigger(container, target);
       if (!triggerWrap) return;
       var labelEl = triggerWrap.querySelector("[data-sg-label]");
@@ -182,6 +213,32 @@
       if (iconEl) iconEl.hidden = !config.showIcon;
       var btn = triggerWrap.querySelector("[data-sg-open]");
       if (btn) btn.addEventListener("click", open);
+    }
+
+    function startTriggerWatcher() {
+      wireTrigger();
+      if (triggerWrap) return;
+      // Retry up to ~3 seconds in case the product form is rendered late.
+      var attempts = 0;
+      var id = setInterval(function () {
+        attempts++;
+        wireTrigger();
+        if (triggerWrap || attempts >= 15) clearInterval(id);
+      }, 200);
+
+      // Also watch for DOM additions that bring the variant selector in later.
+      if (window.MutationObserver) {
+        var obs = new MutationObserver(function () {
+          if (triggerWrap && document.body.contains(triggerWrap)) {
+            obs.disconnect();
+            return;
+          }
+          wireTrigger();
+          if (triggerWrap) obs.disconnect();
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+        setTimeout(function () { obs.disconnect(); }, 10000);
+      }
     }
 
     function applyConfig(cfg) {
@@ -197,7 +254,7 @@
         noteEl.hidden = !cfg.note;
       }
       paintTable();
-      wireTrigger();
+      startTriggerWatcher();
     }
 
     fetch(proxyBase + "/size-guide-settings", {
