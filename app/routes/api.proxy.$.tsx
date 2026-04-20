@@ -32,6 +32,13 @@ import { UpsellSettings } from "../.server/models/upsell-settings.model";
 import { UGCSettings } from "../.server/models/ugc-settings.model";
 import { ReviewSettings } from "../.server/models/review-settings.model";
 import { Review, Question } from "../.server/models/review.model";
+import {
+  listForCustomer as listWishlist,
+  addItem as addWishlistItem,
+  removeWishlistProduct,
+  removeSavedVariant,
+  mergeGuestItems,
+} from "../.server/services/wishlist.service";
 
 // Rate limit tracker (in-memory, per-instance)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -187,6 +194,22 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
   }
   if (action === "social-share" || path === "social-share") {
     return handleSocialShareGet(params, shop, shopifyCustomerId);
+  }
+
+  if (path === "wishlist") {
+    return handleWishlistGet(shop, shopifyCustomerId);
+  }
+  if (path === "wishlist/add" || action === "wishlist-add") {
+    return handleWishlistAddGet(params, shop, shopifyCustomerId, "wishlist");
+  }
+  if (path === "wishlist/remove" || action === "wishlist-remove") {
+    return handleWishlistRemoveGet(params, shop, shopifyCustomerId, "wishlist");
+  }
+  if (path === "saved/add" || action === "saved-add") {
+    return handleWishlistAddGet(params, shop, shopifyCustomerId, "saved");
+  }
+  if (path === "saved/remove" || action === "saved-remove") {
+    return handleWishlistRemoveGet(params, shop, shopifyCustomerId, "saved");
   }
 
   return handleGetBalance(shop, shopifyCustomerId);
