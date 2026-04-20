@@ -18,6 +18,7 @@
 
   var LS_KEY = "loyalty_wishlist_v1";
   var MERGE_FLAG = "loyalty_wishlist_merged_v1";
+  var CACHE_PREFIX = "loyalty_wishlist_cache_v1:";
   var PROXY_BASE = "/apps/loyalty";
 
   // ── State ────────────────────────────────────────────────────────
@@ -63,6 +64,31 @@
     }
   }
 
+  // Per-customer cache so refresh doesn't show "Add to wishlist" before
+  // the server response arrives. Server still wins on conflict — this is
+  // just a snapshot to render instantly.
+  function readCache(cid) {
+    if (!cid) return null;
+    try {
+      var raw = localStorage.getItem(CACHE_PREFIX + cid);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      return {
+        wishlist: Array.isArray(parsed.wishlist) ? parsed.wishlist : [],
+        saved: Array.isArray(parsed.saved) ? parsed.saved : [],
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeCache() {
+    if (!customerId) return;
+    try {
+      localStorage.setItem(CACHE_PREFIX + customerId, JSON.stringify(state));
+    } catch (e) { /* ignore */ }
+  }
+
   function emit(event, payload) {
     (listeners[event] || []).forEach(function (fn) {
       try {
@@ -78,7 +104,8 @@
       wishlist: next.wishlist || [],
       saved: next.saved || [],
     };
-    if (!customerId) writeLocal();
+    if (customerId) writeCache();
+    else writeLocal();
     emit("change", state);
   }
 
@@ -154,6 +181,11 @@
       emit("ready", state);
       return;
     }
+
+    // Seed from per-customer cache so the heart shows the right state
+    // *immediately* on refresh, before the server round-trip completes.
+    var cached = readCache(customerId);
+    if (cached) setState(cached);
 
     // Logged-in: if we have local items and haven't merged yet, push them up.
     var hasLocal =
