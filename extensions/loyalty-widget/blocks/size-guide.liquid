@@ -1,0 +1,242 @@
+{% comment %}
+  Size Guide - App Block (product pages)
+  Shows a "Size Chart" trigger link that opens a modal with
+  merchant-configured size tables. Supports CM and INCHES tabs.
+{% endcomment %}
+
+{%- assign sg_uid = block.id | replace: '_', '' | downcase -%}
+
+<div
+  class="sg-container"
+  id="sg-{{ sg_uid }}"
+  style="
+    --sg-accent: {{ block.settings.accent_color }};
+    --sg-text: {{ block.settings.text_color }};
+    --sg-row-alt: {{ block.settings.row_alt_color }};
+    --sg-border: {{ block.settings.border_color }};
+  "
+>
+  <button type="button" class="sg-trigger" data-sg-open aria-haspopup="dialog">
+    {% if block.settings.show_icon %}
+      <svg class="sg-trigger-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M2 9h20v6H2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M6 9v3M10 9v4M14 9v3M18 9v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    {% endif %}
+    <span>{{ block.settings.trigger_label }}</span>
+  </button>
+
+  <div
+    class="sg-overlay"
+    data-sg-overlay
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="sg-title-{{ sg_uid }}"
+    hidden
+  >
+    <div class="sg-modal" role="document">
+      <div class="sg-header">
+        {% if block.settings.brand_logo != blank %}
+          <img src="{{ block.settings.brand_logo | image_url: width: 200 }}" alt="" class="sg-logo" />
+        {% else %}
+          <span class="sg-logo-text">{{ shop.name }}</span>
+        {% endif %}
+        <h2 class="sg-header-title" id="sg-title-{{ sg_uid }}">{{ block.settings.modal_title }}</h2>
+        <button type="button" class="sg-close" data-sg-close aria-label="Close size chart">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="22" height="22">
+            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sg-body">
+        {% if block.settings.chart_title != blank %}
+          <h3 class="sg-chart-title">{{ block.settings.chart_title }}</h3>
+        {% endif %}
+
+        <div class="sg-unit-tabs" role="tablist">
+          <button type="button" class="sg-unit sg-unit-active" data-sg-unit="cm" role="tab" aria-selected="true">CM</button>
+          <span class="sg-unit-sep">|</span>
+          <button type="button" class="sg-unit" data-sg-unit="in" role="tab" aria-selected="false">INCHES</button>
+        </div>
+
+        {%- assign headers_cm = block.settings.headers_cm | split: '|' -%}
+        {%- assign headers_in = block.settings.headers_inches | split: '|' -%}
+        {%- assign rows_cm = block.settings.rows_cm | newline_to_br | split: '<br />' -%}
+        {%- assign rows_in = block.settings.rows_inches | newline_to_br | split: '<br />' -%}
+
+        <div class="sg-table-wrap" data-sg-panel="cm">
+          <table class="sg-table">
+            <thead>
+              <tr>
+                {% for h in headers_cm %}
+                  <th>{{ h | strip }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows_cm %}
+                {%- assign cells = row | strip | split: '|' -%}
+                {% if cells.size > 0 and row != blank %}
+                  <tr>
+                    {% for c in cells %}
+                      <td>{{ c | strip }}</td>
+                    {% endfor %}
+                  </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="sg-table-wrap" data-sg-panel="in" hidden>
+          <table class="sg-table">
+            <thead>
+              <tr>
+                {% for h in headers_in %}
+                  <th>{{ h | strip }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows_in %}
+                {%- assign cells = row | strip | split: '|' -%}
+                {% if cells.size > 0 and row != blank %}
+                  <tr>
+                    {% for c in cells %}
+                      <td>{{ c | strip }}</td>
+                    {% endfor %}
+                  </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if block.settings.note != blank %}
+          <p class="sg-note">{{ block.settings.note }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ 'size-guide.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'size-guide.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Size Guide",
+  "target": "section",
+  "templates": ["product"],
+  "settings": [
+    {
+      "type": "header",
+      "content": "Trigger Button"
+    },
+    {
+      "type": "text",
+      "id": "trigger_label",
+      "label": "Trigger Label",
+      "default": "Size Chart"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_icon",
+      "label": "Show ruler icon",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "Modal Content"
+    },
+    {
+      "type": "image_picker",
+      "id": "brand_logo",
+      "label": "Brand Logo (optional)"
+    },
+    {
+      "type": "text",
+      "id": "modal_title",
+      "label": "Modal Header Title",
+      "default": "Size Charts"
+    },
+    {
+      "type": "text",
+      "id": "chart_title",
+      "label": "Chart Title",
+      "default": "Size Chart for Girls' High-Waist Lehengas"
+    },
+    {
+      "type": "header",
+      "content": "Chart Data (CM)"
+    },
+    {
+      "type": "paragraph",
+      "content": "Separate column headers with | (pipe). Each row on a new line, cells separated by |."
+    },
+    {
+      "type": "text",
+      "id": "headers_cm",
+      "label": "Column Headers (CM)",
+      "default": "AGE GROUP|CHEST|WAIST|CHOLI LENGTH|HIGH WAIST LEHENGA LENGTH"
+    },
+    {
+      "type": "textarea",
+      "id": "rows_cm",
+      "label": "Rows (CM)",
+      "default": "0-3 M|41|43|15|41\n3-6 M|43|44|15|41\n6-9 M|44|44|17|43\n9-12 M|46|46|17|43\n1-1.5 Y|48|51|20|51\n1.5-2 Y|51|51|22|53\n2-3 Y|53|51|22|56\n3-4 Y|55|53|23|60\n4-5 Y|56|56|24|64\n5-6 Y|57|58|24|67\n6-7 Y|58|61|25|71\n7-8 Y|61|62|27|76\n8-9 Y|64|64|28|81\n9-10 Y|66|65|29|85\n10-11 Y|69|66|29|89\n11-12 Y|72|70|30|93\n12-13 Y|76|74|33|97\n13-14 Y|80|76|36|99\n14-15 Y|84|79|38|102"
+    },
+    {
+      "type": "header",
+      "content": "Chart Data (Inches)"
+    },
+    {
+      "type": "text",
+      "id": "headers_inches",
+      "label": "Column Headers (Inches)",
+      "default": "AGE GROUP|CHEST|WAIST|CHOLI LENGTH|HIGH WAIST LEHENGA LENGTH"
+    },
+    {
+      "type": "textarea",
+      "id": "rows_inches",
+      "label": "Rows (Inches)",
+      "default": "0-3 M|16.1|16.9|5.9|16.1\n3-6 M|16.9|17.3|5.9|16.1\n6-9 M|17.3|17.3|6.7|16.9\n9-12 M|18.1|18.1|6.7|16.9\n1-1.5 Y|18.9|20.1|7.9|20.1\n1.5-2 Y|20.1|20.1|8.7|20.9\n2-3 Y|20.9|20.1|8.7|22.0\n3-4 Y|21.7|20.9|9.1|23.6\n4-5 Y|22.0|22.0|9.4|25.2\n5-6 Y|22.4|22.8|9.4|26.4\n6-7 Y|22.8|24.0|9.8|28.0\n7-8 Y|24.0|24.4|10.6|29.9"
+    },
+    {
+      "type": "textarea",
+      "id": "note",
+      "label": "Footer Note (optional)",
+      "default": "Measurements may vary slightly. For best fit, compare with a well-fitting garment."
+    },
+    {
+      "type": "header",
+      "content": "Appearance"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent Color",
+      "default": "#d97706"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text Color",
+      "default": "#1f2937"
+    },
+    {
+      "type": "color",
+      "id": "row_alt_color",
+      "label": "Alternate Row Color",
+      "default": "#fafafa"
+    },
+    {
+      "type": "color",
+      "id": "border_color",
+      "label": "Border Color",
+      "default": "#e5e7eb"
+    }
+  ]
+}
+{% endschema %}
