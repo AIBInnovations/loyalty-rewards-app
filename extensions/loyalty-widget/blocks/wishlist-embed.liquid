@@ -14,9 +14,9 @@
   data-floating-button="{{ block.settings.show_floating }}"
   data-floating-position="{{ block.settings.floating_position }}"
   data-floating-label="{{ block.settings.floating_label | escape }}"
-  data-header-icon="{{ block.settings.show_header_icon }}"
-  data-header-icon-color="{{ block.settings.header_icon_color }}"
-  data-drawer-title="{{ block.settings.drawer_title | escape }}"
+  data-header-icon="{% if block.settings.show_header_icon == false %}false{% else %}true{% endif %}"
+  data-header-icon-color="{{ block.settings.header_icon_color | default: '#222222' }}"
+  data-drawer-title="{{ block.settings.drawer_title | default: 'My Wishlist' | escape }}"
   style="display: none;"
 ></div>
 

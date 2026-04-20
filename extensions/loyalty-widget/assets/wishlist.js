@@ -621,38 +621,65 @@
 
   // ── Header icon injection ────────────────────────────────────────
   function findHeaderAnchor() {
-    // Try common selectors used by Shopify themes for header action icons
-    // (cart icon, account, search). Insert next to one of those.
-    var selectors = [
+    // Strategy: try icon containers first (so the heart sits alongside cart
+    // and account icons). If none found, anchor next to a cart/account
+    // link directly. Last resort: append to the <header> tag itself.
+    var containerSelectors = [
       ".header__icons",                  // Dawn
       ".header__icon-list",
       ".site-header__icons",             // older themes
       ".site-header__icons-wrapper",
+      ".site-header__icon",
       ".header-actions",
       ".header__actions",
+      ".header__action-list",
       ".header-tools",
-      ".announcement-bar + header .header__inline-menu + *",
+      ".header-tools__inner",
+      ".header__right",
+      ".header-right",
+      ".site-nav__icons",                // Brooklyn / older
+      ".navigation__icons",
+      ".main-nav__icons",
+      ".site-header__cart",              // sits next to cart
       "header .header__icons",
-      "header [href*='/cart']",
-      "header [href*='/account']",
-      "header nav",
-      "header",
+      ".shopify-section-header .header__icons",
+      ".shopify-section-header .header-actions",
     ];
-    for (var i = 0; i < selectors.length; i++) {
-      var el = document.querySelector(selectors[i]);
-      if (el) return el;
+    for (var i = 0; i < containerSelectors.length; i++) {
+      var el = document.querySelector(containerSelectors[i]);
+      if (el) return { el: el, mode: "container" };
     }
+
+    // Sibling-of-cart strategies — find a cart/account link and put the
+    // heart right before it.
+    var cartSelectors = [
+      "header a[href*='/cart']",
+      ".shopify-section-header a[href*='/cart']",
+      "header [href*='/cart']",
+      "header a[href*='/account']",
+      "header [href*='/account']",
+    ];
+    for (var j = 0; j < cartSelectors.length; j++) {
+      var sibling = document.querySelector(cartSelectors[j]);
+      if (sibling) return { el: sibling, mode: "before" };
+    }
+
+    // Last resort: any <header> on the page.
+    var header = document.querySelector("header");
+    if (header) return { el: header, mode: "container" };
     return null;
   }
 
   function renderHeaderIcon() {
     var embed = readEmbed();
     if (!embed) return;
-    if (embed.dataset.headerIcon !== "true") return;
+    // Treat anything other than the literal string "false" as ON, so older
+    // embed installs (where the field was undefined) still get the icon.
+    if (embed.dataset.headerIcon === "false") return;
     if (document.getElementById("wl-header-icon")) return;
 
     var anchor = findHeaderAnchor();
-    if (!anchor) return;
+    if (!anchor) return false;
 
     var color = embed.dataset.headerIconColor || "#222";
     var btn = document.createElement("a");
@@ -667,17 +694,62 @@
       HEART_SVG +
       '<span class="wl-count wl-header-count" data-wl-count>0</span>';
 
-    // Insert as the first child if the anchor looks like an icon container
-    // (so the heart sits alongside cart/account); otherwise append.
-    var insertAtStart =
-      /header__icons|site-header__icons|header-actions|header__actions|header-tools/i.test(
-        anchor.className || "",
-      );
-    if (insertAtStart && anchor.firstChild) {
-      anchor.insertBefore(btn, anchor.firstChild);
-    } else {
-      anchor.appendChild(btn);
+    if (anchor.mode === "before" && anchor.el.parentNode) {
+      anchor.el.parentNode.insertBefore(btn, anchor.el);
+    } else if (anchor.mode === "container") {
+      anchor.el.appendChild(btn);
     }
+    updateCounts();
+    return true;
+  }
+
+  // Watch for late-rendered headers (sticky-header re-mounts, theme JS, etc.)
+  var headerObserver = null;
+  function startHeaderObserver() {
+    if (headerObserver) return;
+    if (typeof MutationObserver === "undefined") return;
+    headerObserver = new MutationObserver(function () {
+      if (document.getElementById("wl-header-icon")) {
+        headerObserver.disconnect();
+        headerObserver = null;
+        return;
+      }
+      renderHeaderIcon();
+    });
+    headerObserver.observe(document.body, { childList: true, subtree: true });
+    // Auto-stop after 8s so we don't watch forever.
+    setTimeout(function () {
+      if (headerObserver) {
+        headerObserver.disconnect();
+        headerObserver = null;
+      }
+      // If we still couldn't find a header, drop a fixed top-right
+      // fallback so the icon is always visible.
+      if (!document.getElementById("wl-header-icon")) {
+        renderFallbackHeaderIcon();
+      }
+    }, 8000);
+  }
+
+  function renderFallbackHeaderIcon() {
+    var embed = readEmbed();
+    if (!embed) return;
+    if (embed.dataset.headerIcon === "false") return;
+    if (document.getElementById("wl-header-icon")) return;
+
+    var color = embed.dataset.headerIconColor || "#222";
+    var btn = document.createElement("a");
+    btn.id = "wl-header-icon";
+    btn.className = "wl-header-icon wl-header-icon-fallback";
+    btn.href = "#wishlist";
+    btn.setAttribute("role", "button");
+    btn.setAttribute("aria-label", "Open wishlist");
+    btn.setAttribute("data-wl-open", "");
+    btn.style.color = color;
+    btn.innerHTML =
+      HEART_SVG +
+      '<span class="wl-count" data-wl-count>0</span>';
+    document.body.appendChild(btn);
     updateCounts();
   }
 
@@ -824,18 +896,11 @@
       bindAllButtons();
       maybeInjectPdpButton();
       renderFloatingButton();
-      renderHeaderIcon();
-      // Retry header injection a few times for themes that mount the
-      // header asynchronously (e.g. after sticky-header JS).
-      var tries = 0;
-      var retry = setInterval(function () {
-        tries++;
-        if (document.getElementById("wl-header-icon") || tries > 6) {
-          clearInterval(retry);
-          return;
-        }
-        renderHeaderIcon();
-      }, 500);
+      var injected = renderHeaderIcon();
+      if (!injected) {
+        // Watch for late-rendered headers (sticky / async theme JS).
+        startHeaderObserver();
+      }
       init();
     });
   }

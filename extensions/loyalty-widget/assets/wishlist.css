@@ -183,6 +183,17 @@
 .wl-header-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; }
 .wl-header-icon:hover svg { fill: currentColor; }
 
+.wl-header-icon-fallback {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9997;
+  background: #fff;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
 /* Shared count badge */
 .wl-count {
   position: absolute;
