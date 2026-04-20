@@ -216,6 +216,147 @@ export function formatDisplayLocation(
   return city || state || country || "";
 }
 
+/**
+ * Pull recent paid orders via Admin API and run them through the ingestion
+ * pipeline. Use when first enabling Sales Pop so the widget has a feed
+ * without waiting for new webhook events.
+ */
+export async function seedRecentOrders(
+  shop: string,
+  admin: AdminAPI,
+  daysBack: number = 7,
+  maxOrders: number = 50,
+): Promise<{ scanned: number; ingested: number }> {
+  const sinceIso = new Date(
+    Date.now() - daysBack * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const query = `
+    query SalesPopSeed($query: String!, $first: Int!) {
+      orders(first: $first, sortKey: CREATED_AT, reverse: true, query: $query) {
+        nodes {
+          id
+          name
+          processedAt
+          createdAt
+          cancelledAt
+          test
+          displayFinancialStatus
+          customer { firstName lastName tags }
+          shippingAddress { firstName city province country countryCodeV2 }
+          billingAddress  { firstName city province country countryCodeV2 }
+          lineItems(first: 25) {
+            nodes {
+              title
+              quantity
+              variant { id product { id handle title vendor featuredImage { url } collections(first: 25) { nodes { id } } } }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  let scanned = 0;
+  let ingested = 0;
+  try {
+    const resp = await admin.graphql(query, {
+      variables: {
+        query: `processed_at:>=${sinceIso} financial_status:paid`,
+        first: Math.min(Math.max(maxOrders, 1), 100),
+      },
+    });
+    const body = await resp.json();
+    const orders =
+      ((body.data?.orders as Record<string, unknown> | undefined)?.nodes as
+        | Array<Record<string, unknown>>
+        | undefined) || [];
+
+    for (const o of orders) {
+      scanned++;
+      if (o.cancelledAt) continue;
+      if (o.test === true) continue;
+
+      const gidOrder = String(o.id || "");
+      const orderNumericId = gidOrder.split("/").pop() || "";
+      if (!orderNumericId) continue;
+
+      const lineNodes =
+        ((o.lineItems as Record<string, unknown> | undefined)?.nodes as
+          | Array<Record<string, unknown>>
+          | undefined) || [];
+      if (!lineNodes.length) continue;
+
+      const customer = (o.customer as Record<string, unknown> | undefined) || {};
+      const address =
+        (o.shippingAddress as Record<string, unknown> | undefined) ||
+        (o.billingAddress as Record<string, unknown> | undefined) ||
+        {};
+      const purchasedAt = o.processedAt
+        ? new Date(String(o.processedAt))
+        : o.createdAt
+          ? new Date(String(o.createdAt))
+          : new Date();
+
+      for (const li of lineNodes) {
+        const variant = li.variant as Record<string, unknown> | undefined;
+        const product = (variant?.product as Record<string, unknown> | undefined) || {};
+        const productGid = String(product.id || "");
+        const productId = productGid.split("/").pop() || "";
+        if (!productId) continue;
+        const handle = String(product.handle || "");
+        if (!handle) continue;
+
+        const collections =
+          ((product.collections as Record<string, unknown> | undefined)
+            ?.nodes as Array<{ id: string }> | undefined) || [];
+
+        try {
+          const result = await SalesPopEvent.updateOne(
+            { shopId: shop, sourceOrderId: orderNumericId, productId },
+            {
+              $setOnInsert: {
+                shopId: shop,
+                sourceOrderId: orderNumericId,
+                productId,
+                variantId: variant?.id
+                  ? String(variant.id).split("/").pop()
+                  : undefined,
+                productHandle: handle,
+                productTitle: String(product.title || li.title || "a product"),
+                productImage: (product.featuredImage as { url?: string } | undefined)
+                  ?.url,
+                collectionIds: collections
+                  .map((c) => (c.id || "").split("/").pop() || "")
+                  .filter(Boolean),
+                vendor: product.vendor ? String(product.vendor) : undefined,
+                rawFirstName:
+                  (customer.firstName as string | undefined) ||
+                  (address.firstName as string | undefined),
+                rawCity: address.city as string | undefined,
+                rawState: address.province as string | undefined,
+                rawCountry:
+                  (address.country as string | undefined) ||
+                  (address.countryCodeV2 as string | undefined),
+                isActive: true,
+                purchasedAt,
+              },
+            },
+            { upsert: true },
+          );
+          if (result.upsertedCount > 0) ingested++;
+        } catch (err) {
+          console.error("[SalesPop] Seed upsert failed:", err);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[SalesPop] Seed failed:", err);
+  }
+
+  return { scanned, ingested };
+}
+
 export function formatFreshness(purchasedAt: Date): string {
   const diffMs = Date.now() - purchasedAt.getTime();
   const mins = Math.floor(diffMs / 60000);
