@@ -227,13 +227,26 @@
 
   /* ── MutationObserver for dynamically loaded prices ────────── */
   if (window.MutationObserver) {
-    new MutationObserver(function () {
+    var mo;
+    var moOpts = { childList: true, subtree: true, characterData: true };
+    var moTimer = null;
+    mo = new MutationObserver(function () {
       if (converting) return;
-      var s = null; try { s = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
-      if (!s || s.code === BASE) return;
-      storeOrig();
-      if (rates && rates[s.code]) convertPrices(rates[s.code], s.symbol);
-    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+      // Debounce + disconnect while we mutate so our own textContent writes
+      // don't re-trigger this callback (which would loop indefinitely).
+      if (moTimer) return;
+      moTimer = setTimeout(function () {
+        moTimer = null;
+        var s = null; try { s = JSON.parse(localStorage.getItem("loy_currency")); } catch (e) {}
+        if (!s || s.code === BASE) return;
+        mo.disconnect();
+        storeOrig();
+        if (rates && rates[s.code]) convertPrices(rates[s.code], s.symbol);
+        mo.takeRecords();
+        mo.observe(document.body, moOpts);
+      }, 120);
+    });
+    mo.observe(document.body, moOpts);
   }
 })();
 </script>
