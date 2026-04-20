@@ -23,7 +23,6 @@ import { connectDB } from "../db.server";
 import {
   getOrCreateFaqSettings,
   FaqSettings,
-  type IFaqItem,
 } from "../.server/models/faq-settings.model";
 
 type FaqItem = { question: string; answer: string; active: boolean };
@@ -43,7 +42,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const data = Object.fromEntries(formData);
 
   try {
-    const parsedItems: IFaqItem[] = JSON.parse(String(data.items || "[]")).map(
+    const parsedItems = JSON.parse(String(data.items || "[]")).map(
       (it: any) => ({
         question: String(it?.question ?? "").slice(0, 300),
         answer: String(it?.answer ?? "").slice(0, 4000),
