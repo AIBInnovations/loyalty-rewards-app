@@ -198,18 +198,27 @@
 
   function convertPrices(rate, sym) {
     converting = true;
+    if (mo) mo.disconnect();
     document.querySelectorAll("[data-loy-orig]").forEach(function (el) {
       var val = parseFloat(el.dataset.loyOrig) * rate;
-      el.textContent = (sym || "") + formatNumber(val);
+      var next = (sym || "") + formatNumber(val);
+      // Skip write if already correct — avoids pointless DOM churn.
+      if (el.textContent === next) return;
+      el.textContent = next;
     });
+    if (mo) { mo.takeRecords(); mo.observe(document.body, { childList: true, subtree: true }); }
     converting = false;
   }
 
   function resetPrices() {
     converting = true;
+    if (mo) mo.disconnect();
     document.querySelectorAll("[data-loy-orig]").forEach(function (el) {
-      if (el.dataset.loyOrigTxt) el.textContent = el.dataset.loyOrigTxt;
+      if (el.dataset.loyOrigTxt && el.textContent !== el.dataset.loyOrigTxt) {
+        el.textContent = el.dataset.loyOrigTxt;
+      }
     });
+    if (mo) { mo.takeRecords(); mo.observe(document.body, { childList: true, subtree: true }); }
     converting = false;
   }
   // External rate API has no guaranteed SLA — cap fetches so a hung request
