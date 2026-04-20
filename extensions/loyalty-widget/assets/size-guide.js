@@ -37,8 +37,18 @@
     });
   }
 
+  function outermostVariantContainer(node, form) {
+    // Walk up from the matched node to the nearest direct child of the product form
+    // so we never insert INSIDE a fieldset or custom element — only above/below the
+    // whole variant block. This keeps the theme's Size selector intact.
+    var cur = node;
+    while (cur && cur.parentNode && cur.parentNode !== form && cur.parentNode !== document.body) {
+      cur = cur.parentNode;
+    }
+    return cur || node;
+  }
+
   function findSizeFieldset(form) {
-    // Prefer an element whose label/legend text contains "Size" (case-insensitive).
     var candidates = form.querySelectorAll(
       'fieldset, variant-selects, variant-radios, .product-form__input, [data-variant-selector]'
     );
@@ -55,7 +65,7 @@
         labelText = node.getAttribute("data-option-name") ||
           node.getAttribute("data-option") || "";
       }
-      if (/size/i.test(labelText)) return node;
+      if (/size/i.test(labelText)) return outermostVariantContainer(node, form);
     }
     return null;
   }
@@ -103,8 +113,9 @@
       if (atc) return { el: atc, position: anchor === "above-atc" ? "before" : "after" };
     }
 
-    var size = findSizeFieldset(form) || findFirstVariant(form);
-    if (size) {
+    var rawSize = findSizeFieldset(form) || findFirstVariant(form);
+    if (rawSize) {
+      var size = outermostVariantContainer(rawSize, form);
       return { el: size, position: anchor === "below-variants" ? "after" : "before" };
     }
 
@@ -116,17 +127,29 @@
 
   function injectTrigger(container, target) {
     if (!target || !target.el) return null;
+    // Never inject inside a fieldset/variant element — would disturb the theme's
+    // size selector rendering in some browsers (fieldset + non-legend first child).
+    if (target.position === "prepend") {
+      var tagName = (target.el.tagName || "").toLowerCase();
+      if (tagName === "fieldset" || tagName === "variant-radios" || tagName === "variant-selects") {
+        target = { el: target.el, position: "before" };
+      }
+    }
     var tpl = container.querySelector("[data-sg-trigger-tpl]");
     if (!tpl || !tpl.content) return null;
     var wrapper = document.createElement("div");
     wrapper.className = "sg-trigger-wrap sg-container";
     wrapper.appendChild(tpl.content.firstElementChild.cloneNode(true));
-    if (target.position === "before") {
-      target.el.parentNode.insertBefore(wrapper, target.el);
-    } else if (target.position === "after") {
-      target.el.parentNode.insertBefore(wrapper, target.el.nextSibling);
-    } else {
-      target.el.insertBefore(wrapper, target.el.firstChild);
+    try {
+      if (target.position === "before") {
+        target.el.parentNode.insertBefore(wrapper, target.el);
+      } else if (target.position === "after") {
+        target.el.parentNode.insertBefore(wrapper, target.el.nextSibling);
+      } else {
+        target.el.insertBefore(wrapper, target.el.firstChild);
+      }
+    } catch (e) {
+      return null;
     }
     return wrapper;
   }
