@@ -107,17 +107,22 @@
 .rv-qa-item { border-bottom: 1px solid #eee; padding: 12px 0; }
 .rv-question { font-size: 14px; font-weight: 600; color: #1a1a1a; margin: 0 0 6px; }
 .rv-answer { font-size: 14px; color: #555; margin: 0; padding-left: 12px; border-left: 3px solid var(--rv-primary, #5C6AC4); }
+.rv-ask-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 18px;
+}
 .rv-ask-btn {
   background: transparent;
   border: 1.5px solid var(--rv-primary, #5C6AC4);
   color: var(--rv-primary, #5C6AC4);
   border-radius: 8px;
-  padding: 9px 18px;
-  font-size: 13px;
+  padding: 10px 22px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  margin-top: 14px;
 }
+.rv-ask-btn:hover { background: var(--rv-primary, #5C6AC4); color: #fff; }
 
 .rv-photo-picker { display: flex; align-items: center; gap: 10px; }
 .rv-photo-pick-btn {

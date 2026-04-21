@@ -146,7 +146,15 @@
     // Q&A section
     html +=
       '<div class="rv-qa-section">' +
-        '<h3 class="rv-qa-heading">Questions & Answers</h3>';
+        '<h3 class="rv-qa-heading">Questions & Answers</h3>' +
+        '<div class="rv-ask-wrap">' +
+          '<button class="rv-ask-btn" id="rv-ask-btn">Ask a Question</button>' +
+        '</div>' +
+        '<div class="rv-form' + (state.qaFormOpen ? ' rv-form-open' : '') + '" id="rv-qa-form" style="margin-top:12px">' +
+          '<textarea class="rv-textarea" id="rv-question-input" placeholder="Type your question…" rows="3"></textarea>' +
+          '<button class="rv-submit-btn" id="rv-qa-submit" style="margin-top:10px">Submit Question</button>' +
+          '<p class="rv-success-msg" id="rv-qa-success" style="display:none">✅ Question submitted!</p>' +
+        '</div>';
 
     if (state.questions.length > 0) {
       state.questions.forEach(function (q) {
@@ -157,17 +165,10 @@
           '</div>';
       });
     } else {
-      html += '<p class="rv-empty" style="padding:8px 0">No questions yet.</p>';
+      html += '<p class="rv-empty" style="padding:16px 0">No questions yet.</p>';
     }
 
-    html +=
-        '<button class="rv-ask-btn" id="rv-ask-btn">Ask a Question</button>' +
-        '<div class="rv-form' + (state.qaFormOpen ? ' rv-form-open' : '') + '" id="rv-qa-form" style="margin-top:12px">' +
-          '<textarea class="rv-textarea" id="rv-question-input" placeholder="Type your question…" rows="3"></textarea>' +
-          '<button class="rv-submit-btn" id="rv-qa-submit" style="margin-top:10px">Submit Question</button>' +
-          '<p class="rv-success-msg" id="rv-qa-success" style="display:none">✅ Question submitted!</p>' +
-        '</div>' +
-      '</div>';
+    html += '</div>';
 
     section.innerHTML = html;
     attachEvents(section);
