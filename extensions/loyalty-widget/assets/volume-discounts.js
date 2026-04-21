@@ -27,7 +27,51 @@
     var cls = document.body ? document.body.className || "" : "";
     if (/template-product|\bproduct\b/.test(cls)) return "product";
     if (/template-cart|\bcart\b/.test(cls)) return "cart";
+    if (/\/products\//.test(location.pathname)) return "product";
+    if (/\/cart/.test(location.pathname)) return "cart";
     return "";
+  }
+
+  function detectProductId(root) {
+    if (root && root.dataset && root.dataset.productId) {
+      return root.dataset.productId;
+    }
+    try {
+      var id =
+        (window.ShopifyAnalytics &&
+          window.ShopifyAnalytics.meta &&
+          window.ShopifyAnalytics.meta.product &&
+          window.ShopifyAnalytics.meta.product.id) ||
+        (window.meta &&
+          window.meta.product &&
+          window.meta.product.id);
+      if (id) return "gid://shopify/Product/" + id;
+    } catch (e) {}
+    var form = document.querySelector('form[action*="/cart/add"]');
+    if (form) {
+      var pid = form.getAttribute("data-product-id");
+      if (pid) {
+        return pid.indexOf("gid://") === 0
+          ? pid
+          : "gid://shopify/Product/" + pid;
+      }
+    }
+    return "";
+  }
+
+  function findProductMountTarget() {
+    var selectors = [
+      'form[action*="/cart/add"]',
+      '[data-product-form]',
+      '.product-form',
+      '.product__info',
+      'main .product',
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el) return el;
+    }
+    return null;
   }
 
   function formatValue(tier) {
@@ -186,7 +230,13 @@
 
     var container = document.createElement("div");
     container.setAttribute("data-vd-ladder", "");
-    root.appendChild(container);
+
+    var target = findProductMountTarget();
+    if (target && target.parentNode) {
+      target.parentNode.insertBefore(container, target);
+    } else {
+      root.appendChild(container);
+    }
 
     function paint() {
       var qty = getQuantityFromDOM();
@@ -373,9 +423,10 @@
     if (!root) return;
     var proxyUrl = root.dataset.appProxyUrl || "/apps/loyalty";
     var template = currentTemplate(root);
-    var productId = root.dataset.productId || "";
+    var productId = detectProductId(root);
 
-    if (template.indexOf("product") === 0 && productId) {
+    if (template.indexOf("product") === 0) {
+      if (!productId) return;
       fetchCampaigns(proxyUrl, productId).then(function (res) {
         if (!res.campaigns || !res.campaigns.length) return;
         mountProduct(root, res.campaigns);

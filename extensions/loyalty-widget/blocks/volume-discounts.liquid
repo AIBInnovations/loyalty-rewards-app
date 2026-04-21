@@ -11,10 +11,11 @@
   data-app-proxy-url="/apps/loyalty"
   data-shop-domain="{{ shop.permanent_domain }}"
   data-template-name="{{ template.name }}"
-  {% if template contains 'product' and product %}
+  {%- if product -%}
     data-product-id="gid://shopify/Product/{{ product.id }}"
     data-product-handle="{{ product.handle }}"
-  {% endif %}
+    data-product-available="{{ product.available }}"
+  {%- endif -%}
 ></div>
 
 {{ 'volume-discounts.css' | asset_url | stylesheet_tag }}
