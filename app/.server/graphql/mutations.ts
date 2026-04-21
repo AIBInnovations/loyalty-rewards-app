@@ -63,6 +63,49 @@ export const METAFIELDS_SET = `#graphql
   }
 `;
 
+export const DISCOUNT_AUTOMATIC_BASIC_CREATE = `#graphql
+  mutation discountAutomaticBasicCreate($automaticBasicDiscount: DiscountAutomaticBasicInput!) {
+    discountAutomaticBasicCreate(automaticBasicDiscount: $automaticBasicDiscount) {
+      automaticDiscountNode {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+export const DISCOUNT_AUTOMATIC_BASIC_UPDATE = `#graphql
+  mutation discountAutomaticBasicUpdate($id: ID!, $automaticBasicDiscount: DiscountAutomaticBasicInput!) {
+    discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $automaticBasicDiscount) {
+      automaticDiscountNode {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+export const DISCOUNT_AUTOMATIC_DELETE = `#graphql
+  mutation discountAutomaticDelete($id: ID!) {
+    discountAutomaticDelete(id: $id) {
+      deletedAutomaticDiscountId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 export const METAFIELD_DEFINITION_CREATE = `#graphql
   mutation metafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
     metafieldDefinitionCreate(definition: $definition) {

@@ -1,0 +1,34 @@
+{% comment %}
+  Volume Discounts - App Embed
+  Renders a tier ladder on product pages and a progress message on the
+  cart page. Actual discount application is enforced by Shopify's
+  automatic discounts created via the app admin.
+{% endcomment %}
+
+<div
+  id="volume-discounts-root"
+  data-volume-discount-root
+  data-app-proxy-url="/apps/loyalty"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-template-name="{{ template.name }}"
+  {% if template contains 'product' and product %}
+    data-product-id="gid://shopify/Product/{{ product.id }}"
+    data-product-handle="{{ product.handle }}"
+  {% endif %}
+></div>
+
+{{ 'volume-discounts.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'volume-discounts.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Volume Discounts",
+  "target": "body",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "All campaigns, tiers, and eligibility are managed in the app admin under 'Volume Discounts'. This embed only renders the storefront ladder and progress messaging."
+    }
+  ]
+}
+{% endschema %}

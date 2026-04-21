@@ -20,6 +20,7 @@ import { unauthenticated } from "../shopify.server";
 import { socialShareKey, birthdayBonusKey } from "../.server/utils/idempotency";
 import { earnPoints } from "../.server/services/points.service";
 import { CartDrawerSettings } from "../.server/models/cart-settings.model";
+import { VolumeDiscountSettings } from "../.server/models/volume-discount.model";
 import { TimerSettings } from "../.server/models/timer-settings.model";
 import { PopupSettings } from "../.server/models/popup-settings.model";
 import { WheelSettings } from "../.server/models/wheel-settings.model";
@@ -104,6 +105,13 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
       return json({ error: "Rate limited" }, { status: 429 });
     }
     return handleGetCartSettings(shop);
+  }
+
+  if (path === "volume-discounts") {
+    if (!checkRateLimit(`volume-discounts:${shop}`, 120)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetVolumeDiscounts(params, shop);
   }
 
   if (path === "currency-settings") {
@@ -555,6 +563,60 @@ async function handleGetCartSettings(shop: string) {
     primaryColor: settings.primaryColor,
     interceptAddToCart: settings.interceptAddToCart,
   });
+}
+
+async function handleGetVolumeDiscounts(
+  params: URLSearchParams,
+  shop: string,
+) {
+  const settings = await VolumeDiscountSettings.findOne({ shopId: shop }).lean();
+  if (!settings || !settings.campaigns?.length) {
+    return json(
+      { campaigns: [] },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  const now = Date.now();
+  const productIdRaw = (params.get("productId") || "").trim();
+  const productId = productIdRaw
+    ? productIdRaw.startsWith("gid://")
+      ? productIdRaw
+      : `gid://shopify/Product/${productIdRaw.replace(/\D/g, "")}`
+    : "";
+
+  const campaigns = (settings.campaigns || [])
+    .filter((c: any) => {
+      if (!c.enabled) return false;
+      if (c.startsAt && new Date(c.startsAt).getTime() > now) return false;
+      if (c.endsAt && new Date(c.endsAt).getTime() < now) return false;
+      if (!productId) return true; // unfiltered list (e.g. cart page)
+      if (c.scope === "all") return true;
+      return (c.products || []).some(
+        (p: any) => p.shopifyProductId === productId,
+      );
+    })
+    .map((c: any) => ({
+      id: String(c._id),
+      title: c.title,
+      scope: c.scope,
+      productIds: (c.products || []).map((p: any) => p.shopifyProductId),
+      badgeText: c.badgeText,
+      showOnProductPage: c.showOnProductPage,
+      showInCart: c.showInCart,
+      primaryColor: c.primaryColor,
+      tiers: (c.tiers || [])
+        .slice()
+        .sort((a: any, b: any) => a.minQuantity - b.minQuantity)
+        .map((t: any) => ({
+          minQuantity: t.minQuantity,
+          valueType: t.valueType,
+          value: t.value,
+          label: t.label,
+        })),
+    }));
+
+  return json({ campaigns }, { headers: { "Cache-Control": "no-store" } });
 }
 
 async function handleGetCurrencySettings(shop: string) {

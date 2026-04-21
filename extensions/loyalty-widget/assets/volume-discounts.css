@@ -1,0 +1,107 @@
+.vd-widget {
+  --vd-color: #5C6AC4;
+  font-family: inherit;
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  color: #111827;
+}
+
+.vd-widget__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.vd-widget__badge {
+  display: inline-block;
+  padding: 2px 10px;
+  background: var(--vd-color);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.vd-widget__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.vd-widget__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vd-widget__tier {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.vd-widget__tier.is-active {
+  border-color: var(--vd-color);
+  background: rgba(92, 106, 196, 0.08);
+}
+
+.vd-widget__tier-label {
+  font-weight: 500;
+}
+
+.vd-widget__tier-value {
+  font-weight: 600;
+  color: var(--vd-color);
+}
+
+.vd-widget__tier-check {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: middle;
+  color: var(--vd-color);
+}
+
+.vd-widget__progress {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.vd-widget__progress strong {
+  color: var(--vd-color);
+}
+
+.vd-widget__note {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.vd-cart {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--vd-color, #5C6AC4);
+  background: rgba(92, 106, 196, 0.08);
+  font-size: 13px;
+  border-radius: 4px;
+}
+
+.vd-cart strong {
+  color: var(--vd-color, #5C6AC4);
+}
