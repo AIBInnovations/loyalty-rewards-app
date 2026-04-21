@@ -45,13 +45,22 @@
 .rv-author { font-weight: 600; font-size: 14px; color: #1a1a1a; }
 .rv-date { font-size: 12px; color: #888; margin-left: auto; }
 .rv-body { font-size: 14px; color: #444; line-height: 1.6; margin: 0 0 10px; }
-.rv-photos { display: flex; gap: 8px; flex-wrap: wrap; }
-.rv-photo {
-  width: 64px; height: 64px;
-  object-fit: cover;
+#product-reviews-section .rv-photos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+#product-reviews-section .rv-photo {
+  width: 84px !important;
+  height: 84px !important;
+  max-width: 84px !important;
+  object-fit: cover !important;
   border-radius: 6px;
   cursor: pointer;
   border: 1px solid #eee;
+  display: block;
+  flex: 0 0 auto;
 }
 
 /* Write review form */
