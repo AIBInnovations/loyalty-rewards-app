@@ -20,7 +20,7 @@
 
 .faq-accordion .faq-heading {
   margin: 0 0 8px;
-  font-size: clamp(1.4rem, 1.1rem + 1vw, 1.9rem);
+  font-size: clamp(1.75rem, 1.3rem + 1.2vw, 2.4rem);
   font-weight: 700;
   line-height: 1.25;
   color: var(--faq-text, #111827);
@@ -28,7 +28,7 @@
 
 .faq-accordion .faq-subheading {
   margin: 0 0 20px;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   color: color-mix(in srgb, var(--faq-text, #111827) 70%, transparent);
 }
 
@@ -66,12 +66,12 @@
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  padding: 16px 18px;
+  padding: 18px 20px;
   background: transparent;
   border: 0;
   text-align: left;
   font: inherit;
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: 600;
   color: inherit;
   cursor: pointer;
@@ -140,8 +140,8 @@
 }
 
 .faq-accordion .faq-answer {
-  font-size: 0.95rem;
-  line-height: 1.6;
+  font-size: 1.05rem;
+  line-height: 1.65;
   color: color-mix(in srgb, var(--faq-text, #111827) 85%, transparent);
 }
 
@@ -176,6 +176,7 @@
 
 @media (max-width: 600px) {
   .faq-accordion { padding: 24px 12px; }
-  .faq-accordion .faq-question { padding: 14px; font-size: 0.95rem; }
+  .faq-accordion .faq-question { padding: 14px; font-size: 1.05rem; }
   .faq-accordion .faq-panel { padding: 0 14px 14px; }
+  .faq-accordion .faq-answer { font-size: 1rem; }
 }
