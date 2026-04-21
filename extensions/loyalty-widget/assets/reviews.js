@@ -11,7 +11,38 @@
   var customerName  = root.dataset.customerName || "";
   var customerEmail = root.dataset.customerEmail || "";
 
-  var state = { reviews: [], questions: [], rating: 0, formOpen: false, qaFormOpen: false };
+  var state = { reviews: [], questions: [], rating: 0, formOpen: false, qaFormOpen: false, photos: [] };
+
+  var MAX_PHOTOS = 5;
+  var MAX_DIMENSION = 1200;
+  var JPEG_QUALITY = 0.8;
+
+  function compressImage(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file.type || file.type.indexOf("image/") !== 0) {
+        return reject(new Error("Not an image"));
+      }
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var img = new Image();
+        img.onload = function () {
+          var w = img.width, h = img.height;
+          if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
+            if (w >= h) { h = Math.round(h * (MAX_DIMENSION / w)); w = MAX_DIMENSION; }
+            else        { w = Math.round(w * (MAX_DIMENSION / h)); h = MAX_DIMENSION; }
+          }
+          var canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", JPEG_QUALITY));
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
   function stars(n, size) {
     var s = "";
@@ -67,8 +98,22 @@
           '<textarea class="rv-textarea" id="rv-body" placeholder="Share your experience…" rows="4"></textarea>' +
         '</div>' +
         '<div class="rv-form-group">' +
-          '<label class="rv-form-label">Photo URLs (comma-separated, optional)</label>' +
-          '<textarea class="rv-textarea" id="rv-photos-input" placeholder="https://..." rows="2"></textarea>' +
+          '<label class="rv-form-label">Add Photos (optional, up to ' + MAX_PHOTOS + ')</label>' +
+          '<div class="rv-photo-picker">' +
+            '<label class="rv-photo-pick-btn" for="rv-photos-input">' +
+              '<span class="rv-photo-pick-icon">+</span>' +
+              '<span>Choose photos</span>' +
+            '</label>' +
+            '<input type="file" id="rv-photos-input" accept="image/*" multiple style="display:none">' +
+          '</div>' +
+          '<div class="rv-photo-previews" id="rv-photo-previews">' +
+            state.photos.map(function (dataUrl, i) {
+              return '<div class="rv-photo-preview">' +
+                       '<img src="' + dataUrl + '" alt="preview">' +
+                       '<button type="button" class="rv-photo-remove" data-idx="' + i + '" aria-label="Remove">×</button>' +
+                     '</div>';
+            }).join("") +
+          '</div>' +
         '</div>' +
         '<button class="rv-submit-btn" id="rv-submit">Submit Review</button>' +
         '<p class="rv-success-msg" id="rv-success" style="display:none">✅ Review submitted! It will appear after moderation.</p>' +
@@ -149,12 +194,37 @@
       });
     }
 
+    // Photo picker
+    var photosInput = section.querySelector("#rv-photos-input");
+    if (photosInput) {
+      photosInput.addEventListener("change", function (e) {
+        var files = Array.from(e.target.files || []);
+        var slotsLeft = MAX_PHOTOS - state.photos.length;
+        if (slotsLeft <= 0) { e.target.value = ""; return; }
+        var toAdd = files.slice(0, slotsLeft);
+        Promise.all(toAdd.map(compressImage))
+          .then(function (urls) {
+            state.photos = state.photos.concat(urls);
+            render();
+          })
+          .catch(function () { render(); });
+      });
+    }
+
+    // Remove photo
+    section.querySelectorAll(".rv-photo-remove").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var idx = parseInt(this.dataset.idx, 10);
+        state.photos.splice(idx, 1);
+        render();
+      });
+    });
+
     // Submit review
     var submitBtn = section.querySelector("#rv-submit");
     if (submitBtn) {
       submitBtn.addEventListener("click", function () {
-        var body   = section.querySelector("#rv-body").value.trim();
-        var photos = section.querySelector("#rv-photos-input").value.trim();
+        var body = section.querySelector("#rv-body").value.trim();
         if (!body || state.rating === 0) return;
 
         submitBtn.disabled = true;
@@ -167,7 +237,7 @@
             productId: productId,
             rating: state.rating,
             body: body,
-            photoUrls: photos ? photos.split(",").map(function (u) { return u.trim(); }) : [],
+            photoUrls: state.photos.slice(),
             authorName: customerName || "Customer",
             authorEmail: customerEmail,
             customerId: customerId,
@@ -181,6 +251,7 @@
             submitBtn.textContent = "Submit Review";
             state.formOpen = false;
             state.rating = 0;
+            state.photos = [];
           })
           .catch(function () {
             submitBtn.disabled = false;
