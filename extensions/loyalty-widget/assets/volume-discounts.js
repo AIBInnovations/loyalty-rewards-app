@@ -238,17 +238,28 @@
       root.appendChild(container);
     }
 
+    // Widget owns its own quantity state. Seed from theme input if present.
+    var qty = getQuantityFromDOM();
+
     function paint() {
-      var qty = getQuantityFromDOM();
       container.innerHTML = visible
         .map(function (c) {
           return renderLadder(c, qty);
         })
         .join("");
     }
+
+    function setQty(next) {
+      var n = Math.max(1, parseInt(next, 10) || 1);
+      if (n === qty) return;
+      qty = n;
+      setThemeQuantity(n); // best-effort sync (no-op if theme input missing)
+      paint();
+    }
+
     paint();
 
-    // Widget-local +/- buttons drive the theme quantity input
+    // +/- buttons and direct input edits drive the widget's local state
     container.addEventListener("click", function (e) {
       var t = e.target;
       if (!t || !t.closest) return;
@@ -258,21 +269,26 @@
       if (!dec && !inc) return;
 
       e.preventDefault();
-      var current = getQuantityFromDOM();
-      var next = inc ? current + 1 : Math.max(1, current - 1);
-      setThemeQuantity(next);
-      paint();
+      setQty(inc ? qty + 1 : qty - 1);
     });
 
     container.addEventListener("change", function (e) {
       var t = e.target;
       if (t && t.hasAttribute && t.hasAttribute("data-vd-qty-input")) {
-        setThemeQuantity(t.value);
-        paint();
+        setQty(t.value);
       }
     });
 
-    // Re-render whenever the underlying theme quantity changes from elsewhere
+    container.addEventListener("input", function (e) {
+      var t = e.target;
+      if (t && t.hasAttribute && t.hasAttribute("data-vd-qty-input")) {
+        // update numerical state but don't re-render mid-typing
+        var n = Math.max(1, parseInt(t.value, 10) || 1);
+        qty = n;
+      }
+    });
+
+    // Mirror changes made to the theme's own quantity input (if it exists)
     document.addEventListener(
       "change",
       function (e) {
@@ -283,34 +299,7 @@
           t.name === "quantity" ||
           (t.getAttribute && t.getAttribute("data-quantity-input"))
         ) {
-          paint();
-        }
-      },
-      true,
-    );
-    document.addEventListener(
-      "input",
-      function (e) {
-        var t = e.target;
-        if (!t) return;
-        if (t.hasAttribute && t.hasAttribute("data-vd-qty-input")) return;
-        if (t.name === "quantity") paint();
-      },
-      true,
-    );
-    document.addEventListener(
-      "click",
-      function (e) {
-        var t = e.target;
-        if (!t || !t.closest) return;
-        if (t.closest("[data-vd-ladder]")) return;
-        if (
-          t.closest("[data-quantity-selector]") ||
-          t.closest(".quantity__button") ||
-          t.closest("[name=minus]") ||
-          t.closest("[name=plus]")
-        ) {
-          setTimeout(paint, 50);
+          setQty(t.value);
         }
       },
       true,
