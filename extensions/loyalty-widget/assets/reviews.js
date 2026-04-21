@@ -173,11 +173,46 @@
     attachEvents(section);
   }
 
+  function openLightbox(src) {
+    closeLightbox();
+    var overlay = document.createElement("div");
+    overlay.className = "rv-lightbox";
+    overlay.innerHTML =
+      '<button type="button" class="rv-lightbox-close" aria-label="Close">×</button>' +
+      '<img class="rv-lightbox-img" src="' + src + '" alt="Review photo">';
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay || e.target.classList.contains("rv-lightbox-close")) {
+        closeLightbox();
+      }
+    });
+    document.addEventListener("keydown", lightboxKeyHandler);
+    document.body.appendChild(overlay);
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeLightbox() {
+    var existing = document.querySelector(".rv-lightbox");
+    if (existing) existing.remove();
+    document.removeEventListener("keydown", lightboxKeyHandler);
+    document.body.style.overflow = "";
+  }
+
+  function lightboxKeyHandler(e) {
+    if (e.key === "Escape") closeLightbox();
+  }
+
   function attachEvents(section) {
     // Open write review form
     section.querySelector("#rv-open-form").addEventListener("click", function () {
       state.formOpen = !state.formOpen;
       render();
+    });
+
+    // Click review photo → lightbox
+    section.querySelectorAll(".rv-photo").forEach(function (img) {
+      img.addEventListener("click", function () {
+        openLightbox(this.getAttribute("src"));
+      });
     });
 
     // Star rating
