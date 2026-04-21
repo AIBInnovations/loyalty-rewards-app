@@ -126,8 +126,8 @@
         html +=
           '<div class="rv-card">' +
             '<div class="rv-card-header">' +
-              '<span class="rv-stars">' + stars(r.rating) + '</span>' +
               '<span class="rv-author">' + (r.authorName || "Customer") + '</span>' +
+              '<span class="rv-stars">' + stars(r.rating) + '</span>' +
               '<span class="rv-date">' + new Date(r.createdAt).toLocaleDateString("en-IN") + '</span>' +
             '</div>' +
             '<p class="rv-body">' + r.body + '</p>' +
