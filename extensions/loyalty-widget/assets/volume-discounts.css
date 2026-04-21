@@ -32,6 +32,64 @@
   font-weight: 600;
 }
 
+.vd-qty {
+  display: inline-flex;
+  align-items: stretch;
+  margin-bottom: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  user-select: none;
+}
+
+.vd-qty__btn {
+  appearance: none;
+  border: 0;
+  background: #fff;
+  color: var(--vd-color, #5C6AC4);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.vd-qty__btn:hover:not([disabled]) {
+  background: rgba(92, 106, 196, 0.08);
+}
+
+.vd-qty__btn[disabled] {
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.vd-qty__input {
+  width: 48px;
+  border: 0;
+  border-left: 1px solid #d1d5db;
+  border-right: 1px solid #d1d5db;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 0;
+  background: #fff;
+  color: #111827;
+  -moz-appearance: textfield;
+}
+
+.vd-qty__input::-webkit-outer-spin-button,
+.vd-qty__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.vd-qty__input:focus {
+  outline: 2px solid var(--vd-color, #5C6AC4);
+  outline-offset: -2px;
+}
+
 .vd-widget__list {
   list-style: none;
   margin: 0;

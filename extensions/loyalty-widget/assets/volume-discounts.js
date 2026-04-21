@@ -125,6 +125,17 @@
         "</strong>.</div>";
     }
 
+    var qtyControl =
+      '<div class="vd-qty" role="group" aria-label="Quantity">' +
+      '<button type="button" class="vd-qty__btn" data-vd-qty-dec aria-label="Decrease quantity"' +
+      (qty <= 1 ? " disabled" : "") +
+      ">&minus;</button>" +
+      '<input type="number" class="vd-qty__input" min="1" value="' +
+      qty +
+      '" data-vd-qty-input aria-label="Quantity" />' +
+      '<button type="button" class="vd-qty__btn" data-vd-qty-inc aria-label="Increase quantity">+</button>' +
+      "</div>";
+
     return (
       '<div class="vd-widget" style="--vd-color:' +
       esc(color) +
@@ -137,6 +148,7 @@
       esc(campaign.title || "") +
       "</span>" +
       "</div>" +
+      qtyControl +
       '<ul class="vd-widget__list">' +
       items +
       "</ul>" +
@@ -144,6 +156,26 @@
       '<div class="vd-widget__note">Discount is applied automatically at checkout.</div>' +
       "</div>"
     );
+  }
+
+  function getThemeQuantityInput() {
+    return (
+      document.querySelector('form[action*="/cart/add"] input[name="quantity"]') ||
+      document.querySelector('input[name="quantity"]') ||
+      document.querySelector('input[data-quantity-input]') ||
+      document.querySelector('[data-quantity] input')
+    );
+  }
+
+  function setThemeQuantity(value) {
+    var n = Math.max(1, parseInt(value, 10) || 1);
+    var input = getThemeQuantityInput();
+    if (input) {
+      input.value = String(n);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return n;
   }
 
   function mountProduct(root, campaigns) {
@@ -166,15 +198,40 @@
     }
     paint();
 
-    // Re-render whenever quantity changes
+    // Widget-local +/- buttons drive the theme quantity input
+    container.addEventListener("click", function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+
+      var dec = t.closest("[data-vd-qty-dec]");
+      var inc = t.closest("[data-vd-qty-inc]");
+      if (!dec && !inc) return;
+
+      e.preventDefault();
+      var current = getQuantityFromDOM();
+      var next = inc ? current + 1 : Math.max(1, current - 1);
+      setThemeQuantity(next);
+      paint();
+    });
+
+    container.addEventListener("change", function (e) {
+      var t = e.target;
+      if (t && t.hasAttribute && t.hasAttribute("data-vd-qty-input")) {
+        setThemeQuantity(t.value);
+        paint();
+      }
+    });
+
+    // Re-render whenever the underlying theme quantity changes from elsewhere
     document.addEventListener(
       "change",
       function (e) {
         var t = e.target;
+        if (!t) return;
+        if (t.hasAttribute && t.hasAttribute("data-vd-qty-input")) return;
         if (
-          t &&
           t.name === "quantity" ||
-          (t && t.getAttribute && t.getAttribute("data-quantity-input"))
+          (t.getAttribute && t.getAttribute("data-quantity-input"))
         ) {
           paint();
         }
@@ -185,7 +242,9 @@
       "input",
       function (e) {
         var t = e.target;
-        if (t && t.name === "quantity") paint();
+        if (!t) return;
+        if (t.hasAttribute && t.hasAttribute("data-vd-qty-input")) return;
+        if (t.name === "quantity") paint();
       },
       true,
     );
@@ -193,13 +252,13 @@
       "click",
       function (e) {
         var t = e.target;
+        if (!t || !t.closest) return;
+        if (t.closest("[data-vd-ladder]")) return;
         if (
-          t &&
-          t.closest &&
-          (t.closest("[data-quantity-selector]") ||
-            t.closest(".quantity__button") ||
-            t.closest("[name=minus]") ||
-            t.closest("[name=plus]"))
+          t.closest("[data-quantity-selector]") ||
+          t.closest(".quantity__button") ||
+          t.closest("[name=minus]") ||
+          t.closest("[name=plus]")
         ) {
           setTimeout(paint, 50);
         }
