@@ -31,6 +31,7 @@ export default function App() {
         <Link to="/app/volume-discounts">Volume Discounts</Link>
         <Link to="/app/timer-settings">Timer</Link>
         <Link to="/app/popup-settings">Exit Popup</Link>
+        <Link to="/app/smart-popup">Smart Email Popup</Link>
         <Link to="/app/wheel-settings">Spin Wheel</Link>
         <Link to="/app/stock-alerts">Stock Alerts</Link>
         <Link to="/app/wishlist">Wishlist</Link>

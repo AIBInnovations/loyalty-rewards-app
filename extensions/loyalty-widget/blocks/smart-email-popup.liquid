@@ -1,0 +1,22 @@
+{% comment %}
+  Smart Email Popup — App Embed Block
+  Advanced email capture with smart triggers, suppression, targeting, consent.
+{% endcomment %}
+
+<div id="smart-email-popup-app"
+     data-shop="{{ shop.permanent_domain }}"
+     data-locale="{{ request.locale.iso_code }}"
+     data-country="{{ localization.country.iso_code }}"
+     data-template="{{ template.name }}"
+     style="display:none;"></div>
+
+{{ 'smart-email-popup.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'smart-email-popup.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Smart Email Popup",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}

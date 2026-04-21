@@ -50,6 +50,13 @@ import {
   formatDisplayLocation,
   formatFreshness,
 } from "../.server/services/sales-pop.service";
+import {
+  resolveCampaign,
+  findCampaign,
+  recordLead,
+  trackEvent,
+  type VisitorContext,
+} from "../.server/services/smart-popup.service";
 
 // Rate limit tracker (in-memory, per-instance)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -138,6 +145,24 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
 
   if (path === "popup-submit" || action === "popup-submit") {
     return handlePopupSubmit(params, shop);
+  }
+
+  if (path === "smart-popup/config" || action === "smart-popup-config") {
+    if (!checkRateLimit(`smart-popup-config:${shop}`, 120)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleSmartPopupConfig(params, shop);
+  }
+
+  if (path === "smart-popup/submit" || action === "smart-popup-submit") {
+    if (!checkRateLimit(`smart-popup-submit:${shop}`, 30)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleSmartPopupSubmit(params, shop);
+  }
+
+  if (path === "smart-popup/event" || action === "smart-popup-event") {
+    return handleSmartPopupEvent(params, shop);
   }
 
   if (path === "wheel-settings") {
@@ -318,6 +343,103 @@ async function handlePopupSubmit(params: URLSearchParams, shop: string) {
   } catch (err) {
     return json({ error: "Failed to create discount" }, { status: 500 });
   }
+}
+
+// ─── Smart Email Popup ──────────────────────────────────────────
+
+function pageTypeFromParams(params: URLSearchParams): VisitorContext["pageType"] {
+  const raw = (params.get("pageType") || "other").toLowerCase();
+  const allowed = [
+    "home",
+    "product",
+    "collection",
+    "blog",
+    "article",
+    "page",
+    "cart",
+    "search",
+    "other",
+  ];
+  return (allowed.includes(raw) ? raw : "other") as VisitorContext["pageType"];
+}
+
+function deviceFromParams(params: URLSearchParams): "desktop" | "mobile" {
+  return params.get("device") === "mobile" ? "mobile" : "desktop";
+}
+
+function visitorContextFromParams(params: URLSearchParams): VisitorContext {
+  return {
+    pageType: pageTypeFromParams(params),
+    device: deviceFromParams(params),
+    audience: params.get("audience") === "returning" ? "returning" : "new",
+    country: (params.get("country") || "").toUpperCase(),
+    pageUrl: params.get("pageUrl") || "",
+    referrer: params.get("referrer") || "",
+    utmSource: params.get("utm_source") || "",
+    utmMedium: params.get("utm_medium") || "",
+    utmCampaign: params.get("utm_campaign") || "",
+    locale: params.get("locale") || "",
+  };
+}
+
+async function handleSmartPopupConfig(params: URLSearchParams, shop: string) {
+  const ctx = visitorContextFromParams(params);
+  const campaign = await resolveCampaign(shop, ctx);
+  if (!campaign) {
+    return json({ enabled: false }, { headers: { "Cache-Control": "no-store" } });
+  }
+  return json(
+    { enabled: true, campaign },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
+async function handleSmartPopupSubmit(params: URLSearchParams, shop: string) {
+  const campaignId = params.get("campaignId") || "";
+  const email = params.get("email") || "";
+  if (!campaignId) return json({ error: "campaignId required" }, { status: 400 });
+  if (!email) return json({ error: "email required" }, { status: 400 });
+
+  const campaign = await findCampaign(shop, campaignId);
+  if (!campaign || campaign.status !== "active") {
+    return json({ error: "Campaign not active" }, { status: 400 });
+  }
+
+  const { admin } = await unauthenticated.admin(shop);
+  const result = await recordLead(
+    {
+      shopId: shop,
+      campaignId,
+      email,
+      firstName: params.get("firstName") || "",
+      visitorKey: params.get("visitorKey") || "",
+      ctx: visitorContextFromParams(params),
+    },
+    campaign,
+    admin as any,
+  );
+
+  if (!result.success) {
+    return json({ error: result.error || "Failed" }, { status: 400 });
+  }
+
+  await trackEvent(shop, campaignId, "submit");
+  return json({
+    success: true,
+    discountCode: result.discountCode || "",
+    successMessage: campaign.content.successMessage,
+  });
+}
+
+async function handleSmartPopupEvent(params: URLSearchParams, shop: string) {
+  const campaignId = params.get("campaignId") || "";
+  const eventRaw = (params.get("event") || "").toLowerCase();
+  const allowed = ["impression", "open", "close", "submit", "convert"] as const;
+  if (!campaignId || !allowed.includes(eventRaw as (typeof allowed)[number])) {
+    return json({ error: "Invalid event" }, { status: 400 });
+  }
+  await trackEvent(shop, campaignId, eventRaw as (typeof allowed)[number]);
+  return json({ success: true }, { headers: { "Cache-Control": "no-store" } });
 }
 
 // ─── Wheel Settings ─────────────────────────────────────────────
