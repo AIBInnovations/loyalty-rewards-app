@@ -66,12 +66,12 @@
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  padding: 18px 20px;
+  padding: 20px 22px;
   background: transparent;
   border: 0;
   text-align: left;
   font: inherit;
-  font-size: 1.15rem;
+  font-size: 1.35rem;
   font-weight: 600;
   color: inherit;
   cursor: pointer;
@@ -140,8 +140,8 @@
 }
 
 .faq-accordion .faq-answer {
-  font-size: 1.05rem;
-  line-height: 1.65;
+  font-size: 1.2rem;
+  line-height: 1.7;
   color: color-mix(in srgb, var(--faq-text, #111827) 85%, transparent);
 }
 
@@ -176,7 +176,7 @@
 
 @media (max-width: 600px) {
   .faq-accordion { padding: 24px 12px; }
-  .faq-accordion .faq-question { padding: 14px; font-size: 1.05rem; }
-  .faq-accordion .faq-panel { padding: 0 14px 14px; }
-  .faq-accordion .faq-answer { font-size: 1rem; }
+  .faq-accordion .faq-question { padding: 16px; font-size: 1.15rem; }
+  .faq-accordion .faq-panel { padding: 0 16px 16px; }
+  .faq-accordion .faq-answer { font-size: 1.1rem; }
 }
