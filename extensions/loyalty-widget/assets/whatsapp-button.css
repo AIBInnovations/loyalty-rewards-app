@@ -2,7 +2,7 @@
 
 .wa-float {
   position: fixed;
-  z-index: 50;
+  z-index: 9996;
   bottom: var(--wa-bottom, 24px);
   width: 56px;
   height: 56px;
