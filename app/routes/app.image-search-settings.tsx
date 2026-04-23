@@ -127,7 +127,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           primaryColor: String(fd.get("primaryColor") || "#5C6AC4"),
           buttonText: String(fd.get("buttonText") || "Find Similar Products"),
           modalTitle: String(
-            fd.get("modalTitle") || "Visually Similar Products",
+            fd.get("modalTitle") || "Image Search",
           ),
         },
       },
@@ -540,7 +540,7 @@ export default function ImageSearchSettingsPage() {
                 label="Modal Title"
                 value={modalTitle}
                 onChange={setModalTitle}
-                placeholder="Visually Similar Products"
+                placeholder="Image Search"
                 helpText="Heading shown inside the search results modal"
                 autoComplete="off"
               />

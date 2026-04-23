@@ -27,7 +27,7 @@ const imageSearchSettingsSchema = new Schema<IImageSearchSettings>(
     showAddToCart: { type: Boolean, default: true },
     primaryColor: { type: String, default: "#5C6AC4" },
     buttonText: { type: String, default: "Find Similar Products" },
-    modalTitle: { type: String, default: "Visually Similar Products" },
+    modalTitle: { type: String, default: "Image Search" },
     lastSyncedAt: { type: Date, default: null },
     totalIndexed: { type: Number, default: 0 },
     _accessToken: { type: String, default: "" },

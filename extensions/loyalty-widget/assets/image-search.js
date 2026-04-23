@@ -94,7 +94,7 @@
   }
 
   function buildModalHTML() {
-    var title = (state.config && state.config.modalTitle) || "Visually Similar Products";
+    var title = (state.config && state.config.modalTitle) || "Image Search";
     return (
       '<div class="is-modal" role="dialog" aria-modal="true" aria-label="' + title + '">' +
         '<div class="is-modal-header">' +

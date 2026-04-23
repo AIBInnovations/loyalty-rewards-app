@@ -18,7 +18,15 @@
         '<button class="pe-btn" id="pe-check-btn">Check</button>' +
       '</div>' +
       '<div class="pe-result" id="pe-result"></div>';
-    root.parentNode.insertBefore(widget, root.nextSibling);
+
+    // Prefer placement right below the Wishlist button (right side of product page).
+    // Fallback: insert next to the embed's own root element.
+    var wlBtn = document.querySelector("[data-wl-button]");
+    if (wlBtn && wlBtn.parentNode) {
+      wlBtn.parentNode.insertBefore(widget, wlBtn.nextSibling);
+    } else {
+      root.parentNode.insertBefore(widget, root.nextSibling);
+    }
 
     var input   = document.getElementById("pe-input");
     var btn     = document.getElementById("pe-check-btn");
