@@ -1,53 +1,66 @@
 #pincode-estimator-widget {
-  margin: 16px 0;
-  padding: 14px 16px;
-  background: var(--pe-bg, #f8f8f8);
-  border-radius: 10px;
+  margin: 20px 0;
+  padding: 18px 20px;
+  background: var(--pe-bg, #ffffff);
+  border-radius: 12px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  border: 1px solid #e5e5e5;
+  border: 1px solid #ececec;
+  box-sizing: border-box;
+  width: 100%;
 }
 .pe-label {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
-  color: #333;
-  margin: 0 0 8px;
+  color: #1a1a1a;
+  margin: 0 0 12px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  letter-spacing: 0.2px;
 }
 .pe-row {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  gap: 10px;
+  align-items: stretch;
+  width: 100%;
 }
 .pe-input {
   flex: 1;
-  border: 1.5px solid #ddd;
-  border-radius: 8px;
-  padding: 9px 12px;
+  min-width: 0;
+  max-width: none;
+  border: 1px solid #dcdcdc;
+  border-radius: 10px;
+  padding: 12px 14px;
   font-size: 14px;
+  color: #1a1a1a;
+  background: #fff;
   outline: none;
-  transition: border-color 0.2s;
-  max-width: 160px;
+  transition: border-color 0.2s, box-shadow 0.2s;
   letter-spacing: 1px;
+  box-sizing: border-box;
 }
-.pe-input:focus { border-color: var(--pe-primary, #5C6AC4); }
+.pe-input::placeholder { color: #a0a0a0; letter-spacing: 0.3px; }
+.pe-input:focus {
+  border-color: #1a1a1a;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
 .pe-btn {
-  background: var(--pe-primary, #5C6AC4);
+  background: #1a1a1a;
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 9px 16px;
-  font-size: 13px;
+  border-radius: 10px;
+  padding: 0 22px;
+  min-height: 44px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: background 0.2s, opacity 0.2s;
   white-space: nowrap;
 }
-.pe-btn:hover { opacity: 0.88; }
+.pe-btn:hover { background: #000; }
 .pe-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .pe-result {
-  margin-top: 10px;
+  margin-top: 12px;
   font-size: 13px;
   display: none;
 }
