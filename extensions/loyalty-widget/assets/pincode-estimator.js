@@ -88,13 +88,8 @@
             result.innerHTML =
               '<span class="pe-unavailable">❌ Delivery not available to ' + code + '</span>';
           } else {
-            var today    = new Date();
-            var minDate  = new Date(today); minDate.setDate(today.getDate() + data.minDays);
-            var maxDate  = new Date(today); maxDate.setDate(today.getDate() + data.maxDays);
-            var opts     = { month: "short", day: "numeric" };
-            var dateStr  = minDate.toLocaleDateString("en-IN", opts) + " – " + maxDate.toLocaleDateString("en-IN", opts);
             result.innerHTML =
-              '<span class="pe-delivery">🚚 Delivery by ' + dateStr + '</span><br>' +
+              '<span class="pe-delivery">Yes! We deliver to ' + code + '.</span><br>' +
               (data.cod
                 ? '<span class="pe-cod-yes">✓ COD Available</span>'
                 : '<span class="pe-cod-no">✗ COD Not Available — Prepaid Only</span>');
