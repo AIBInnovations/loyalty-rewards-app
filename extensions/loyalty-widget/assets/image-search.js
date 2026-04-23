@@ -119,9 +119,14 @@
   function buildDropzoneHTML() {
     return (
       '<div class="is-dropzone" id="is-dropzone">' +
-        '<span class="is-dropzone-icon">📷</span>' +
-        '<p class="is-dropzone-text">Drop an image here or</p>' +
-        '<button class="is-upload-btn" id="is-upload-btn">Choose Photo</button>' +
+        '<span class="is-dropzone-icon" aria-hidden="true">' +
+          '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+            '<path d="M12 16V4M12 4L7 9M12 4L17 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '<path d="M4 14V18C4 19.1046 4.89543 20 6 20H18C19.1046 20 20 19.1046 20 18V14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '</svg>' +
+        '</span>' +
+        '<p class="is-dropzone-text">Click &ldquo;Upload Image,&rdquo; or paste the image here</p>' +
+        '<button class="is-upload-btn" id="is-upload-btn">Upload Image</button>' +
         '<p class="is-dropzone-hint">JPEG, PNG or WebP &bull; Max 5 MB</p>' +
         '<input type="file" id="is-file-input" accept="image/jpeg,image/png,image/webp"' +
           ' style="display:none" aria-hidden="true">' +
