@@ -49,11 +49,6 @@
         '<circle cx="12" cy="13" r="3" fill="white"/>' +
       '</svg>';
 
-    // Apply primary color from config
-    if (state.config.primaryColor) {
-      btn.style.background = state.config.primaryColor;
-    }
-
     btn.addEventListener("click", openModal);
     document.body.appendChild(btn);
   }

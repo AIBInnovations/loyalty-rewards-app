@@ -18,18 +18,19 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: var(--is-primary);
+  background: #000;
   border: none;
   cursor: pointer;
   box-shadow: var(--is-shadow);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
 }
 .is-fab:hover {
   transform: scale(1.08);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  background: #1a1a1a;
 }
 .is-fab svg {
   width: 24px;
