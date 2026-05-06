@@ -170,11 +170,16 @@
       var resultArea = overlayEl.querySelector(".sw-result");
       if (formArea) formArea.style.display = "none";
 
-      if (data.prize && data.prize.discountType !== "no_prize") {
+      if (data.prize && data.prize.discountType !== "no_prize" && data.discountCode) {
         resultArea.innerHTML =
           '<p class="sw-result-text">🎉 You won ' + esc(data.prize.label) + '!</p>' +
-          '<div class="sw-result-code">' + esc(data.discountCode) + '</div><br/>' +
-          '<a class="sw-result-apply" href="/discount/' + encodeURIComponent(data.discountCode) + '?redirect=/">Apply & Shop →</a>';
+          '<p class="sw-result-label">Your discount code:</p>' +
+          '<div class="sw-result-code">' + esc(data.discountCode) + '</div>' +
+          '<a class="sw-result-apply" href="/discount/' + encodeURIComponent(data.discountCode) + '?redirect=/collections/all">Apply & Shop →</a>';
+      } else if (data.prize && data.prize.discountType !== "no_prize") {
+        resultArea.innerHTML =
+          '<p class="sw-result-text">🎉 You won ' + esc(data.prize.label) + '!</p>' +
+          '<p class="sw-result-label">Check your email for your discount code!</p>';
       } else {
         resultArea.innerHTML =
           '<p class="sw-result-nope">😔 Better luck next time! Try again later.</p>';

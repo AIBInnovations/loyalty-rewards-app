@@ -106,6 +106,21 @@ export const DISCOUNT_AUTOMATIC_DELETE = `#graphql
   }
 `;
 
+export const DISCOUNT_CODE_FREE_SHIPPING_CREATE = `#graphql
+  mutation discountCodeFreeShippingCreate($freeShippingCodeDiscount: DiscountCodeFreeShippingInput!) {
+    discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingCodeDiscount) {
+      codeDiscountNode {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 export const METAFIELD_DEFINITION_CREATE = `#graphql
   mutation metafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
     metafieldDefinitionCreate(definition: $definition) {

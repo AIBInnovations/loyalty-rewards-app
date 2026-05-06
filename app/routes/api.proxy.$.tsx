@@ -26,7 +26,7 @@ import { TimerSettings } from "../.server/models/timer-settings.model";
 import { PopupSettings } from "../.server/models/popup-settings.model";
 import { WheelSettings } from "../.server/models/wheel-settings.model";
 import { Subscriber } from "../.server/models/subscriber.model";
-import { createRedemptionDiscount } from "../.server/services/discount.service";
+import { createRedemptionDiscount, createSpinWheelDiscount } from "../.server/services/discount.service";
 import { generateDiscountCode } from "../.server/utils/codes";
 import { PincodeSettings } from "../.server/models/pincode-settings.model";
 import { sendWheelPrizeEmail } from "../.server/utils/email";
@@ -493,17 +493,14 @@ async function handleWheelSpin(params: URLSearchParams, shop: string) {
   if (prize.discountType !== "no_prize") {
     try {
       const { admin } = await unauthenticated.admin(shop);
-      const result = await createRedemptionDiscount(admin as any, {
-        shopifyCustomerId: "gid://shopify/Customer/0",
-        discountType: prize.discountType === "percentage" ? "PERCENTAGE" :
-                       prize.discountType === "free_shipping" ? "PERCENTAGE" : "FIXED_AMOUNT",
-        discountValue: prize.discountType === "free_shipping" ? 0 : prize.discountValue,
-        minimumOrderAmount: 0,
+      discountCode = await createSpinWheelDiscount(admin as any, {
+        discountType: prize.discountType,
+        discountValue: prize.discountValue,
         title: `Spin Wheel: ${prize.label}`,
       });
-      discountCode = result.discountCode;
     } catch (err) {
-      // If discount creation fails, still record the spin
+      console.error("Spin wheel discount creation failed:", err);
+      // Still record the spin even if discount creation fails
     }
   }
 
