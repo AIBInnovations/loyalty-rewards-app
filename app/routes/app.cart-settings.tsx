@@ -44,6 +44,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const tiers = JSON.parse(String(data.tiers) || "[]");
     const manualProducts = JSON.parse(String(data.manualProducts) || "[]");
+    const upsellProduct = data.upsellProduct ? JSON.parse(String(data.upsellProduct)) : null;
 
     await CartDrawerSettings.findOneAndUpdate(
       { shopId: session.shop },
@@ -62,6 +63,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           showPrepaidBanner: data.showPrepaidBanner === "true",
           primaryColor: data.primaryColor || "#5C6AC4",
           interceptAddToCart: data.interceptAddToCart === "true",
+          showUpsell: data.showUpsell === "true",
+          upsellHeadline: data.upsellHeadline || "Special Offer Just For You!",
+          upsellDiscount: Math.min(70, Math.max(0, Number(data.upsellDiscount) || 10)),
+          upsellProduct,
         },
       },
       { upsert: true },
@@ -125,6 +130,12 @@ export default function CartSettingsPage() {
   );
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [tiers, setTiers] = useState<ICartTier[]>(settings.tiers || []);
+  const [showUpsell, setShowUpsell] = useState(settings.showUpsell || false);
+  const [upsellHeadline, setUpsellHeadline] = useState(settings.upsellHeadline || "Special Offer Just For You!");
+  const [upsellDiscount, setUpsellDiscount] = useState(String(settings.upsellDiscount ?? 10));
+  const [upsellProduct, setUpsellProduct] = useState<IManualProduct | null>(settings.upsellProduct || null);
+  const [upsellProductUrl, setUpsellProductUrl] = useState("");
+  const [addingUpsellProduct, setAddingUpsellProduct] = useState(false);
 
   const addTier = useCallback(() => {
     setTiers((prev) => [
@@ -163,12 +174,16 @@ export default function CartSettingsPage() {
     formData.set("showPrepaidBanner", String(showPrepaidBanner));
     formData.set("primaryColor", primaryColor);
     formData.set("tiers", JSON.stringify(tiers));
+    formData.set("showUpsell", String(showUpsell));
+    formData.set("upsellHeadline", upsellHeadline);
+    formData.set("upsellDiscount", upsellDiscount);
+    formData.set("upsellProduct", upsellProduct ? JSON.stringify(upsellProduct) : "");
     submit(formData, { method: "post" });
   }, [
     enabled, interceptAddToCart, showRecommendations, recommendationsTitle,
     recommendationsCount, recommendationMode, manualProducts, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor,
-    tiers, submit,
+    tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct, submit,
   ]);
 
   const removeManualProduct = useCallback((index: number) => {
@@ -218,6 +233,33 @@ export default function CartSettingsPage() {
     }
     setAddingProduct(false);
   }, [newProductUrl, manualProducts]);
+
+  const handleAddUpsellProduct = useCallback(async () => {
+    if (!upsellProductUrl.trim()) return;
+    setAddingUpsellProduct(true);
+    try {
+      let handle = upsellProductUrl.trim();
+      const match = handle.match(/\/products\/([a-zA-Z0-9\-_]+)/);
+      if (match) handle = match[1];
+      handle = handle.split("?")[0].split("#")[0];
+      const res = await fetch(`/api/product-lookup?handle=${encodeURIComponent(handle)}`);
+      if (!res.ok) throw new Error("Product not found");
+      const product = await res.json();
+      setUpsellProduct({
+        shopifyProductId: product.id,
+        title: product.title,
+        handle: product.handle,
+        imageUrl: product.imageUrl,
+        price: product.price,
+        compareAtPrice: product.compareAtPrice,
+        variantId: product.variantId,
+      });
+      setUpsellProductUrl("");
+    } catch {
+      alert("Could not find product. Please enter a valid product handle or URL.");
+    }
+    setAddingUpsellProduct(false);
+  }, [upsellProductUrl]);
 
   return (
     <Page
@@ -474,6 +516,95 @@ export default function CartSettingsPage() {
                         </InlineStack>
                       </BlockStack>
                     )}
+                  </>
+                )}
+              </BlockStack>
+            </Card>
+          </Layout.AnnotatedSection>
+
+          <Layout.AnnotatedSection
+            title="In-Cart Upsell"
+            description="Show a single featured product with a special discount inside the cart drawer to boost AOV. Different from recommendations — this is a highlighted deal card."
+          >
+            <Card>
+              <BlockStack gap="400">
+                <Checkbox
+                  label="Show upsell in cart drawer"
+                  checked={showUpsell}
+                  onChange={setShowUpsell}
+                />
+                {showUpsell && (
+                  <>
+                    <TextField
+                      label="Upsell Headline"
+                      value={upsellHeadline}
+                      onChange={setUpsellHeadline}
+                      placeholder="Special Offer Just For You!"
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="Discount Percentage (0–70%)"
+                      type="number"
+                      value={upsellDiscount}
+                      onChange={setUpsellDiscount}
+                      min={0}
+                      max={70}
+                      suffix="%"
+                      autoComplete="off"
+                    />
+                    <Divider />
+                    <Text as="h3" variant="headingSm">Upsell Product</Text>
+                    {upsellProduct ? (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          padding: "8px",
+                          border: "1px solid #e0e0e0",
+                          borderRadius: "8px",
+                        }}
+                      >
+                        {upsellProduct.imageUrl && (
+                          <img
+                            src={upsellProduct.imageUrl}
+                            alt={upsellProduct.title}
+                            style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px" }}
+                          />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Text as="p" variant="bodyMd" fontWeight="semibold">{upsellProduct.title}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            ₹{(upsellProduct.price / 100).toFixed(0)}
+                            {" → "}₹{Math.round(upsellProduct.price / 100 * (1 - Number(upsellDiscount) / 100))}
+                            {" "}({upsellDiscount}% off)
+                          </Text>
+                        </div>
+                        <Button size="slim" tone="critical" onClick={() => setUpsellProduct(null)}>
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <Text as="p" variant="bodySm" tone="subdued">No product selected.</Text>
+                    )}
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Enter a product handle or URL to set the upsell product.
+                    </Text>
+                    <InlineStack gap="200" blockAlign="end">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Product Handle or URL"
+                          value={upsellProductUrl}
+                          onChange={setUpsellProductUrl}
+                          placeholder="e.g., my-awesome-product"
+                          autoComplete="off"
+                          labelHidden
+                        />
+                      </div>
+                      <Button onClick={handleAddUpsellProduct} loading={addingUpsellProduct}>
+                        {upsellProduct ? "Replace Product" : "Add Product"}
+                      </Button>
+                    </InlineStack>
                   </>
                 )}
               </BlockStack>

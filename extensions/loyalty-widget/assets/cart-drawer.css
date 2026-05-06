@@ -695,3 +695,110 @@
     margin-bottom: 6px;
   }
 }
+
+/* ─── In-Cart Upsell ────────────────────────────────────────────── */
+
+.cd-upsell-section {
+  margin: 0 12px 12px;
+  padding: 12px;
+  background: linear-gradient(135deg, #fff8e1 0%, #fff3cd 100%);
+  border: 1.5px solid #ffc107;
+  border-radius: 10px;
+}
+
+.cd-upsell-badge {
+  display: inline-block;
+  background: var(--cd-primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.cd-upsell-headline {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cd-text);
+  margin: 0 0 8px;
+}
+
+.cd-upsell-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.cd-upsell-img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+.cd-upsell-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cd-upsell-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cd-text);
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cd-upsell-prices {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.cd-upsell-original {
+  font-size: 12px;
+  color: #999;
+  text-decoration: line-through;
+}
+
+.cd-upsell-price {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--cd-primary);
+}
+
+.cd-upsell-save {
+  background: #e8f5e9;
+  color: #2e7d32;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.cd-upsell-add {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--cd-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: center;
+}
+
+.cd-upsell-add:hover { background: var(--cd-primary-dark); }
+.cd-upsell-add:disabled { opacity: 0.6; cursor: not-allowed; }

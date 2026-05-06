@@ -20,6 +20,7 @@ import { unauthenticated } from "../shopify.server";
 import { socialShareKey, birthdayBonusKey } from "../.server/utils/idempotency";
 import { earnPoints } from "../.server/services/points.service";
 import { CartDrawerSettings } from "../.server/models/cart-settings.model";
+import { TrustBadgesSettings } from "../.server/models/trust-badges.model";
 import { VolumeDiscountSettings } from "../.server/models/volume-discount.model";
 import { TimerSettings } from "../.server/models/timer-settings.model";
 import { PopupSettings } from "../.server/models/popup-settings.model";
@@ -112,6 +113,13 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
       return json({ error: "Rate limited" }, { status: 429 });
     }
     return handleGetCartSettings(shop);
+  }
+
+  if (path === "trust-badges") {
+    if (!checkRateLimit(`trust-badges:${shop}`, 60)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleGetTrustBadges(shop);
   }
 
   if (path === "volume-discounts") {
@@ -684,6 +692,22 @@ async function handleGetCartSettings(shop: string) {
     showPrepaidBanner: settings.showPrepaidBanner,
     primaryColor: settings.primaryColor,
     interceptAddToCart: settings.interceptAddToCart,
+    showUpsell: settings.showUpsell,
+    upsellHeadline: settings.upsellHeadline,
+    upsellDiscount: settings.upsellDiscount,
+    upsellProduct: settings.upsellProduct || null,
+  });
+}
+
+async function handleGetTrustBadges(shop: string) {
+  const settings = await TrustBadgesSettings.findOne({ shopId: shop }).lean();
+  if (!settings || !settings.enabled) {
+    return json({ enabled: false, badges: [] });
+  }
+  return json({
+    enabled: true,
+    layout: settings.layout,
+    badges: settings.badges,
   });
 }
 

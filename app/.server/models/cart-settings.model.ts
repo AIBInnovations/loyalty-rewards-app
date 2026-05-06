@@ -40,6 +40,10 @@ export interface ICartDrawerSettings extends Document {
   showPrepaidBanner: boolean;
   primaryColor: string;
   interceptAddToCart: boolean;
+  showUpsell: boolean;
+  upsellHeadline: string;
+  upsellDiscount: number;
+  upsellProduct: IManualProduct | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -119,6 +123,21 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     showPrepaidBanner: { type: Boolean, default: true },
     primaryColor: { type: String, default: "#5C6AC4" },
     interceptAddToCart: { type: Boolean, default: true },
+    showUpsell: { type: Boolean, default: false },
+    upsellHeadline: { type: String, default: "Special Offer Just For You!" },
+    upsellDiscount: { type: Number, default: 10, min: 0, max: 70 },
+    upsellProduct: {
+      type: {
+        shopifyProductId: { type: String },
+        title: { type: String },
+        handle: { type: String },
+        imageUrl: { type: String },
+        price: { type: Number },
+        compareAtPrice: { type: Number },
+        variantId: { type: String },
+      },
+      default: null,
+    },
   },
   { timestamps: true },
 );

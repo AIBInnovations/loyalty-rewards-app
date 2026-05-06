@@ -37,6 +37,7 @@ export default function App() {
         <Link to="/app/wishlist">Wishlist</Link>
         <Link to="/app/voice-agent">Voice Agent</Link>
         <Link to="/app/pincode-settings">Pincode Estimator</Link>
+        <Link to="/app/trust-badges">Trust Badges</Link>
         <Link to="/app/upsell-settings">Post-Purchase Upsell</Link>
         <Link to="/app/ugc-settings">UGC Gallery</Link>
         <Link to="/app/cod-settings">COD WhatsApp</Link>

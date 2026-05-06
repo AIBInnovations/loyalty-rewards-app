@@ -376,6 +376,7 @@
       renderHeader(itemCount) +
       (config.showProgress && state.tiers.length ? renderProgressBar(cart) : "") +
       (itemCount > 0 ? renderItems(cart) : renderEmpty()) +
+      (shouldShowUpsell() ? renderUpsell() : "") +
       (config.showRecommendations && state.recommendations.length ? renderRecommendations() : "") +
       (itemCount > 0 ? renderFooter(cart) : "");
 
@@ -419,8 +420,11 @@
       var currentValue = nextTier.type === "items" ? itemCount : cartTotal / 100;
       var remaining = nextTier.threshold - currentValue;
       if (remaining < 0) remaining = 0;
+      var remainingFormatted = nextTier.type === "amount"
+        ? formatMoney(Math.ceil(remaining) * 100)
+        : String(Math.ceil(remaining));
       message = nextTier.belowMessage
-        .replace("{remaining}", String(Math.ceil(remaining)))
+        .replace("{remaining}", remainingFormatted)
         .replace("{label}", "<strong>" + esc(nextTier.label) + "</strong>");
     } else if (activeTierIndex >= 0) {
       message = tiers[activeTierIndex].reachedMessage
@@ -591,6 +595,48 @@
     return html;
   }
 
+  // ─── Upsell ───────────────────────────────────────────────────
+  function shouldShowUpsell() {
+    if (!state.settings || !state.settings.showUpsell) return false;
+    if (!state.settings.upsellProduct) return false;
+    if (!state.cart || !state.cart.items) return false;
+    // Hide if product already in cart
+    var cartIds = state.cart.items.map(function(i) { return String(i.product_id); });
+    var upId = String(state.settings.upsellProduct.shopifyProductId || "")
+      .replace("gid://shopify/Product/", "");
+    return cartIds.indexOf(upId) === -1;
+  }
+
+  function renderUpsell() {
+    var p = state.settings.upsellProduct;
+    var discount = Number(state.settings.upsellDiscount) || 0;
+    var headline = state.settings.upsellHeadline || "Special Offer Just For You!";
+    var originalPrice = p.price || 0;
+    var discountedPrice = Math.round(originalPrice * (1 - discount / 100));
+    var variantId = String(p.variantId || "").replace("gid://shopify/ProductVariant/", "");
+    var imgSrc = p.imageUrl || "";
+    if (imgSrc) imgSrc = imgSrc.replace(/(\.\w+)(\?|$)/, "_160x160$1$2");
+
+    return '<div class="cd-upsell-section">' +
+      '<div class="cd-upsell-badge">🎁 Special Offer</div>' +
+      '<p class="cd-upsell-headline">' + esc(headline) + '</p>' +
+      '<div class="cd-upsell-card">' +
+        (imgSrc ? '<img class="cd-upsell-img" src="' + esc(imgSrc) + '" alt="' + esc(p.title) + '" loading="lazy"/>' : '') +
+        '<div class="cd-upsell-info">' +
+          '<p class="cd-upsell-title">' + esc(p.title) + '</p>' +
+          '<div class="cd-upsell-prices">' +
+            (discount > 0 ? '<span class="cd-upsell-original">' + formatMoney(originalPrice) + '</span>' : '') +
+            '<span class="cd-upsell-price">' + formatMoney(discountedPrice) + '</span>' +
+            (discount > 0 ? '<span class="cd-upsell-save">SAVE ' + discount + '%</span>' : '') +
+          '</div>' +
+          '<button class="cd-upsell-add" data-action="add-upsell" data-variant-id="' + variantId + '">' +
+            '+ Add for ' + formatMoney(discountedPrice) +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   // ─── Render Footer ────────────────────────────────────────────
   function renderFooter(cart) {
     if (!cart) return "";
@@ -683,6 +729,16 @@
 
     // Add recommendation
     drawer.querySelectorAll('[data-action="add-rec"]').forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var variantId = this.dataset.variantId;
+        this.disabled = true;
+        this.textContent = "Adding...";
+        addToCart(variantId, 1);
+      });
+    });
+
+    // Add upsell
+    drawer.querySelectorAll('[data-action="add-upsell"]').forEach(function (btn) {
       btn.addEventListener("click", function () {
         var variantId = this.dataset.variantId;
         this.disabled = true;

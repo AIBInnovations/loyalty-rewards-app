@@ -1,16 +1,22 @@
 {% comment %}
   Trust Badges - App Block (product pages)
   Shows trust/payment badges below Add to Cart.
-  No backend needed - all config via Theme Editor.
+  Settings are fetched from the app admin (proxy endpoint).
+  Falls back to Theme Editor block settings if the proxy is unavailable.
 {% endcomment %}
 
-<div class="tb-container" style="
-  --tb-icon-size: {{ block.settings.icon_size }}px;
-  --tb-text-color: {{ block.settings.text_color }};
-  --tb-icon-color: {{ block.settings.icon_color }};
-  --tb-bg: {{ block.settings.background_color }};
-">
-  <div class="tb-grid tb-layout-{{ block.settings.layout }}">
+<div
+  id="tb-wrapper-{{ block.id }}"
+  class="tb-container"
+  style="
+    --tb-icon-size: {{ block.settings.icon_size }}px;
+    --tb-text-color: {{ block.settings.text_color }};
+    --tb-icon-color: {{ block.settings.icon_color }};
+    --tb-bg: {{ block.settings.background_color }};
+  "
+>
+  {% comment %} Fallback badges rendered server-side (shown until JS loads) {% endcomment %}
+  <div id="tb-static-{{ block.id }}" class="tb-grid tb-layout-{{ block.settings.layout }}">
     {% if block.settings.badge_1_text != blank %}
       <div class="tb-badge">
         <span class="tb-icon">{{ block.settings.badge_1_icon }}</span>
@@ -48,9 +54,51 @@
       </div>
     {% endif %}
   </div>
+  {% comment %} Dynamic badges rendered from app settings (replaces static on load) {% endcomment %}
+  <div id="tb-dynamic-{{ block.id }}" class="tb-grid" style="display:none;"></div>
 </div>
 
 {{ 'trust-badges.css' | asset_url | stylesheet_tag }}
+
+<script>
+(function() {
+  var wrapperId = "tb-wrapper-{{ block.id }}";
+  var staticId  = "tb-static-{{ block.id }}";
+  var dynamicId = "tb-dynamic-{{ block.id }}";
+
+  fetch("/apps/loyalty/trust-badges")
+    .then(function(r) {
+      if (!r.ok) throw new Error("not ok");
+      return r.json();
+    })
+    .then(function(data) {
+      if (!data.enabled || !data.badges || !data.badges.length) return;
+
+      var wrapper = document.getElementById(wrapperId);
+      var staticEl = document.getElementById(staticId);
+      var dynamicEl = document.getElementById(dynamicId);
+      if (!wrapper || !staticEl || !dynamicEl) return;
+
+      dynamicEl.className = "tb-grid tb-layout-" + (data.layout || "inline");
+
+      var html = "";
+      data.badges.forEach(function(b) {
+        if (!b.text) return;
+        html += '<div class="tb-badge">' +
+          '<span class="tb-icon">' + (b.icon || "") + '</span>' +
+          '<span class="tb-text">' + b.text + '</span>' +
+          '</div>';
+      });
+
+      dynamicEl.innerHTML = html;
+      staticEl.style.display = "none";
+      dynamicEl.style.display = "";
+    })
+    .catch(function() {
+      // Keep static fallback visible on any error
+    });
+})();
+</script>
 
 {% schema %}
 {
@@ -60,12 +108,12 @@
     {
       "type": "select",
       "id": "layout",
-      "label": "Layout",
+      "label": "Layout (fallback)",
       "options": [
         { "value": "grid", "label": "Grid (2 columns)" },
         { "value": "inline", "label": "Inline Row" }
       ],
-      "default": "grid"
+      "default": "inline"
     },
     {
       "type": "range",
@@ -98,72 +146,72 @@
     {
       "type": "text",
       "id": "badge_1_icon",
-      "label": "Badge 1 Icon",
-      "default": "🚚"
-    },
-    {
-      "type": "text",
-      "id": "badge_1_text",
-      "label": "Badge 1 Text",
-      "default": "Free Shipping"
-    },
-    {
-      "type": "text",
-      "id": "badge_2_icon",
-      "label": "Badge 2 Icon",
+      "label": "Badge 1 Icon (fallback)",
       "default": "💳"
     },
     {
       "type": "text",
-      "id": "badge_2_text",
-      "label": "Badge 2 Text",
+      "id": "badge_1_text",
+      "label": "Badge 1 Text (fallback)",
       "default": "COD Available"
     },
     {
       "type": "text",
-      "id": "badge_3_icon",
-      "label": "Badge 3 Icon",
+      "id": "badge_2_icon",
+      "label": "Badge 2 Icon (fallback)",
       "default": "🔒"
     },
     {
       "type": "text",
-      "id": "badge_3_text",
-      "label": "Badge 3 Text",
-      "default": "Secure Payment"
+      "id": "badge_2_text",
+      "label": "Badge 2 Text (fallback)",
+      "default": "UPI/Razorpay Secure"
     },
     {
       "type": "text",
-      "id": "badge_4_icon",
-      "label": "Badge 4 Icon",
+      "id": "badge_3_icon",
+      "label": "Badge 3 Icon (fallback)",
       "default": "📦"
     },
     {
       "type": "text",
-      "id": "badge_4_text",
-      "label": "Badge 4 Text",
+      "id": "badge_3_text",
+      "label": "Badge 3 Text (fallback)",
       "default": "Easy Returns"
     },
     {
       "type": "text",
+      "id": "badge_4_icon",
+      "label": "Badge 4 Icon (fallback)",
+      "default": "🚚"
+    },
+    {
+      "type": "text",
+      "id": "badge_4_text",
+      "label": "Badge 4 Text (fallback)",
+      "default": "Free Shipping"
+    },
+    {
+      "type": "text",
       "id": "badge_5_icon",
-      "label": "Badge 5 Icon",
+      "label": "Badge 5 Icon (fallback)",
       "default": "✅"
     },
     {
       "type": "text",
       "id": "badge_5_text",
-      "label": "Badge 5 Text",
+      "label": "Badge 5 Text (fallback)",
       "default": "100% Genuine"
     },
     {
       "type": "text",
       "id": "badge_6_icon",
-      "label": "Badge 6 Icon"
+      "label": "Badge 6 Icon (fallback)"
     },
     {
       "type": "text",
       "id": "badge_6_text",
-      "label": "Badge 6 Text"
+      "label": "Badge 6 Text (fallback)"
     }
   ]
 }
