@@ -44,9 +44,19 @@
 }
 
 .tb-icon {
-  font-size: var(--tb-icon-size, 20px);
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  width: var(--tb-icon-size, 20px);
+  height: var(--tb-icon-size, 20px);
+}
+
+.tb-icon svg {
+  width: var(--tb-icon-size, 20px);
+  height: var(--tb-icon-size, 20px);
+  stroke: var(--tb-icon-color, #5C6AC4);
+  display: block;
 }
 
 .tb-text {

@@ -44,6 +44,30 @@ const LAYOUT_OPTIONS = [
   { label: "Grid (2 columns)", value: "grid" },
 ];
 
+const ICON_OPTIONS = [
+  { label: "— None —", value: "" },
+  { label: "COD / Cash", value: "cod" },
+  { label: "Lock / Secure", value: "lock" },
+  { label: "Shield", value: "shield" },
+  { label: "Credit Card / UPI", value: "card" },
+  { label: "Delivery Truck", value: "truck" },
+  { label: "Easy Returns", value: "returns" },
+  { label: "Checkmark / Genuine", value: "check" },
+  { label: "Star / Quality", value: "star" },
+  { label: "Package / Box", value: "package" },
+  { label: "Gift", value: "gift" },
+  { label: "Clock / Fast", value: "clock" },
+];
+
+const DEFAULT_BADGES: ITrustBadge[] = [
+  { icon: "cod", text: "COD Available" },
+  { icon: "lock", text: "UPI/Razorpay Secure" },
+  { icon: "returns", text: "Easy Returns" },
+  { icon: "truck", text: "Free Shipping" },
+  { icon: "check", text: "100% Genuine" },
+  { icon: "", text: "" },
+];
+
 export default function TrustBadgesPage() {
   const { settings } = useLoaderData<typeof loader>();
   const nav = useNavigation();
@@ -53,16 +77,7 @@ export default function TrustBadgesPage() {
   const [enabled, setEnabled] = useState<boolean>(settings.enabled);
   const [layout, setLayout] = useState<string>(settings.layout || "inline");
   const [badges, setBadges] = useState<ITrustBadge[]>(
-    settings.badges && settings.badges.length > 0
-      ? settings.badges
-      : [
-          { icon: "💳", text: "COD Available" },
-          { icon: "🔒", text: "UPI/Razorpay Secure" },
-          { icon: "📦", text: "Easy Returns" },
-          { icon: "🚚", text: "Free Shipping" },
-          { icon: "✅", text: "100% Genuine" },
-          { icon: "", text: "" },
-        ],
+    settings.badges && settings.badges.length > 0 ? settings.badges : DEFAULT_BADGES,
   );
 
   const updateBadge = useCallback(
@@ -91,7 +106,7 @@ export default function TrustBadgesPage() {
       <Layout>
         <Layout.AnnotatedSection
           title="Trust Badges"
-          description="Display trust signals like COD, secure payments, and easy returns on product pages. Add this block to your theme via the Theme Editor."
+          description="Display trust signals like COD, secure payments, and easy returns on product pages. Enable the Trust Badges block in your theme via App Embeds."
         >
           <Card>
             <BlockStack gap="400">
@@ -118,7 +133,7 @@ export default function TrustBadgesPage() {
 
         <Layout.AnnotatedSection
           title="Badge Configuration"
-          description="Configure up to 6 trust badges. Use emoji for icons. Leave text blank to hide a badge."
+          description="Configure up to 6 trust badges. Choose an icon and enter the badge text. Leave text blank to hide a badge."
         >
           <Card>
             <BlockStack gap="400">
@@ -127,12 +142,12 @@ export default function TrustBadgesPage() {
                   {index > 0 && <Divider />}
                   <Text variant="headingSm" as="h3">Badge {index + 1}</Text>
                   <InlineStack gap="300" align="start">
-                    <div style={{ width: "100px" }}>
-                      <TextField
-                        label="Icon (emoji)"
+                    <div style={{ width: "180px" }}>
+                      <Select
+                        label="Icon"
+                        options={ICON_OPTIONS}
                         value={badge.icon}
                         onChange={(v) => updateBadge(index, "icon", v)}
-                        autoComplete="off"
                       />
                     </div>
                     <div style={{ flex: 1 }}>

@@ -30,11 +30,11 @@ const trustBadgesSettingsSchema = new Schema<ITrustBadgesSettings>(
     badges: {
       type: [trustBadgeSchema],
       default: [
-        { icon: "💳", text: "COD Available" },
-        { icon: "🔒", text: "UPI/Razorpay Secure" },
-        { icon: "📦", text: "Easy Returns" },
-        { icon: "🚚", text: "Free Shipping" },
-        { icon: "✅", text: "100% Genuine" },
+        { icon: "cod", text: "COD Available" },
+        { icon: "lock", text: "UPI/Razorpay Secure" },
+        { icon: "returns", text: "Easy Returns" },
+        { icon: "truck", text: "Free Shipping" },
+        { icon: "check", text: "100% Genuine" },
       ],
     },
   },
