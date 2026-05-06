@@ -1,49 +1,53 @@
 {% comment %}
-  Back-in-Stock Alerts - App Block (product pages)
+  Back-in-Stock Alerts - App Embed Block (body target = appears in App Embeds)
   Shows "Notify Me" form when a product variant is out of stock.
+  JS controls visibility and auto-positions below the Add to Cart button.
 {% endcomment %}
 
-{% assign selected_variant = product.selected_or_first_available_variant %}
-{% if selected_variant.available == false %}
-  <div
-    class="bis-container"
-    id="bis-notify-form"
-    data-product-id="{{ product.id }}"
-    data-product-title="{{ product.title | escape }}"
-    data-variant-id="{{ selected_variant.id }}"
-    data-variant-title="{{ selected_variant.title | escape }}"
-    data-shop-domain="{{ shop.permanent_domain }}"
-    style="--bis-color: {{ block.settings.button_color }};"
-  >
-    <div class="bis-inner">
-      <p class="bis-heading">{{ block.settings.heading }}</p>
-      <p class="bis-subtext">{{ block.settings.subtext }}</p>
-      <div class="bis-form">
-        <input
-          type="email"
-          class="bis-email"
-          placeholder="{{ block.settings.placeholder }}"
-          required
-          aria-label="Email for back in stock notification"
-        />
-        <button type="button" class="bis-btn" data-action="bis-submit">
-          {{ block.settings.button_text }}
-        </button>
-      </div>
-      <p class="bis-success" style="display:none;">{{ block.settings.success_message }}</p>
-      <p class="bis-error" style="display:none;"></p>
-    </div>
-  </div>
+{% if template.name == 'product' %}
 
-  {{ 'back-in-stock.css' | asset_url | stylesheet_tag }}
-  <script src="{{ 'back-in-stock.js' | asset_url }}" defer></script>
+{% assign selected_variant = product.selected_or_first_available_variant %}
+
+<div
+  class="bis-container"
+  id="bis-notify-form"
+  data-product-id="{{ product.id }}"
+  data-product-title="{{ product.title | escape }}"
+  data-variant-id="{{ selected_variant.id }}"
+  data-variant-title="{{ selected_variant.title | escape }}"
+  data-available="{{ selected_variant.available }}"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  style="--bis-color: {{ block.settings.button_color }}; display:none;"
+>
+  <div class="bis-inner">
+    <p class="bis-heading">{{ block.settings.heading }}</p>
+    <p class="bis-subtext">{{ block.settings.subtext }}</p>
+    <div class="bis-form">
+      <input
+        type="email"
+        class="bis-email"
+        placeholder="{{ block.settings.placeholder }}"
+        required
+        aria-label="Email for back in stock notification"
+      />
+      <button type="button" class="bis-btn" data-action="bis-submit" data-original-text="{{ block.settings.button_text | escape }}">
+        {{ block.settings.button_text }}
+      </button>
+    </div>
+    <p class="bis-success" style="display:none;">{{ block.settings.success_message }}</p>
+    <p class="bis-error" style="display:none;"></p>
+  </div>
+</div>
+
+{{ 'back-in-stock.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'back-in-stock.js' | asset_url }}" defer></script>
+
 {% endif %}
 
 {% schema %}
 {
   "name": "Back in Stock Alert",
-  "target": "section",
-  "templates": ["product"],
+  "target": "body",
   "settings": [
     {
       "type": "text",
@@ -73,7 +77,7 @@
       "type": "text",
       "id": "success_message",
       "label": "Success Message",
-      "default": "✅ You're on the list! We'll email you when it's back."
+      "default": "You're on the list! We'll email you when it's back."
     },
     {
       "type": "color",
