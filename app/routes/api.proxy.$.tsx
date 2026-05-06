@@ -1702,8 +1702,8 @@ async function handleGetSalesPopEvents(params: URLSearchParams, shop: string) {
   const collectionId = (params.get("collectionId") || "").trim();
   const limit = Math.max(1, Math.min(20, Number(params.get("limit")) || 10));
 
-  const freshnessMs = (s.freshnessHours || 72) * 60 * 60 * 1000;
-  const minAgeMs = (s.minOrderAgeMinutes || 0) * 60 * 1000;
+  const freshnessMs = (s.freshnessHours || 720) * 60 * 60 * 1000;
+  const minAgeMs = (s.minOrderAgeMinutes ?? 0) * 60 * 1000;
   const now = Date.now();
   const maxPurchasedAt = new Date(now - minAgeMs);
   const minPurchasedAt = new Date(now - freshnessMs);
@@ -1744,6 +1744,24 @@ async function handleGetSalesPopEvents(params: URLSearchParams, shop: string) {
       seen.add(key);
       collected.push(d);
       if (collected.length >= limit) break;
+    }
+  }
+
+  // Fallback: if nothing found within the freshness window, show the most recent events regardless of age
+  if (collected.length === 0) {
+    const fallbackDocs = await SalesPopEvent.find({
+      shopId: shop,
+      isActive: true,
+      purchasedAt: { $lte: maxPurchasedAt },
+    })
+      .sort({ purchasedAt: -1 })
+      .limit(limit)
+      .lean();
+    for (const d of fallbackDocs) {
+      const key = String(d._id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      collected.push(d as unknown as Record<string, unknown>);
     }
   }
 

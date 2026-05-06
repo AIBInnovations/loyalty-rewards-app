@@ -79,8 +79,8 @@ const salesPopSettingsSchema = new Schema<ISalesPopSettings>(
     minIntervalSeconds: { type: Number, default: 20 },
     maxIntervalSeconds: { type: Number, default: 35 },
     maxPerSession: { type: Number, default: 3 },
-    minOrderAgeMinutes: { type: Number, default: 5 },
-    freshnessHours: { type: Number, default: 72 },
+    minOrderAgeMinutes: { type: Number, default: 0 },
+    freshnessHours: { type: Number, default: 720 },
 
     position: {
       type: String,
