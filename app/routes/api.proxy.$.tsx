@@ -25,6 +25,7 @@ import { VolumeDiscountSettings } from "../.server/models/volume-discount.model"
 import { TimerSettings } from "../.server/models/timer-settings.model";
 import { PopupSettings } from "../.server/models/popup-settings.model";
 import { WheelSettings } from "../.server/models/wheel-settings.model";
+import { WheelSpinToken } from "../.server/models/wheel-spin-token.model";
 import { Subscriber } from "../.server/models/subscriber.model";
 import { createRedemptionDiscount, createSpinWheelDiscount } from "../.server/services/discount.service";
 import { generateDiscountCode } from "../.server/utils/codes";
@@ -179,6 +180,14 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
 
   if (path === "wheel-spin" || action === "wheel-spin") {
     return handleWheelSpin(params, shop);
+  }
+
+  if (path === "wheel-spin-preview" || action === "wheel-spin-preview") {
+    return handleWheelSpinPreview(params, shop);
+  }
+
+  if (path === "wheel-claim" || action === "wheel-claim") {
+    return handleWheelClaim(params, shop);
   }
 
   if (path === "stock-subscribe" || action === "stock-subscribe") {
@@ -520,6 +529,94 @@ async function handleWheelSpin(params: URLSearchParams, shop: string) {
   return json({
     prizeIndex: selectedIndex,
     prize: { label: prize.label, discountType: prize.discountType },
+    discountCode,
+  });
+}
+
+// ─── Wheel Spin Preview (Step 1: picks prize, returns token — no email needed) ─
+
+async function handleWheelSpinPreview(params: URLSearchParams, shop: string) {
+  const settings = await WheelSettings.findOne({ shopId: shop });
+  if (!settings || !settings.enabled || !settings.prizes.length) {
+    return json({ error: "Not configured" }, { status: 400 });
+  }
+
+  // Weighted random selection
+  const prizes = settings.prizes;
+  const totalWeight = prizes.reduce((sum, p) => sum + (p.probability || 1), 0);
+  let random = Math.random() * totalWeight;
+  let selectedIndex = 0;
+  for (let i = 0; i < prizes.length; i++) {
+    random -= (prizes[i].probability || 1);
+    if (random <= 0) { selectedIndex = i; break; }
+  }
+
+  const prize = prizes[selectedIndex];
+  const token = crypto.randomUUID();
+
+  await WheelSpinToken.create({
+    token,
+    shopId: shop,
+    prizeIndex: selectedIndex,
+    prizeLabel: prize.label,
+    prizeDiscountType: prize.discountType,
+    prizeDiscountValue: prize.discountValue,
+  });
+
+  return json({ prizeIndex: selectedIndex, token, prize: { label: prize.label, discountType: prize.discountType } });
+}
+
+// ─── Wheel Claim (Step 2: email + token → creates discount, sends email) ───────
+
+async function handleWheelClaim(params: URLSearchParams, shop: string) {
+  const email = params.get("email");
+  const token = params.get("token");
+
+  if (!email || !email.includes("@")) return json({ error: "Valid email required" }, { status: 400 });
+  if (!token) return json({ error: "Invalid spin token" }, { status: 400 });
+
+  const spinToken = await WheelSpinToken.findOne({ token, shopId: shop });
+  if (!spinToken) return json({ error: "Spin session expired. Please spin again." }, { status: 400 });
+
+  // Check if already claimed
+  const existing = await Subscriber.findOne({ shopId: shop, email, source: "spin_wheel" });
+  if (existing) {
+    await WheelSpinToken.deleteOne({ token });
+    return json({ error: "You've already claimed a prize! Check your email." });
+  }
+
+  let discountCode = "";
+
+  if (spinToken.prizeDiscountType !== "no_prize") {
+    try {
+      const { admin } = await unauthenticated.admin(shop);
+      discountCode = await createSpinWheelDiscount(admin as any, {
+        discountType: spinToken.prizeDiscountType as "percentage" | "fixed_amount" | "free_shipping",
+        discountValue: spinToken.prizeDiscountValue,
+        title: `Spin Wheel: ${spinToken.prizeLabel}`,
+      });
+    } catch (err) {
+      console.error("Spin wheel discount creation failed:", err);
+    }
+  }
+
+  await Subscriber.create({
+    shopId: shop, email, source: "spin_wheel",
+    prizeName: spinToken.prizeLabel, discountCode, status: "active",
+  });
+
+  await WheelSpinToken.deleteOne({ token });
+
+  sendWheelPrizeEmail({
+    to: email,
+    prizeName: spinToken.prizeLabel,
+    discountCode,
+    shopName: shop,
+  }).catch((err) => console.error("Wheel prize email failed:", err));
+
+  return json({
+    success: true,
+    prize: { label: spinToken.prizeLabel, discountType: spinToken.prizeDiscountType },
     discountCode,
   });
 }

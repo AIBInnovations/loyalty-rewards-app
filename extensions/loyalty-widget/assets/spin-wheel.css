@@ -91,25 +91,41 @@
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 
-/* Email Form */
-.sw-form { display: flex; gap: 8px; margin-bottom: 8px; }
+/* Spin Button (Step 1) */
+.sw-step-spin { text-align: center; margin-top: 4px; }
+.sw-spin-btn {
+  padding: 12px 32px; border: none; border-radius: 8px;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+  color: #fff; white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.sw-spin-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
+.sw-spin-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.sw-error { font-size: 12px; color: #dc3545; margin: 6px 0 0; }
+
+/* Claim Form (Step 2) */
+.sw-step-claim { margin-top: 8px; }
+.sw-claim-label { font-size: 14px; font-weight: 700; color: #333; margin: 0 0 10px; }
+.sw-form { display: flex; gap: 8px; margin-bottom: 6px; }
 .sw-email {
   flex: 1; padding: 10px 12px;
   border: 2px solid #e0e0e0; border-radius: 8px;
   font-size: 13px; outline: none;
 }
 .sw-email:focus { border-color: #e91e63; }
-.sw-spin-btn {
-  padding: 10px 20px; border: none; border-radius: 8px;
+.sw-claim-btn {
+  padding: 10px 18px; border: none; border-radius: 8px;
   font-size: 13px; font-weight: 700; cursor: pointer;
   color: #fff; white-space: nowrap;
 }
-.sw-spin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.sw-error { font-size: 12px; color: #dc3545; margin: 4px 0 0; }
+.sw-claim-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.sw-error-claim { font-size: 12px; color: #dc3545; margin: 4px 0 0; }
 
 /* Result */
 .sw-result { margin-top: 12px; }
-.sw-result-text { font-size: 18px; font-weight: 800; color: #333; margin: 0 0 8px; }
+.sw-result-text { font-size: 18px; font-weight: 800; color: #333; margin: 0 0 6px; }
+.sw-result-label { font-size: 13px; color: #666; margin: 0 0 8px; }
 .sw-result-code {
   display: inline-block; padding: 8px 20px;
   background: #f0f0f0; border-radius: 8px;
@@ -117,10 +133,13 @@
   color: #e91e63; margin-bottom: 10px;
 }
 .sw-result-apply {
-  display: inline-block; padding: 10px 20px;
+  display: block; padding: 11px 20px;
   background: #e91e63; color: #fff; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 700; cursor: pointer; text-decoration: none;
+  font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none;
+  margin-bottom: 8px;
 }
+.sw-result-apply:hover { opacity: 0.9; }
+.sw-result-email-note { font-size: 12px; color: #999; margin: 4px 0 0; }
 .sw-result-nope { font-size: 14px; color: #999; margin: 8px 0 0; }
 
 @media (max-width: 480px) {
