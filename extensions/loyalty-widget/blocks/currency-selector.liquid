@@ -78,6 +78,61 @@
     })
     .catch(function () { /* keep fallback dropdown */ });
 
+  /* ── Flag helpers ───────────────────────────────────────────
+     Emoji flags don't render on Windows (Chrome shows "IN", "US"…),
+     so we render real flag images from flagcdn and fall back to the
+     emoji only if the image fails to load. ───────────────────── */
+  var CC_BY_CODE = {
+    INR:"in",USD:"us",GBP:"gb",EUR:"eu",AUD:"au",AED:"ae",SAR:"sa",CAD:"ca",
+    SGD:"sg",JPY:"jp",NZD:"nz",CHF:"ch",CNY:"cn",HKD:"hk",ZAR:"za",THB:"th",
+    MYR:"my",IDR:"id",PHP:"ph",KRW:"kr",BRL:"br",MXN:"mx",RUB:"ru",SEK:"se",
+    NOK:"no",DKK:"dk",PLN:"pl",TRY:"tr",VND:"vn",EGP:"eg",NGN:"ng",KES:"ke"
+  };
+
+  function countryCode(cur) {
+    var f = (cur && cur.flag) || "";
+    // Decode regional-indicator emoji (🇮🇳 → "in")
+    var letters = "";
+    for (var i = 0; i < f.length; i++) {
+      var cp = f.codePointAt(i);
+      if (cp >= 0x1F1E6 && cp <= 0x1F1FF) { letters += String.fromCharCode(65 + cp - 0x1F1E6); i++; }
+    }
+    if (letters.length === 2) return letters.toLowerCase();
+    if (/^[A-Za-z]{2}$/.test(f.trim())) return f.trim().toLowerCase();
+    return CC_BY_CODE[(cur && cur.currencyCode) || ""] || "";
+  }
+
+  function makeFlag(cur, dispW) {
+    var dispH = Math.round(dispW * 0.72);
+    var cc = countryCode(cur);
+    if (cc) {
+      var img = document.createElement("img");
+      img.src = "https://flagcdn.com/w40/" + cc + ".png";
+      img.srcset = "https://flagcdn.com/w80/" + cc + ".png 2x";
+      img.alt = ""; img.loading = "lazy";
+      img.style.cssText = "width:" + dispW + "px !important;height:" + dispH + "px !important;border-radius:2px;object-fit:cover;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,.1);display:inline-block;vertical-align:middle;";
+      img.onerror = function () {
+        var s = document.createElement("span");
+        s.textContent = (cur && cur.flag) || "";
+        s.style.cssText = "font-size:" + Math.round(dispW * 0.85) + "px;line-height:1;flex-shrink:0;";
+        if (img.parentNode) img.parentNode.replaceChild(s, img);
+      };
+      return img;
+    }
+    var span = document.createElement("span");
+    span.textContent = (cur && cur.flag) || "";
+    span.style.cssText = "font-size:" + Math.round(dispW * 0.85) + "px;line-height:1;flex-shrink:0;";
+    return span;
+  }
+
+  function setLabel(cur) {
+    labelEl.textContent = "";
+    var f = makeFlag(cur, 18);
+    f.style.marginRight = "5px";
+    labelEl.appendChild(f);
+    labelEl.appendChild(document.createTextNode(cur.currencyCode || cur.code || ""));
+  }
+
   /* ── Build dropdown entirely in JS with inline styles ──────── */
   function buildDropdown(currencies) {
     dd = document.createElement("div");
@@ -88,9 +143,7 @@
       row.setAttribute("data-code", cur.currencyCode);
       row.style.cssText = "display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:13px;color:#333;background:transparent;width:100%;box-sizing:border-box;line-height:1.4;margin:0;";
 
-      var flag = document.createElement("span");
-      flag.textContent = cur.flag || "";
-      flag.style.cssText = "font-size:20px;line-height:1;flex-shrink:0;display:inline-block;color:#333;";
+      var flag = makeFlag(cur, 24);
 
       var name = document.createElement("span");
       name.textContent = (cur.label || cur.currencyCode) + " (" + cur.currencyCode + ")";
@@ -111,7 +164,7 @@
           r.style.background = "transparent"; r.style.fontWeight = "normal"; r._active = false;
         });
         row.style.background = "#eef2ff"; row.style.fontWeight = "600"; row._active = true;
-        labelEl.textContent = (cur.flag ? cur.flag + " " : "") + cur.currencyCode;
+        setLabel(cur);
         closeDD();
         localStorage.setItem("loy_currency", JSON.stringify({
           code: cur.currencyCode, symbol: cur.symbol, flag: cur.flag || "", label: cur.label
@@ -128,11 +181,15 @@
     try {
       var saved = JSON.parse(localStorage.getItem("loy_currency") || "null");
       if (saved && saved.code && saved.code !== BASE) {
-        labelEl.textContent = (saved.flag ? saved.flag + " " : "") + saved.code;
+        setLabel({ flag: saved.flag, currencyCode: saved.code });
         var selRow = dd.querySelector('[data-code="' + saved.code + '"]');
         if (selRow) { selRow.style.background = "#eef2ff"; selRow.style.fontWeight = "600"; selRow._active = true; }
         storeOrig();
         fetchRates(function (r) { if (r && r[saved.code]) convertPrices(r[saved.code], saved.symbol); });
+      } else {
+        // No saved selection → show the base currency with its flag
+        var baseCur = currencies.filter(function (c) { return c.currencyCode === BASE; })[0];
+        if (baseCur) setLabel(baseCur);
       }
     } catch (e) {}
   }
