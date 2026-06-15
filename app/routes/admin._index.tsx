@@ -8,6 +8,7 @@ import {
 import {
   AppProvider,
   Badge,
+  Banner,
   BlockStack,
   Box,
   Button,
@@ -50,6 +51,17 @@ import { VoiceAgentSettings } from "../.server/models/voice-agent-settings.model
 import { VolumeDiscountSettings } from "../.server/models/volume-discount.model";
 import { WheelSettings } from "../.server/models/wheel-settings.model";
 import { WishlistSettings } from "../.server/models/wishlist-settings.model";
+import { PlatformShop } from "../.server/models/platform-shop.model";
+import { AuditLog, recordAuditLog } from "../.server/models/audit-log.model";
+import { WebhookEvent } from "../.server/models/webhook-event.model";
+import { SyncJob } from "../.server/models/sync-job.model";
+import { AdminUser } from "../.server/models/admin-user.model";
+import { Subscription } from "../.server/models/subscription.model";
+import { FeatureFlag } from "../.server/models/feature-flag.model";
+import { StorefrontConfig } from "../.server/models/storefront-config.model";
+import { StorefrontDomain } from "../.server/models/storefront-domain.model";
+import { ProductCache } from "../.server/models/product-cache.model";
+import { OrderCache } from "../.server/models/order-cache.model";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
@@ -282,6 +294,54 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const selectedPluginKey = editablePluginKeys.has(requestedPluginKey)
     ? requestedPluginKey
     : "";
+  const platformShops = await PlatformShop.find({})
+    .sort({ updatedAt: -1 })
+    .limit(100)
+    .lean();
+  const auditLogs = await AuditLog.find(selectedShop ? { shopId: selectedShop } : {})
+    .sort({ createdAt: -1 })
+    .limit(12)
+    .lean();
+  const webhookEvents = await WebhookEvent.find(
+    selectedShop ? { shopId: selectedShop } : {},
+  )
+    .sort({ receivedAt: -1 })
+    .limit(12)
+    .lean();
+  const syncJobs = await SyncJob.find(selectedShop ? { shopId: selectedShop } : {})
+    .sort({ queuedAt: -1 })
+    .limit(12)
+    .lean();
+  const adminUsers = await AdminUser.find({}).sort({ createdAt: -1 }).limit(50).lean();
+  const subscriptions = await Subscription.find({}).sort({ updatedAt: -1 }).limit(100).lean();
+  const featureFlags = await FeatureFlag.find({}).sort({ key: 1 }).limit(100).lean();
+  const storefrontDomains = await StorefrontDomain.find(
+    selectedShop ? { shopId: selectedShop } : {},
+  )
+    .sort({ domain: 1 })
+    .limit(100)
+    .lean();
+  const storefrontConfig = selectedShop
+    ? await StorefrontConfig.findOne({ shopId: selectedShop }).lean()
+    : null;
+  const productCacheCount = selectedShop
+    ? await ProductCache.countDocuments({ shopId: selectedShop })
+    : 0;
+  const orderCacheCount = selectedShop
+    ? await OrderCache.countDocuments({ shopId: selectedShop })
+    : 0;
+  const recentProducts = selectedShop
+    ? await ProductCache.find({ shopId: selectedShop })
+        .sort({ updatedAt: -1 })
+        .limit(8)
+        .lean()
+    : [];
+  const recentOrders = selectedShop
+    ? await OrderCache.find({ shopId: selectedShop })
+        .sort({ updatedAt: -1 })
+        .limit(8)
+        .lean()
+    : [];
 
   if (shops.length > 0 && !selectedShop) {
     throw redirect(`/admin?shop=${encodeURIComponent(shops[0])}`);
@@ -313,6 +373,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         editable: editablePluginKeys.has(plugin.key),
       })),
       pluginSettings: {},
+      platformShops: platformShops.map((shop) => ({
+        id: shop._id.toString(),
+        shopId: shop.shopId,
+        status: shop.status,
+        plan: shop.plan,
+        scopes: shop.scopes || [],
+        lastSeenAt: shop.lastSeenAt?.toISOString(),
+        lastWebhookAt: shop.lastWebhookAt?.toISOString(),
+        updatedAt: shop.updatedAt?.toISOString(),
+      })),
+      auditLogs: [],
+      webhookEvents: [],
+      syncJobs: [],
+      adminUsers: adminUsers.map((user) => ({
+        id: user._id.toString(),
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        status: user.status,
+        allowedShops: user.allowedShops || [],
+        createdAt: user.createdAt?.toISOString(),
+      })),
+      subscriptions: [],
+      featureFlags: featureFlags.map((flag) => ({
+        id: flag._id.toString(),
+        key: flag.key,
+        description: flag.description,
+        enabledByDefault: flag.enabledByDefault,
+        overrides: flag.shopOverrides?.length || 0,
+      })),
+      storefrontDomains: [],
+      storefrontConfig: null,
+      productCacheCount,
+      orderCacheCount,
+      recentProducts: [],
+      recentOrders: [],
       recentTransactions: [],
     });
   }
@@ -549,6 +645,104 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     setupTasks,
     plugins,
     pluginSettings,
+    platformShops: platformShops.map((shop) => ({
+      id: shop._id.toString(),
+      shopId: shop.shopId,
+      status: shop.status,
+      plan: shop.plan,
+      scopes: shop.scopes || [],
+      lastSeenAt: shop.lastSeenAt?.toISOString(),
+      lastWebhookAt: shop.lastWebhookAt?.toISOString(),
+      lastSyncAt: shop.lastSyncAt?.toISOString(),
+      updatedAt: shop.updatedAt?.toISOString(),
+    })),
+    auditLogs: auditLogs.map((log) => ({
+      id: log._id.toString(),
+      actorType: log.actorType,
+      actorId: log.actorId,
+      shopId: log.shopId || "",
+      action: log.action,
+      targetType: log.targetType,
+      targetId: log.targetId || "",
+      createdAt: log.createdAt?.toISOString(),
+    })),
+    webhookEvents: webhookEvents.map((event) => ({
+      id: event._id.toString(),
+      shopId: event.shopId,
+      topic: event.topic,
+      status: event.status,
+      webhookId: event.webhookId,
+      errorMessage: event.errorMessage || "",
+      receivedAt: event.receivedAt?.toISOString(),
+    })),
+    syncJobs: syncJobs.map((job) => ({
+      id: job._id.toString(),
+      shopId: job.shopId,
+      jobType: job.jobType,
+      objectId: job.objectId || "",
+      state: job.state,
+      attempts: job.attempts,
+      errorMessage: job.errorMessage || "",
+      queuedAt: job.queuedAt?.toISOString(),
+    })),
+    adminUsers: adminUsers.map((user) => ({
+      id: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      status: user.status,
+      allowedShops: user.allowedShops || [],
+      createdAt: user.createdAt?.toISOString(),
+    })),
+    subscriptions: subscriptions.map((subscription) => ({
+      id: subscription._id.toString(),
+      shopId: subscription.shopId,
+      plan: subscription.plan,
+      billingState: subscription.billingState,
+      trialEndsAt: subscription.trialEndsAt?.toISOString(),
+      renewsAt: subscription.renewsAt?.toISOString(),
+      maxPlugins: subscription.usageCaps?.maxPlugins || 0,
+    })),
+    featureFlags: featureFlags.map((flag) => ({
+      id: flag._id.toString(),
+      key: flag.key,
+      description: flag.description,
+      enabledByDefault: flag.enabledByDefault,
+      overrides: flag.shopOverrides?.length || 0,
+    })),
+    storefrontDomains: storefrontDomains.map((domain) => ({
+      id: domain._id.toString(),
+      shopId: domain.shopId,
+      domain: domain.domain,
+      isPrimary: domain.isPrimary,
+      verifiedAt: domain.verifiedAt?.toISOString(),
+    })),
+    storefrontConfig: storefrontConfig
+      ? {
+          theme: JSON.stringify(storefrontConfig.theme || {}, null, 2),
+          navigation: JSON.stringify(storefrontConfig.navigation || {}, null, 2),
+          featureFlags: JSON.stringify(storefrontConfig.featureFlags || {}, null, 2),
+        }
+      : null,
+    productCacheCount,
+    orderCacheCount,
+    recentProducts: recentProducts.map((product) => ({
+      id: product._id.toString(),
+      shopifyProductId: product.shopifyProductId,
+      title: product.title,
+      handle: product.handle,
+      status: product.status,
+      syncedAt: product.syncedAt?.toISOString(),
+    })),
+    recentOrders: recentOrders.map((order) => ({
+      id: order._id.toString(),
+      shopifyOrderId: order.shopifyOrderId,
+      name: order.name,
+      financialStatus: order.financialStatus,
+      totalPrice: order.totalPrice,
+      currency: order.currency,
+      syncedAt: order.syncedAt?.toISOString(),
+    })),
     recentTransactions: recentTransactions.map((t) => ({
       id: t._id.toString(),
       customer:
@@ -790,6 +984,211 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shopId = String(formData.get("shop") || "");
   const pluginKey = String(formData.get("pluginKey") || "");
 
+  if (intent === "update-store-status") {
+    const status = String(formData.get("status") || "");
+    if (
+      !shopId ||
+      !["active", "suspended", "archived"].includes(status)
+    ) {
+      return json({ success: false }, { status: 400 });
+    }
+
+    await PlatformShop.findOneAndUpdate(
+      { shopId },
+      { $set: { status, shopDomain: shopId } },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+    await recordAuditLog({
+      actorType: "super_admin",
+      actorId: "admin",
+      shopId,
+      action: "store.status.updated",
+      targetType: "shop",
+      targetId: shopId,
+      metadata: { status },
+    });
+    return redirect(`/admin?shop=${encodeURIComponent(shopId)}&tab=stores`);
+  }
+
+  if (intent === "queue-resync") {
+    if (!shopId) {
+      return json({ success: false }, { status: 400 });
+    }
+
+    await SyncJob.create({
+      shopId,
+      jobType: "manual_reconciliation",
+      state: "queued",
+      metadata: { requestedFrom: "admin_panel" },
+    });
+    await PlatformShop.findOneAndUpdate(
+      { shopId },
+      { $set: { lastSyncAt: new Date(), shopDomain: shopId } },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+    await recordAuditLog({
+      actorType: "super_admin",
+      actorId: "admin",
+      shopId,
+      action: "sync.manual_reconciliation.queued",
+      targetType: "sync_job",
+      targetId: shopId,
+      metadata: {},
+    });
+    return redirect(`/admin?shop=${encodeURIComponent(shopId)}&tab=logs`);
+  }
+
+  if (intent === "create-admin-user") {
+    const email = String(formData.get("email") || "").trim().toLowerCase();
+    const name = String(formData.get("name") || "").trim();
+    const role = String(formData.get("role") || "support_admin");
+    if (!email) return json({ success: false }, { status: 400 });
+
+    await AdminUser.findOneAndUpdate(
+      { email },
+      {
+        $set: {
+          name,
+          role,
+          status: "active",
+          allowedShops: shopId ? [shopId] : [],
+        },
+      },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+    await recordAuditLog({
+      actorType: "super_admin",
+      actorId: "admin",
+      shopId: shopId || undefined,
+      action: "admin_user.upserted",
+      targetType: "admin_user",
+      targetId: email,
+      metadata: { role },
+    });
+    return redirect(`/admin?${new URLSearchParams({ ...(shopId ? { shop: shopId } : {}), tab: "users" })}`);
+  }
+
+  if (intent === "update-subscription") {
+    const plan = String(formData.get("plan") || "free");
+    const billingState = String(formData.get("billingState") || "trial");
+    if (!shopId) return json({ success: false }, { status: 400 });
+
+    await Subscription.findOneAndUpdate(
+      { shopId },
+      {
+        $set: {
+          plan,
+          billingState,
+          "usageCaps.maxPlugins": plan === "enterprise" ? 50 : plan === "pro" ? 20 : 5,
+          "usageCaps.maxMonthlyOrders":
+            plan === "enterprise" ? 100000 : plan === "pro" ? 10000 : 1000,
+          "usageCaps.maxAdmins": plan === "enterprise" ? 25 : plan === "pro" ? 5 : 1,
+        },
+      },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+    await PlatformShop.findOneAndUpdate(
+      { shopId },
+      { $set: { plan, shopDomain: shopId } },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+    await recordAuditLog({
+      actorType: "super_admin",
+      actorId: "admin",
+      shopId,
+      action: "subscription.updated",
+      targetType: "subscription",
+      targetId: shopId,
+      metadata: { plan, billingState },
+    });
+    return redirect(`/admin?shop=${encodeURIComponent(shopId)}&tab=billing`);
+  }
+
+  if (intent === "upsert-feature-flag") {
+    const key = String(formData.get("flagKey") || "").trim();
+    const description = String(formData.get("description") || "").trim();
+    const enabledByDefault = formData.get("enabledByDefault") === "true";
+    if (!key) return json({ success: false }, { status: 400 });
+
+    await FeatureFlag.findOneAndUpdate(
+      { key },
+      { $set: { description, enabledByDefault } },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+    await recordAuditLog({
+      actorType: "super_admin",
+      actorId: "admin",
+      shopId: shopId || undefined,
+      action: "feature_flag.upserted",
+      targetType: "feature_flag",
+      targetId: key,
+      metadata: { enabledByDefault },
+    });
+    return redirect(`/admin?${new URLSearchParams({ ...(shopId ? { shop: shopId } : {}), tab: "settings" })}`);
+  }
+
+  if (intent === "add-storefront-domain") {
+    const domain = String(formData.get("domain") || "").trim().toLowerCase();
+    if (!shopId || !domain) return json({ success: false }, { status: 400 });
+
+    await StorefrontDomain.findOneAndUpdate(
+      { domain },
+      {
+        $set: {
+          shopId,
+          domain,
+          isPrimary: formData.get("isPrimary") === "true",
+          verifiedAt: new Date(),
+        },
+      },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+    await recordAuditLog({
+      actorType: "super_admin",
+      actorId: "admin",
+      shopId,
+      action: "storefront_domain.added",
+      targetType: "storefront_domain",
+      targetId: domain,
+      metadata: {},
+    });
+    return redirect(`/admin?shop=${encodeURIComponent(shopId)}&tab=storefront`);
+  }
+
+  if (intent === "save-storefront-config") {
+    if (!shopId) return json({ success: false }, { status: 400 });
+    const themeRaw = String(formData.get("theme") || "{}");
+    const navigationRaw = String(formData.get("navigation") || "{}");
+    const featureFlagsRaw = String(formData.get("featureFlags") || "{}");
+
+    let theme = {};
+    let navigation = {};
+    let featureFlags = {};
+    try {
+      theme = JSON.parse(themeRaw);
+      navigation = JSON.parse(navigationRaw);
+      featureFlags = JSON.parse(featureFlagsRaw);
+    } catch (_error) {
+      return json({ success: false, error: "Invalid JSON" }, { status: 400 });
+    }
+
+    await StorefrontConfig.findOneAndUpdate(
+      { shopId },
+      { $set: { theme, navigation, featureFlags } },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+    await recordAuditLog({
+      actorType: "super_admin",
+      actorId: "admin",
+      shopId,
+      action: "storefront_config.updated",
+      targetType: "storefront_config",
+      targetId: shopId,
+      metadata: {},
+    });
+    return redirect(`/admin?shop=${encodeURIComponent(shopId)}&tab=storefront`);
+  }
+
   if (!shopId || !pluginDefinitions.some((plugin) => plugin.key === pluginKey)) {
     return json({ success: false }, { status: 400 });
   }
@@ -800,6 +1199,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     await updatePluginSettings(shopId, pluginKey, formData);
+    await recordAuditLog({
+      actorType: "super_admin",
+      actorId: "admin",
+      shopId,
+      action: "plugin.settings.updated",
+      targetType: "plugin",
+      targetId: pluginKey,
+      metadata: { fields: editablePluginFields[pluginKey]?.map((field) => field.name) || [] },
+    });
     return redirect(
       `/admin?shop=${encodeURIComponent(shopId)}&tab=plugins&plugin=${encodeURIComponent(pluginKey)}`,
     );
@@ -807,6 +1215,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const enabled = formData.get("enabled") === "true";
   await setPluginStatus(shopId, pluginKey, enabled);
+  await recordAuditLog({
+    actorType: "super_admin",
+    actorId: "admin",
+    shopId,
+    action: enabled ? "plugin.enabled" : "plugin.disabled",
+    targetType: "plugin",
+    targetId: pluginKey,
+    metadata: { enabled },
+  });
   return redirect(
     `/admin?shop=${encodeURIComponent(shopId)}&tab=plugins&plugin=${encodeURIComponent(pluginKey)}`,
   );
@@ -1031,6 +1448,19 @@ export default function AdminPanel() {
     setupTasks,
     plugins,
     pluginSettings,
+    platformShops,
+    auditLogs,
+    webhookEvents,
+    syncJobs,
+    adminUsers,
+    subscriptions,
+    featureFlags,
+    storefrontDomains,
+    storefrontConfig,
+    productCacheCount,
+    orderCacheCount,
+    recentProducts,
+    recentOrders,
     recentTransactions,
   } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
@@ -1072,6 +1502,95 @@ export default function AdminPanel() {
     transaction.date
       ? new Date(transaction.date).toLocaleDateString("en-IN")
       : "",
+  ]);
+  const storeRows = platformShops.map((shop) => [
+    shop.shopId,
+    shop.status,
+    shop.plan,
+    shop.scopes.length ? shop.scopes.join(", ") : "No scopes recorded",
+    shop.lastSeenAt ? new Date(shop.lastSeenAt).toLocaleString("en-IN") : "Never",
+    shop.lastWebhookAt
+      ? new Date(shop.lastWebhookAt).toLocaleString("en-IN")
+      : "No webhook yet",
+    <InlineStack key={shop.shopId} gap="200">
+      <Form method="post">
+        <input type="hidden" name="intent" value="update-store-status" />
+        <input type="hidden" name="shop" value={shop.shopId} />
+        <input
+          type="hidden"
+          name="status"
+          value={shop.status === "active" ? "suspended" : "active"}
+        />
+        <Button submit size="slim">
+          {shop.status === "active" ? "Suspend" : "Activate"}
+        </Button>
+      </Form>
+      <Form method="post">
+        <input type="hidden" name="intent" value="queue-resync" />
+        <input type="hidden" name="shop" value={shop.shopId} />
+        <Button submit size="slim">Queue sync</Button>
+      </Form>
+    </InlineStack>,
+  ]);
+  const auditRows = auditLogs.map((log) => [
+    log.action,
+    log.shopId || "Platform",
+    log.actorType,
+    log.targetType,
+    log.createdAt ? new Date(log.createdAt).toLocaleString("en-IN") : "",
+  ]);
+  const webhookRows = webhookEvents.map((event) => [
+    event.topic,
+    event.shopId,
+    event.status,
+    event.errorMessage || "-",
+    event.receivedAt ? new Date(event.receivedAt).toLocaleString("en-IN") : "",
+  ]);
+  const syncRows = syncJobs.map((job) => [
+    job.jobType,
+    job.shopId,
+    job.state,
+    String(job.attempts),
+    job.queuedAt ? new Date(job.queuedAt).toLocaleString("en-IN") : "",
+  ]);
+  const userRows = adminUsers.map((user) => [
+    user.email,
+    user.name || "-",
+    user.role,
+    user.status,
+    user.allowedShops.length ? user.allowedShops.join(", ") : "All stores",
+  ]);
+  const subscriptionRows = subscriptions.map((subscription) => [
+    subscription.shopId,
+    subscription.plan,
+    subscription.billingState,
+    String(subscription.maxPlugins),
+    subscription.renewsAt
+      ? new Date(subscription.renewsAt).toLocaleDateString("en-IN")
+      : "-",
+  ]);
+  const flagRows = featureFlags.map((flag) => [
+    flag.key,
+    flag.description || "-",
+    flag.enabledByDefault ? "Enabled" : "Disabled",
+    String(flag.overrides),
+  ]);
+  const domainRows = storefrontDomains.map((domain) => [
+    domain.domain,
+    domain.isPrimary ? "Primary" : "Secondary",
+    domain.verifiedAt ? new Date(domain.verifiedAt).toLocaleString("en-IN") : "Pending",
+  ]);
+  const productRows = recentProducts.map((product) => [
+    product.title || product.shopifyProductId,
+    product.handle || "-",
+    product.status || "-",
+    product.syncedAt ? new Date(product.syncedAt).toLocaleString("en-IN") : "-",
+  ]);
+  const orderRows = recentOrders.map((order) => [
+    order.name || order.shopifyOrderId,
+    order.financialStatus || "-",
+    `${order.currency || ""} ${order.totalPrice || 0}`.trim(),
+    order.syncedAt ? new Date(order.syncedAt).toLocaleString("en-IN") : "-",
   ]);
 
   return (
@@ -1463,6 +1982,55 @@ export default function AdminPanel() {
                   </a>
                   <a
                     className="admin-sidebar-link"
+                    data-active={activeTab === "stores"}
+                    href={tabUrl("stores")}
+                  >
+                    Stores
+                  </a>
+                  <a
+                    className="admin-sidebar-link"
+                    data-active={activeTab === "catalog"}
+                    href={tabUrl("catalog")}
+                  >
+                    Catalog
+                  </a>
+                  <a
+                    className="admin-sidebar-link"
+                    data-active={activeTab === "storefront"}
+                    href={tabUrl("storefront")}
+                  >
+                    Storefront
+                  </a>
+                  <a
+                    className="admin-sidebar-link"
+                    data-active={activeTab === "users"}
+                    href={tabUrl("users")}
+                  >
+                    Users
+                  </a>
+                  <a
+                    className="admin-sidebar-link"
+                    data-active={activeTab === "billing"}
+                    href={tabUrl("billing")}
+                  >
+                    Billing
+                  </a>
+                  <a
+                    className="admin-sidebar-link"
+                    data-active={activeTab === "settings"}
+                    href={tabUrl("settings")}
+                  >
+                    Settings
+                  </a>
+                  <a
+                    className="admin-sidebar-link"
+                    data-active={activeTab === "logs"}
+                    href={tabUrl("logs")}
+                  >
+                    Logs
+                  </a>
+                  <a
+                    className="admin-sidebar-link"
                     data-active={activeTab === "activity"}
                     href={tabUrl("activity")}
                   >
@@ -1767,6 +2335,437 @@ export default function AdminPanel() {
                       </BlockStack>
                     </Card>
                   </section>
+                  )}
+
+                  {activeTab === "stores" && (
+                    <section className="admin-section">
+                      <BlockStack gap="400">
+                        <Banner tone="info" title="Multi-store control plane">
+                          <p>
+                            Stores are tracked as isolated tenants. Operational actions here
+                            are recorded in the audit log.
+                          </p>
+                        </Banner>
+                        <Card>
+                          <BlockStack gap="400">
+                            <div className="admin-panel-title">
+                              <BlockStack gap="100">
+                                <Text as="h2" variant="headingLg">
+                                  Store management
+                                </Text>
+                                <Text as="p" tone="subdued">
+                                  Inspect connected stores, tenant status, scopes, webhook
+                                  health, and queue reconciliation work.
+                                </Text>
+                              </BlockStack>
+                              <Badge tone="info">{platformShops.length} stores</Badge>
+                            </div>
+                            {storeRows.length > 0 ? (
+                              <DataTable
+                                columnContentTypes={[
+                                  "text",
+                                  "text",
+                                  "text",
+                                  "text",
+                                  "text",
+                                  "text",
+                                  "text",
+                                ]}
+                                headings={[
+                                  "Store",
+                                  "Status",
+                                  "Plan",
+                                  "Scopes",
+                                  "Last seen",
+                                  "Last webhook",
+                                  "Actions",
+                                ]}
+                                rows={storeRows}
+                              />
+                            ) : (
+                              <EmptyState
+                                heading="No stores in the control plane yet"
+                                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                              >
+                                <p>
+                                  Install or open the Shopify app once to register a tenant.
+                                </p>
+                              </EmptyState>
+                            )}
+                          </BlockStack>
+                        </Card>
+                      </BlockStack>
+                    </section>
+                  )}
+
+                  {activeTab === "catalog" && (
+                    <section className="admin-section">
+                      <InlineGrid columns={{ xs: 1, lg: 2 }} gap="400">
+                        <Card>
+                          <BlockStack gap="300">
+                            <InlineStack align="space-between">
+                              <Text as="h2" variant="headingLg">
+                                Product cache
+                              </Text>
+                              <Badge tone="info">{productCacheCount} products</Badge>
+                            </InlineStack>
+                            {productRows.length > 0 ? (
+                              <DataTable
+                                columnContentTypes={["text", "text", "text", "text"]}
+                                headings={["Product", "Handle", "Status", "Synced"]}
+                                rows={productRows}
+                              />
+                            ) : (
+                              <Text as="p" tone="subdued">
+                                Product cache will populate from product webhooks and sync jobs.
+                              </Text>
+                            )}
+                          </BlockStack>
+                        </Card>
+                        <Card>
+                          <BlockStack gap="300">
+                            <InlineStack align="space-between">
+                              <Text as="h2" variant="headingLg">
+                                Order cache
+                              </Text>
+                              <Badge tone="info">{orderCacheCount} orders</Badge>
+                            </InlineStack>
+                            {orderRows.length > 0 ? (
+                              <DataTable
+                                columnContentTypes={["text", "text", "text", "text"]}
+                                headings={["Order", "Status", "Total", "Synced"]}
+                                rows={orderRows}
+                              />
+                            ) : (
+                              <Text as="p" tone="subdued">
+                                Order cache will populate from order webhooks and sync jobs.
+                              </Text>
+                            )}
+                          </BlockStack>
+                        </Card>
+                      </InlineGrid>
+                    </section>
+                  )}
+
+                  {activeTab === "storefront" && (
+                    <section className="admin-section">
+                      <BlockStack gap="400">
+                        <Card>
+                          <BlockStack gap="300">
+                            <Text as="h2" variant="headingLg">
+                              Storefront domains
+                            </Text>
+                            <Form method="post">
+                              <input type="hidden" name="intent" value="add-storefront-domain" />
+                              <input type="hidden" name="shop" value={selectedShop} />
+                              <InlineGrid columns={{ xs: 1, md: 3 }} gap="300">
+                                <TextField
+                                  label="Domain"
+                                  name="domain"
+                                  autoComplete="off"
+                                  placeholder="brand.com"
+                                />
+                                <Select
+                                  label="Primary"
+                                  name="isPrimary"
+                                  options={[
+                                    { label: "Yes", value: "true" },
+                                    { label: "No", value: "false" },
+                                  ]}
+                                />
+                                <Box paddingBlockStart="600">
+                                  <Button submit variant="primary">
+                                    Add domain
+                                  </Button>
+                                </Box>
+                              </InlineGrid>
+                            </Form>
+                            {domainRows.length > 0 ? (
+                              <DataTable
+                                columnContentTypes={["text", "text", "text"]}
+                                headings={["Domain", "Type", "Verified"]}
+                                rows={domainRows}
+                              />
+                            ) : (
+                              <Text as="p" tone="subdued">
+                                No storefront domains mapped yet.
+                              </Text>
+                            )}
+                          </BlockStack>
+                        </Card>
+
+                        <Card>
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="save-storefront-config" />
+                            <input type="hidden" name="shop" value={selectedShop} />
+                            <BlockStack gap="300">
+                              <Text as="h2" variant="headingLg">
+                                Storefront config JSON
+                              </Text>
+                              <label className="admin-edit-field admin-edit-field-wide">
+                                <span>Theme JSON</span>
+                                <textarea
+                                  name="theme"
+                                  rows={6}
+                                  defaultValue={storefrontConfig?.theme || "{}"}
+                                />
+                              </label>
+                              <label className="admin-edit-field admin-edit-field-wide">
+                                <span>Navigation JSON</span>
+                                <textarea
+                                  name="navigation"
+                                  rows={6}
+                                  defaultValue={storefrontConfig?.navigation || "{}"}
+                                />
+                              </label>
+                              <label className="admin-edit-field admin-edit-field-wide">
+                                <span>Feature flags JSON</span>
+                                <textarea
+                                  name="featureFlags"
+                                  rows={5}
+                                  defaultValue={storefrontConfig?.featureFlags || "{}"}
+                                />
+                              </label>
+                              <InlineStack align="end">
+                                <Button submit variant="primary">
+                                  Save storefront config
+                                </Button>
+                              </InlineStack>
+                            </BlockStack>
+                          </Form>
+                        </Card>
+                      </BlockStack>
+                    </section>
+                  )}
+
+                  {activeTab === "users" && (
+                    <section className="admin-section">
+                      <Card>
+                        <BlockStack gap="400">
+                          <Text as="h2" variant="headingLg">
+                            Admin users and RBAC
+                          </Text>
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="create-admin-user" />
+                            <input type="hidden" name="shop" value={selectedShop} />
+                            <InlineGrid columns={{ xs: 1, md: 4 }} gap="300">
+                              <TextField label="Email" name="email" autoComplete="email" />
+                              <TextField label="Name" name="name" autoComplete="name" />
+                              <Select
+                                label="Role"
+                                name="role"
+                                options={[
+                                  { label: "Super admin", value: "super_admin" },
+                                  { label: "Operations admin", value: "operations_admin" },
+                                  { label: "Support admin", value: "support_admin" },
+                                  { label: "Billing admin", value: "billing_admin" },
+                                ]}
+                              />
+                              <Box paddingBlockStart="600">
+                                <Button submit variant="primary">
+                                  Add user
+                                </Button>
+                              </Box>
+                            </InlineGrid>
+                          </Form>
+                          {userRows.length > 0 ? (
+                            <DataTable
+                              columnContentTypes={["text", "text", "text", "text", "text"]}
+                              headings={["Email", "Name", "Role", "Status", "Stores"]}
+                              rows={userRows}
+                            />
+                          ) : (
+                            <Text as="p" tone="subdued">
+                              No admin users created yet.
+                            </Text>
+                          )}
+                        </BlockStack>
+                      </Card>
+                    </section>
+                  )}
+
+                  {activeTab === "billing" && (
+                    <section className="admin-section">
+                      <Card>
+                        <BlockStack gap="400">
+                          <Text as="h2" variant="headingLg">
+                            Subscription management
+                          </Text>
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="update-subscription" />
+                            <input type="hidden" name="shop" value={selectedShop} />
+                            <InlineGrid columns={{ xs: 1, md: 3 }} gap="300">
+                              <Select
+                                label="Plan"
+                                name="plan"
+                                options={[
+                                  { label: "Free", value: "free" },
+                                  { label: "Pro", value: "pro" },
+                                  { label: "Enterprise", value: "enterprise" },
+                                ]}
+                              />
+                              <Select
+                                label="Billing state"
+                                name="billingState"
+                                options={[
+                                  { label: "Trial", value: "trial" },
+                                  { label: "Active", value: "active" },
+                                  { label: "Past due", value: "past_due" },
+                                  { label: "Cancelled", value: "cancelled" },
+                                  { label: "Suspended", value: "suspended" },
+                                ]}
+                              />
+                              <Box paddingBlockStart="600">
+                                <Button submit variant="primary">
+                                  Update subscription
+                                </Button>
+                              </Box>
+                            </InlineGrid>
+                          </Form>
+                          {subscriptionRows.length > 0 ? (
+                            <DataTable
+                              columnContentTypes={["text", "text", "text", "numeric", "text"]}
+                              headings={["Store", "Plan", "State", "Max plugins", "Renews"]}
+                              rows={subscriptionRows}
+                            />
+                          ) : (
+                            <Text as="p" tone="subdued">
+                              No subscriptions recorded yet.
+                            </Text>
+                          )}
+                        </BlockStack>
+                      </Card>
+                    </section>
+                  )}
+
+                  {activeTab === "settings" && (
+                    <section className="admin-section">
+                      <Card>
+                        <BlockStack gap="400">
+                          <Text as="h2" variant="headingLg">
+                            Global feature flags
+                          </Text>
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="upsert-feature-flag" />
+                            <input type="hidden" name="shop" value={selectedShop} />
+                            <InlineGrid columns={{ xs: 1, md: 4 }} gap="300">
+                              <TextField label="Flag key" name="flagKey" autoComplete="off" />
+                              <TextField label="Description" name="description" autoComplete="off" />
+                              <Select
+                                label="Default"
+                                name="enabledByDefault"
+                                options={[
+                                  { label: "Enabled", value: "true" },
+                                  { label: "Disabled", value: "false" },
+                                ]}
+                              />
+                              <Box paddingBlockStart="600">
+                                <Button submit variant="primary">
+                                  Save flag
+                                </Button>
+                              </Box>
+                            </InlineGrid>
+                          </Form>
+                          {flagRows.length > 0 ? (
+                            <DataTable
+                              columnContentTypes={["text", "text", "text", "numeric"]}
+                              headings={["Key", "Description", "Default", "Overrides"]}
+                              rows={flagRows}
+                            />
+                          ) : (
+                            <Text as="p" tone="subdued">
+                              No feature flags configured yet.
+                            </Text>
+                          )}
+                        </BlockStack>
+                      </Card>
+                    </section>
+                  )}
+
+                  {activeTab === "logs" && (
+                    <section className="admin-section">
+                      <BlockStack gap="400">
+                        <Card>
+                          <BlockStack gap="300">
+                            <Text as="h2" variant="headingLg">
+                              Audit logs
+                            </Text>
+                            {auditRows.length > 0 ? (
+                              <DataTable
+                                columnContentTypes={["text", "text", "text", "text", "text"]}
+                                headings={[
+                                  "Action",
+                                  "Store",
+                                  "Actor",
+                                  "Target",
+                                  "Time",
+                                ]}
+                                rows={auditRows}
+                              />
+                            ) : (
+                              <EmptyState
+                                heading="No audit logs yet"
+                                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                              >
+                                <p>Admin changes will appear here.</p>
+                              </EmptyState>
+                            )}
+                          </BlockStack>
+                        </Card>
+
+                        <InlineGrid columns={{ xs: 1, lg: 2 }} gap="400">
+                          <Card>
+                            <BlockStack gap="300">
+                              <Text as="h2" variant="headingMd">
+                                Webhook events
+                              </Text>
+                              {webhookRows.length > 0 ? (
+                                <DataTable
+                                  columnContentTypes={["text", "text", "text", "text", "text"]}
+                                  headings={[
+                                    "Topic",
+                                    "Store",
+                                    "Status",
+                                    "Error",
+                                    "Received",
+                                  ]}
+                                  rows={webhookRows}
+                                />
+                              ) : (
+                                <Text as="p" tone="subdued">
+                                  No webhook events recorded yet.
+                                </Text>
+                              )}
+                            </BlockStack>
+                          </Card>
+
+                          <Card>
+                            <BlockStack gap="300">
+                              <Text as="h2" variant="headingMd">
+                                Sync jobs
+                              </Text>
+                              {syncRows.length > 0 ? (
+                                <DataTable
+                                  columnContentTypes={["text", "text", "text", "numeric", "text"]}
+                                  headings={[
+                                    "Job",
+                                    "Store",
+                                    "State",
+                                    "Attempts",
+                                    "Queued",
+                                  ]}
+                                  rows={syncRows}
+                                />
+                              ) : (
+                                <Text as="p" tone="subdued">
+                                  No sync jobs queued yet.
+                                </Text>
+                              )}
+                            </BlockStack>
+                          </Card>
+                        </InlineGrid>
+                      </BlockStack>
+                    </section>
                   )}
 
                   {(activeTab === "overview" || activeTab === "activity") && (

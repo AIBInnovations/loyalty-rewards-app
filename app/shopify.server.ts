@@ -5,6 +5,11 @@ import {
   DeliveryMethod,
 } from "@shopify/shopify-app-remix/server";
 import { MongoSessionStorage } from "./.server/mongo-session-storage.server";
+import { connectDB } from "./db.server";
+import { upsertPlatformShop } from "./.server/models/platform-shop.model";
+import { recordAuditLog } from "./.server/models/audit-log.model";
+import { upsertShopToken } from "./.server/models/shop-token.model";
+import { Subscription } from "./.server/models/subscription.model";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY!,
@@ -27,6 +32,46 @@ const shopify = shopifyApp({
   },
   hooks: {
     afterAuth: async ({ session }) => {
+      try {
+        await connectDB();
+        await upsertPlatformShop({
+          shopId: session.shop,
+          shopDomain: session.shop,
+          scopes: session.scope?.split(",") || [],
+          status: "active",
+        });
+        if (session.accessToken) {
+          await upsertShopToken({
+            shopId: session.shop,
+            tokenType: session.isOnline ? "online" : "offline",
+            token: session.accessToken,
+            scopes: session.scope?.split(",") || [],
+            expiresAt: session.expires,
+          });
+        }
+        await Subscription.findOneAndUpdate(
+          { shopId: session.shop },
+          {
+            $setOnInsert: {
+              shopId: session.shop,
+              plan: "free",
+              billingState: "trial",
+            },
+          },
+          { upsert: true, setDefaultsOnInsert: true },
+        );
+        await recordAuditLog({
+          actorType: "system",
+          actorId: "shopify-auth",
+          shopId: session.shop,
+          action: "shop.authenticated",
+          targetType: "shop",
+          targetId: session.shop,
+          metadata: { scopes: session.scope || "" },
+        });
+      } catch (error) {
+        console.error("Failed to update platform shop after auth:", error);
+      }
       shopify.registerWebhooks({ session });
     },
   },
