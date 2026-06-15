@@ -239,7 +239,10 @@ export async function handleRefundCreate(
     return;
   }
 
-  const customer = await Customer.findById(existingTx.customerId);
+  const customer = await Customer.findOne({
+    _id: existingTx.customerId,
+    shopId: shop,
+  });
   if (!customer) return;
 
   await reversePoints({
@@ -344,9 +347,9 @@ export async function handleCustomerRedact(
   // Delete all customer data
   const customer = await Customer.findOne({ shopId: shop, shopifyCustomerId });
   if (customer) {
-    await Transaction.deleteMany({ customerId: customer._id });
-    await Redemption.deleteMany({ customerId: customer._id });
-    await Customer.deleteOne({ _id: customer._id });
+    await Transaction.deleteMany({ shopId: shop, customerId: customer._id });
+    await Redemption.deleteMany({ shopId: shop, customerId: customer._id });
+    await Customer.deleteOne({ _id: customer._id, shopId: shop });
   }
 
   console.log(

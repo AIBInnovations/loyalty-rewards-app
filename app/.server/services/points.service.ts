@@ -70,7 +70,7 @@ export async function earnPoints(
   if (points <= 0) return null;
 
   // Check idempotency -- if a transaction with this key exists, skip
-  const existing = await Transaction.findOne({ idempotencyKey });
+  const existing = await Transaction.findOne({ shopId, idempotencyKey });
   if (existing) {
     console.log(`Skipping duplicate: ${idempotencyKey}`);
     return null;
@@ -280,7 +280,7 @@ export async function reversePoints(
   if (points <= 0) return null;
 
   // Check idempotency
-  const existing = await Transaction.findOne({ idempotencyKey });
+  const existing = await Transaction.findOne({ shopId, idempotencyKey });
   if (existing) {
     console.log(`Skipping duplicate reversal: ${idempotencyKey}`);
     return null;

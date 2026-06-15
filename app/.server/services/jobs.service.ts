@@ -60,14 +60,21 @@ async function cleanupExpiredRedemptions(): Promise<void> {
   for (const redemption of expiredRedemptions) {
     try {
       // Refund points to customer
-      const customer = await Customer.findById(redemption.customerId);
+      const customer = await Customer.findOne({
+        _id: redemption.customerId,
+        shopId: redemption.shopId,
+      });
       if (customer) {
-        await Customer.findByIdAndUpdate(customer._id, {
-          $inc: { currentBalance: redemption.pointsSpent },
-        });
+        await Customer.updateOne(
+          { _id: customer._id, shopId: redemption.shopId },
+          { $inc: { currentBalance: redemption.pointsSpent } },
+        );
 
         // Create refund transaction
-        const updated = await Customer.findById(customer._id);
+        const updated = await Customer.findOne({
+          _id: customer._id,
+          shopId: redemption.shopId,
+        });
         await Transaction.create({
           shopId: redemption.shopId,
           customerId: customer._id,
@@ -128,6 +135,7 @@ async function expireOldPoints(): Promise<void> {
       const custId = tx.customerId.toString();
       // Check if already expired (look for matching expiry transaction)
       const alreadyExpired = await Transaction.exists({
+        shopId: shopSettings.shopId,
         idempotencyKey: `expire_${tx._id}`,
       });
       if (!alreadyExpired) {
@@ -140,17 +148,24 @@ async function expireOldPoints(): Promise<void> {
 
     // Deduct expired points from each customer
     for (const [custId, points] of customerPoints) {
-      const customer = await Customer.findById(custId);
+      const customer = await Customer.findOne({
+        _id: custId,
+        shopId: shopSettings.shopId,
+      });
       if (!customer || points <= 0) continue;
 
       const actualDeduction = Math.min(points, customer.currentBalance);
       if (actualDeduction <= 0) continue;
 
-      await Customer.findByIdAndUpdate(custId, {
-        $inc: { currentBalance: -actualDeduction },
-      });
+      await Customer.updateOne(
+        { _id: custId, shopId: shopSettings.shopId },
+        { $inc: { currentBalance: -actualDeduction } },
+      );
 
-      const updated = await Customer.findById(custId);
+      const updated = await Customer.findOne({
+        _id: custId,
+        shopId: shopSettings.shopId,
+      });
       await Transaction.create({
         shopId: shopSettings.shopId,
         customerId: custId,

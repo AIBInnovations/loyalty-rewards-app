@@ -64,18 +64,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     case "update": {
-      await Reward.findByIdAndUpdate(formData.get("id"), {
-        name: formData.get("name"),
-        pointsCost: Number(formData.get("pointsCost")),
-        discountType: formData.get("discountType"),
-        discountValue: Number(formData.get("discountValue")),
-        minimumOrderAmount: Number(formData.get("minimumOrderAmount")) || 0,
-      });
+      await Reward.findOneAndUpdate(
+        { _id: formData.get("id"), shopId: session.shop },
+        {
+          name: formData.get("name"),
+          pointsCost: Number(formData.get("pointsCost")),
+          discountType: formData.get("discountType"),
+          discountValue: Number(formData.get("discountValue")),
+          minimumOrderAmount: Number(formData.get("minimumOrderAmount")) || 0,
+        },
+      );
       return json({ success: true });
     }
 
     case "toggle": {
-      const reward = await Reward.findById(formData.get("id"));
+      const reward = await Reward.findOne({
+        _id: formData.get("id"),
+        shopId: session.shop,
+      });
       if (reward) {
         reward.isActive = !reward.isActive;
         await reward.save();
@@ -84,7 +90,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     case "delete": {
-      await Reward.findByIdAndDelete(formData.get("id"));
+      await Reward.deleteOne({ _id: formData.get("id"), shopId: session.shop });
       return json({ success: true });
     }
 
