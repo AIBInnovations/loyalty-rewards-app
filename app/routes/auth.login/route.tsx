@@ -21,13 +21,13 @@ import { useState } from "react";
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const errors = login(request);
+  const errors = await login(request);
 
   return json({ errors, polarisTranslations });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const errors = login(request);
+  const errors = await login(request);
   return json({ errors });
 };
 

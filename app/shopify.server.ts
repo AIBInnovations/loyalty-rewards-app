@@ -4,7 +4,7 @@ import {
   shopifyApp,
   DeliveryMethod,
 } from "@shopify/shopify-app-remix/server";
-import { MongoDBSessionStorage } from "@shopify/shopify-app-session-storage-mongodb";
+import { MongoSessionStorage } from "./.server/mongo-session-storage.server";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY!,
@@ -13,7 +13,7 @@ const shopify = shopifyApp({
   scopes: process.env.SCOPES?.split(","),
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
-  sessionStorage: new MongoDBSessionStorage(
+  sessionStorage: new MongoSessionStorage(
     process.env.MONGODB_URI || "mongodb://localhost:27017/loyalty-rewards",
     "loyalty-rewards",
   ),
