@@ -28,7 +28,11 @@ import polarisTranslations from "@shopify/polaris/locales/en.json";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { useMemo, useState } from "react";
 import { connectDB } from "../db.server";
-import { requireAdmin } from "../.server/admin-auth.server";
+import {
+  hashAdminPassword,
+  requireAdmin,
+  requireAdminPermission,
+} from "../.server/admin-auth.server";
 import { Customer } from "../.server/models/customer.model";
 import { Transaction } from "../.server/models/transaction.model";
 import { Redemption } from "../.server/models/redemption.model";
@@ -62,6 +66,7 @@ import { StorefrontConfig } from "../.server/models/storefront-config.model";
 import { StorefrontDomain } from "../.server/models/storefront-domain.model";
 import { ProductCache } from "../.server/models/product-cache.model";
 import { OrderCache } from "../.server/models/order-cache.model";
+import { processQueuedSyncJobs } from "../.server/services/sync-worker.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
@@ -976,7 +981,7 @@ async function updatePluginSettings(
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  await requireAdmin(request);
+  const adminSession = await requireAdmin(request);
   await connectDB();
 
   const formData = await request.formData();
@@ -985,6 +990,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const pluginKey = String(formData.get("pluginKey") || "");
 
   if (intent === "update-store-status") {
+    await requireAdminPermission(request, "stores:write");
     const status = String(formData.get("status") || "");
     if (
       !shopId ||
@@ -1000,7 +1006,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
     await recordAuditLog({
       actorType: "super_admin",
-      actorId: "admin",
+      actorId: adminSession.email,
       shopId,
       action: "store.status.updated",
       targetType: "shop",
@@ -1011,6 +1017,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "queue-resync") {
+    await requireAdminPermission(request, "sync:write");
     if (!shopId) {
       return json({ success: false }, { status: 400 });
     }
@@ -1028,7 +1035,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
     await recordAuditLog({
       actorType: "super_admin",
-      actorId: "admin",
+      actorId: adminSession.email,
       shopId,
       action: "sync.manual_reconciliation.queued",
       targetType: "sync_job",
@@ -1038,10 +1045,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect(`/admin?shop=${encodeURIComponent(shopId)}&tab=logs`);
   }
 
+  if (intent === "run-sync-jobs") {
+    await requireAdminPermission(request, "sync:write");
+    const results = await processQueuedSyncJobs(5);
+    await recordAuditLog({
+      actorType: "super_admin",
+      actorId: adminSession.email,
+      shopId: shopId || undefined,
+      action: "sync.worker.run",
+      targetType: "sync_worker",
+      targetId: "manual",
+      metadata: { results },
+    });
+    return redirect(`/admin?${new URLSearchParams({ ...(shopId ? { shop: shopId } : {}), tab: "logs" })}`);
+  }
+
   if (intent === "create-admin-user") {
+    await requireAdminPermission(request, "*");
     const email = String(formData.get("email") || "").trim().toLowerCase();
     const name = String(formData.get("name") || "").trim();
     const role = String(formData.get("role") || "support_admin");
+    const password = String(formData.get("password") || "ChangeMe123!");
     if (!email) return json({ success: false }, { status: 400 });
 
     await AdminUser.findOneAndUpdate(
@@ -1049,6 +1073,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       {
         $set: {
           name,
+          passwordHash: hashAdminPassword(password),
           role,
           status: "active",
           allowedShops: shopId ? [shopId] : [],
@@ -1058,7 +1083,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
     await recordAuditLog({
       actorType: "super_admin",
-      actorId: "admin",
+      actorId: adminSession.email,
       shopId: shopId || undefined,
       action: "admin_user.upserted",
       targetType: "admin_user",
@@ -1069,6 +1094,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "update-subscription") {
+    await requireAdminPermission(request, "billing:write");
     const plan = String(formData.get("plan") || "free");
     const billingState = String(formData.get("billingState") || "trial");
     if (!shopId) return json({ success: false }, { status: 400 });
@@ -1094,7 +1120,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
     await recordAuditLog({
       actorType: "super_admin",
-      actorId: "admin",
+      actorId: adminSession.email,
       shopId,
       action: "subscription.updated",
       targetType: "subscription",
@@ -1105,6 +1131,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "upsert-feature-flag") {
+    await requireAdminPermission(request, "*");
     const key = String(formData.get("flagKey") || "").trim();
     const description = String(formData.get("description") || "").trim();
     const enabledByDefault = formData.get("enabledByDefault") === "true";
@@ -1117,7 +1144,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
     await recordAuditLog({
       actorType: "super_admin",
-      actorId: "admin",
+      actorId: adminSession.email,
       shopId: shopId || undefined,
       action: "feature_flag.upserted",
       targetType: "feature_flag",
@@ -1128,6 +1155,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "add-storefront-domain") {
+    await requireAdminPermission(request, "storefront:write");
     const domain = String(formData.get("domain") || "").trim().toLowerCase();
     if (!shopId || !domain) return json({ success: false }, { status: 400 });
 
@@ -1145,7 +1173,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
     await recordAuditLog({
       actorType: "super_admin",
-      actorId: "admin",
+      actorId: adminSession.email,
       shopId,
       action: "storefront_domain.added",
       targetType: "storefront_domain",
@@ -1156,6 +1184,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "save-storefront-config") {
+    await requireAdminPermission(request, "storefront:write");
     if (!shopId) return json({ success: false }, { status: 400 });
     const themeRaw = String(formData.get("theme") || "{}");
     const navigationRaw = String(formData.get("navigation") || "{}");
@@ -1179,7 +1208,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
     await recordAuditLog({
       actorType: "super_admin",
-      actorId: "admin",
+      actorId: adminSession.email,
       shopId,
       action: "storefront_config.updated",
       targetType: "storefront_config",
@@ -1194,6 +1223,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "update-plugin") {
+    await requireAdminPermission(request, "plugins:write");
     if (!editablePluginKeys.has(pluginKey)) {
       return json({ success: false }, { status: 400 });
     }
@@ -1201,7 +1231,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await updatePluginSettings(shopId, pluginKey, formData);
     await recordAuditLog({
       actorType: "super_admin",
-      actorId: "admin",
+      actorId: adminSession.email,
       shopId,
       action: "plugin.settings.updated",
       targetType: "plugin",
@@ -1214,10 +1244,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const enabled = formData.get("enabled") === "true";
+  await requireAdminPermission(request, "plugins:write");
   await setPluginStatus(shopId, pluginKey, enabled);
   await recordAuditLog({
     actorType: "super_admin",
-    actorId: "admin",
+    actorId: adminSession.email,
     shopId,
     action: enabled ? "plugin.enabled" : "plugin.disabled",
     targetType: "plugin",
@@ -2548,9 +2579,15 @@ export default function AdminPanel() {
                           <Form method="post">
                             <input type="hidden" name="intent" value="create-admin-user" />
                             <input type="hidden" name="shop" value={selectedShop} />
-                            <InlineGrid columns={{ xs: 1, md: 4 }} gap="300">
+                            <InlineGrid columns={{ xs: 1, md: 5 }} gap="300">
                               <TextField label="Email" name="email" autoComplete="email" />
                               <TextField label="Name" name="name" autoComplete="name" />
+                              <TextField
+                                label="Password"
+                                name="password"
+                                type="password"
+                                autoComplete="new-password"
+                              />
                               <Select
                                 label="Role"
                                 name="role"
@@ -2685,6 +2722,25 @@ export default function AdminPanel() {
                   {activeTab === "logs" && (
                     <section className="admin-section">
                       <BlockStack gap="400">
+                        <Card>
+                          <InlineStack align="space-between" blockAlign="center" gap="300">
+                            <BlockStack gap="100">
+                              <Text as="h2" variant="headingMd">
+                                Sync worker
+                              </Text>
+                              <Text as="p" tone="subdued">
+                                Process queued reconciliation jobs and refresh tenant caches.
+                              </Text>
+                            </BlockStack>
+                            <Form method="post">
+                              <input type="hidden" name="intent" value="run-sync-jobs" />
+                              <input type="hidden" name="shop" value={selectedShop} />
+                              <Button submit variant="primary">
+                                Run queued jobs
+                              </Button>
+                            </Form>
+                          </InlineStack>
+                        </Card>
                         <Card>
                           <BlockStack gap="300">
                             <Text as="h2" variant="headingLg">

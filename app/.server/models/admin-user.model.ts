@@ -9,6 +9,7 @@ export type AdminRole =
 export interface IAdminUser extends Document {
   email: string;
   name: string;
+  passwordHash: string;
   role: AdminRole;
   status: "active" | "disabled";
   allowedShops: string[];
@@ -21,6 +22,7 @@ const adminUserSchema = new Schema<IAdminUser>(
   {
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     name: { type: String, default: "" },
+    passwordHash: { type: String, default: "" },
     role: {
       type: String,
       enum: ["super_admin", "operations_admin", "support_admin", "billing_admin"],

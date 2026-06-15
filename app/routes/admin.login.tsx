@@ -23,8 +23,8 @@ import polarisTranslations from "@shopify/polaris/locales/en.json";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { useState } from "react";
 import {
+  authenticateAdminUser,
   createAdminSession,
-  getAdminCredentials,
   isAdminAuthenticated,
 } from "../.server/admin-auth.server";
 
@@ -47,14 +47,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const username = String(formData.get("username") || "");
   const password = String(formData.get("password") || "");
   const redirectTo = String(formData.get("redirectTo") || "/admin");
-  const credentials = getAdminCredentials();
+  const admin = await authenticateAdminUser(username, password);
 
-  if (
-    username === credentials.username &&
-    password === credentials.password &&
-    redirectTo.startsWith("/")
-  ) {
-    return createAdminSession(redirectTo);
+  if (admin && redirectTo.startsWith("/")) {
+    return createAdminSession(admin, redirectTo);
   }
 
   return json({ error: "Invalid username or password" }, { status: 401 });
