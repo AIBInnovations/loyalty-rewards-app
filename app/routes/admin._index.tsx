@@ -1,6 +1,10 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, useLoaderData, useNavigation } from "@remix-run/react";
+import {
+  Form,
+  useLoaderData,
+  useNavigation,
+} from "@remix-run/react";
 import {
   AppProvider,
   Badge,
@@ -87,6 +91,185 @@ const pluginDefinitions = [
   description,
 }));
 
+type PluginFieldType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "color"
+  | "checkbox"
+  | "select";
+
+type PluginField = {
+  name: string;
+  label: string;
+  type: PluginFieldType;
+  helpText?: string;
+  options?: { label: string; value: string }[];
+};
+
+const editablePluginFields: Record<string, PluginField[]> = {
+  loyalty: [
+    { name: "earningRate", label: "Earning rate (%)", type: "number" },
+    { name: "signupBonus", label: "Signup bonus", type: "number" },
+    { name: "currencySymbol", label: "Currency symbol", type: "text" },
+    { name: "widgetConfig.title", label: "Widget title", type: "text" },
+    { name: "widgetConfig.primaryColor", label: "Widget color", type: "color" },
+  ],
+  wishlist: [
+    { name: "buttonLabelAdd", label: "Add button label", type: "text" },
+    { name: "buttonLabelSaved", label: "Saved button label", type: "text" },
+    { name: "showWishlistButton", label: "Show wishlist button", type: "checkbox" },
+    { name: "showSavedForLater", label: "Show saved-for-later", type: "checkbox" },
+    { name: "iconColor", label: "Icon color", type: "color" },
+    { name: "activeColor", label: "Active color", type: "color" },
+  ],
+  timer: [
+    {
+      name: "timerType",
+      label: "Timer type",
+      type: "select",
+      options: [
+        { label: "Evergreen", value: "evergreen" },
+        { label: "Fixed", value: "fixed" },
+      ],
+    },
+    { name: "durationHours", label: "Duration hours", type: "number" },
+    { name: "durationMinutes", label: "Duration minutes", type: "number" },
+    { name: "messageTemplate", label: "Message", type: "text" },
+    { name: "expiredMessage", label: "Expired message", type: "text" },
+    { name: "barBackgroundColor", label: "Bar background", type: "color" },
+    { name: "barTextColor", label: "Bar text color", type: "color" },
+    { name: "timerDigitColor", label: "Timer digit color", type: "color" },
+  ],
+  exitPopup: [
+    { name: "headline", label: "Headline", type: "text" },
+    { name: "subtext", label: "Subtext", type: "textarea" },
+    {
+      name: "discountType",
+      label: "Discount type",
+      type: "select",
+      options: [
+        { label: "Percentage", value: "percentage" },
+        { label: "Fixed amount", value: "fixed_amount" },
+      ],
+    },
+    { name: "discountValue", label: "Discount value", type: "number" },
+    { name: "buttonText", label: "Button text", type: "text" },
+    { name: "successMessage", label: "Success message", type: "text" },
+    { name: "delaySeconds", label: "Delay seconds", type: "number" },
+    { name: "showOnMobile", label: "Show on mobile", type: "checkbox" },
+    { name: "bgColor", label: "Background color", type: "color" },
+    { name: "accentColor", label: "Accent color", type: "color" },
+  ],
+  pincode: [
+    { name: "defaultMinDays", label: "Minimum delivery days", type: "number" },
+    { name: "defaultMaxDays", label: "Maximum delivery days", type: "number" },
+    {
+      name: "codPincodes",
+      label: "COD pincodes",
+      type: "textarea",
+      helpText: "Comma-separated. Leave blank for all.",
+    },
+    {
+      name: "noCodPincodes",
+      label: "No-COD pincodes",
+      type: "textarea",
+      helpText: "Comma-separated.",
+    },
+    {
+      name: "nonServiceablePincodes",
+      label: "Non-serviceable pincodes",
+      type: "textarea",
+      helpText: "Comma-separated.",
+    },
+  ],
+  reviews: [
+    { name: "autoApprove", label: "Auto approve reviews", type: "checkbox" },
+    { name: "allowPhotos", label: "Allow photos", type: "checkbox" },
+    { name: "allowVideos", label: "Allow videos", type: "checkbox" },
+    { name: "pointsForReview", label: "Points for review", type: "number" },
+  ],
+  salesPop: [
+    { name: "messageTemplate", label: "Message template", type: "text" },
+    { name: "ctaLabel", label: "CTA label", type: "text" },
+    { name: "showCta", label: "Show CTA", type: "checkbox" },
+    { name: "showThumbnail", label: "Show thumbnail", type: "checkbox" },
+    {
+      name: "position",
+      label: "Position",
+      type: "select",
+      options: [
+        { label: "Bottom left", value: "bottom-left" },
+        { label: "Bottom right", value: "bottom-right" },
+        { label: "Top left", value: "top-left" },
+        { label: "Top right", value: "top-right" },
+      ],
+    },
+    { name: "accentColor", label: "Accent color", type: "color" },
+    { name: "bgColor", label: "Background color", type: "color" },
+    { name: "textColor", label: "Text color", type: "color" },
+  ],
+  faq: [
+    { name: "heading", label: "Heading", type: "text" },
+    { name: "subheading", label: "Subheading", type: "text" },
+    {
+      name: "placement",
+      label: "Placement",
+      type: "select",
+      options: [
+        { label: "Before footer", value: "before-footer" },
+        { label: "After main", value: "after-main" },
+        { label: "End of body", value: "end-of-body" },
+      ],
+    },
+    {
+      name: "iconStyle",
+      label: "Icon style",
+      type: "select",
+      options: [
+        { label: "Chevron", value: "chevron" },
+        { label: "Plus", value: "plus" },
+      ],
+    },
+    { name: "allowMultiple", label: "Allow multiple open", type: "checkbox" },
+    { name: "firstOpen", label: "First item open", type: "checkbox" },
+    { name: "backgroundColor", label: "Background color", type: "color" },
+    { name: "textColor", label: "Text color", type: "color" },
+    { name: "accentColor", label: "Accent color", type: "color" },
+  ],
+  voiceAgent: [
+    { name: "elevenLabsAgentId", label: "ElevenLabs agent ID", type: "text" },
+    { name: "callDelayMinutes", label: "Call delay minutes", type: "number" },
+    { name: "minCartValue", label: "Minimum cart value", type: "number" },
+    { name: "maxCallsPerDay", label: "Max calls per day", type: "number" },
+    {
+      name: "language",
+      label: "Language",
+      type: "select",
+      options: [
+        { label: "English", value: "en" },
+        { label: "Hindi", value: "hi" },
+        { label: "Hinglish", value: "hinglish" },
+      ],
+    },
+    { name: "greeting", label: "Greeting script", type: "textarea" },
+    { name: "offerDiscount", label: "Offer discount", type: "checkbox" },
+    { name: "discountValue", label: "Discount value", type: "number" },
+    { name: "sendWhatsApp", label: "Send WhatsApp", type: "checkbox" },
+    { name: "whatsappNumber", label: "WhatsApp number", type: "text" },
+  ],
+};
+
+const editablePluginKeys = new Set(Object.keys(editablePluginFields));
+
+function getValueByPath(source: Record<string, any> | null, path: string) {
+  return path.split(".").reduce((value, key) => value?.[key], source);
+}
+
+function listToCsv(value: unknown) {
+  return Array.isArray(value) ? value.join(", ") : String(value ?? "");
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await requireAdmin(request);
   await connectDB();
@@ -95,6 +278,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shops = await Settings.distinct("shopId");
   const selectedShop = url.searchParams.get("shop") || shops[0] || "";
   const activeTab = url.searchParams.get("tab") || "overview";
+  const requestedPluginKey = url.searchParams.get("plugin") || "";
+  const selectedPluginKey = editablePluginKeys.has(requestedPluginKey)
+    ? requestedPluginKey
+    : "";
 
   if (shops.length > 0 && !selectedShop) {
     throw redirect(`/admin?shop=${encodeURIComponent(shops[0])}`);
@@ -116,10 +303,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shops,
       selectedShop,
       activeTab,
+      selectedPluginKey,
       stats: emptyStats,
       program: null,
       setupTasks: [],
-      plugins: pluginDefinitions.map((plugin) => ({ ...plugin, enabled: false })),
+      plugins: pluginDefinitions.map((plugin) => ({
+        ...plugin,
+        enabled: false,
+        editable: editablePluginKeys.has(plugin.key),
+      })),
+      pluginSettings: {},
       recentTransactions: [],
     });
   }
@@ -212,8 +405,99 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const plugins = pluginDefinitions.map((plugin) => ({
     ...plugin,
     enabled: statusMap[plugin.key] ?? false,
+    editable: editablePluginKeys.has(plugin.key),
   }));
   const enabledPlugins = plugins.filter((plugin) => plugin.enabled).length;
+  const pluginSettings = {
+    loyalty: {
+      earningRate: settings?.earningRate ?? 10,
+      signupBonus: settings?.signupBonus ?? 50,
+      currencySymbol: settings?.currencySymbol ?? "₹",
+      widgetConfig: {
+        title: settings?.widgetConfig?.title ?? "Rewards",
+        primaryColor: settings?.widgetConfig?.primaryColor ?? "#5C6AC4",
+      },
+    },
+    wishlist: {
+      buttonLabelAdd: wishlist?.buttonLabelAdd ?? "Add to Wishlist",
+      buttonLabelSaved: wishlist?.buttonLabelSaved ?? "In Wishlist",
+      showWishlistButton: wishlist?.showWishlistButton ?? true,
+      showSavedForLater: wishlist?.showSavedForLater ?? true,
+      iconColor: wishlist?.iconColor ?? "#222222",
+      activeColor: wishlist?.activeColor ?? "#e63946",
+    },
+    timer: {
+      timerType: timer?.timerType ?? "evergreen",
+      durationHours: timer?.durationHours ?? 2,
+      durationMinutes: timer?.durationMinutes ?? 0,
+      messageTemplate: timer?.messageTemplate ?? "Flash Sale ends in {timer}",
+      expiredMessage: timer?.expiredMessage ?? "Sale has ended!",
+      barBackgroundColor: timer?.barBackgroundColor ?? "#1a1a1a",
+      barTextColor: timer?.barTextColor ?? "#ffffff",
+      timerDigitColor: timer?.timerDigitColor ?? "#ff4444",
+    },
+    exitPopup: {
+      headline: exitPopup?.headline ?? "Wait! Don't leave empty-handed",
+      subtext:
+        exitPopup?.subtext ??
+        "Enter your email and get an exclusive discount!",
+      discountType: exitPopup?.discountType ?? "percentage",
+      discountValue: exitPopup?.discountValue ?? 10,
+      buttonText: exitPopup?.buttonText ?? "Get My Discount",
+      successMessage: exitPopup?.successMessage ?? "Your discount code is:",
+      bgColor: exitPopup?.bgColor ?? "#ffffff",
+      accentColor: exitPopup?.accentColor ?? "#5C6AC4",
+      showOnMobile: exitPopup?.showOnMobile ?? true,
+      delaySeconds: exitPopup?.delaySeconds ?? 5,
+    },
+    pincode: {
+      defaultMinDays: pincode?.defaultMinDays ?? 3,
+      defaultMaxDays: pincode?.defaultMaxDays ?? 7,
+      codPincodes: pincode?.codPincodes ?? [],
+      noCodPincodes: pincode?.noCodPincodes ?? [],
+      nonServiceablePincodes: pincode?.nonServiceablePincodes ?? [],
+    },
+    reviews: {
+      autoApprove: reviews?.autoApprove ?? false,
+      allowPhotos: reviews?.allowPhotos ?? true,
+      allowVideos: reviews?.allowVideos ?? false,
+      pointsForReview: reviews?.pointsForReview ?? 50,
+    },
+    salesPop: {
+      messageTemplate:
+        salesPop?.messageTemplate ?? "{name} from {location} just bought {product}",
+      ctaLabel: salesPop?.ctaLabel ?? "View Product",
+      showCta: salesPop?.showCta ?? true,
+      showThumbnail: salesPop?.showThumbnail ?? true,
+      position: salesPop?.position ?? "bottom-left",
+      accentColor: salesPop?.accentColor ?? "#5C6AC4",
+      bgColor: salesPop?.bgColor ?? "#ffffff",
+      textColor: salesPop?.textColor ?? "#1a1a1a",
+    },
+    faq: {
+      heading: faq?.heading ?? "Frequently Asked Questions",
+      subheading: faq?.subheading ?? "",
+      placement: faq?.placement ?? "before-footer",
+      iconStyle: faq?.iconStyle ?? "chevron",
+      allowMultiple: faq?.allowMultiple ?? false,
+      firstOpen: faq?.firstOpen ?? true,
+      backgroundColor: faq?.backgroundColor ?? "#ffffff",
+      textColor: faq?.textColor ?? "#111827",
+      accentColor: faq?.accentColor ?? "#5C6AC4",
+    },
+    voiceAgent: {
+      elevenLabsAgentId: voiceAgent?.elevenLabsAgentId ?? "",
+      callDelayMinutes: voiceAgent?.callDelayMinutes ?? 15,
+      minCartValue: voiceAgent?.minCartValue ?? 500,
+      maxCallsPerDay: voiceAgent?.maxCallsPerDay ?? 100,
+      language: voiceAgent?.language ?? "hinglish",
+      greeting: voiceAgent?.greeting ?? "",
+      offerDiscount: voiceAgent?.offerDiscount ?? true,
+      discountValue: voiceAgent?.discountValue ?? 10,
+      sendWhatsApp: voiceAgent?.sendWhatsApp ?? true,
+      whatsappNumber: voiceAgent?.whatsappNumber ?? "",
+    },
+  };
   const setupTasks = [
     {
       title: "Set loyalty earning rules",
@@ -242,6 +526,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shops,
     selectedShop,
     activeTab,
+    selectedPluginKey,
     stats: {
       totalCustomers,
       totalPointsIssued,
@@ -263,6 +548,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       : null,
     setupTasks,
     plugins,
+    pluginSettings,
     recentTransactions: recentTransactions.map((t) => ({
       id: t._id.toString(),
       customer:
@@ -422,21 +708,108 @@ async function setPluginStatus(
   }
 }
 
+function parsePluginFieldValue(field: PluginField, formData: FormData) {
+  if (field.type === "checkbox") {
+    return formData.get(field.name) === "true";
+  }
+
+  const value = String(formData.get(field.name) || "");
+
+  if (field.type === "number") {
+    return Number(value) || 0;
+  }
+
+  if (
+    field.name === "codPincodes" ||
+    field.name === "noCodPincodes" ||
+    field.name === "nonServiceablePincodes"
+  ) {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return value;
+}
+
+async function updatePluginSettings(
+  shopId: string,
+  pluginKey: string,
+  formData: FormData,
+) {
+  const fields = editablePluginFields[pluginKey];
+  if (!fields) return;
+
+  const $set = fields.reduce<Record<string, unknown>>((updates, field) => {
+    updates[field.name] = parsePluginFieldValue(field, formData);
+    return updates;
+  }, {});
+
+  const options = { upsert: true, setDefaultsOnInsert: true };
+
+  switch (pluginKey) {
+    case "loyalty":
+      await Settings.findOneAndUpdate({ shopId }, { $set }, options);
+      break;
+    case "wishlist":
+      await WishlistSettings.findOneAndUpdate({ shopId }, { $set }, options);
+      break;
+    case "timer":
+      await TimerSettings.findOneAndUpdate({ shopId }, { $set }, options);
+      break;
+    case "exitPopup":
+      await PopupSettings.findOneAndUpdate({ shopId }, { $set }, options);
+      break;
+    case "pincode":
+      await PincodeSettings.findOneAndUpdate({ shopId }, { $set }, options);
+      break;
+    case "reviews":
+      await ReviewSettings.findOneAndUpdate({ shopId }, { $set }, options);
+      break;
+    case "salesPop":
+      await SalesPopSettings.findOneAndUpdate({ shopId }, { $set }, options);
+      break;
+    case "faq":
+      await FaqSettings.findOneAndUpdate({ shopId }, { $set }, options);
+      break;
+    case "voiceAgent":
+      await VoiceAgentSettings.findOneAndUpdate({ shopId }, { $set }, options);
+      break;
+    default:
+      break;
+  }
+}
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   await requireAdmin(request);
   await connectDB();
 
   const formData = await request.formData();
+  const intent = String(formData.get("intent") || "toggle-plugin");
   const shopId = String(formData.get("shop") || "");
   const pluginKey = String(formData.get("pluginKey") || "");
-  const enabled = formData.get("enabled") === "true";
 
   if (!shopId || !pluginDefinitions.some((plugin) => plugin.key === pluginKey)) {
     return json({ success: false }, { status: 400 });
   }
 
+  if (intent === "update-plugin") {
+    if (!editablePluginKeys.has(pluginKey)) {
+      return json({ success: false }, { status: 400 });
+    }
+
+    await updatePluginSettings(shopId, pluginKey, formData);
+    return redirect(
+      `/admin?shop=${encodeURIComponent(shopId)}&tab=plugins&plugin=${encodeURIComponent(pluginKey)}`,
+    );
+  }
+
+  const enabled = formData.get("enabled") === "true";
   await setPluginStatus(shopId, pluginKey, enabled);
-  return redirect(`/admin?shop=${encodeURIComponent(shopId)}`);
+  return redirect(
+    `/admin?shop=${encodeURIComponent(shopId)}&tab=plugins&plugin=${encodeURIComponent(pluginKey)}`,
+  );
 };
 
 function HealthPanel({
@@ -524,16 +897,140 @@ function HealthPanel({
   );
 }
 
+function PluginSettingsEditor({
+  shop,
+  plugin,
+  values,
+  isSaving,
+}: {
+  shop: string;
+  plugin: {
+    key: string;
+    name: string;
+    description: string;
+  };
+  values: Record<string, any>;
+  isSaving: boolean;
+}) {
+  const fields = editablePluginFields[plugin.key] || [];
+
+  return (
+    <div className="admin-editor-card">
+      <Form method="post">
+        <input type="hidden" name="intent" value="update-plugin" />
+        <input type="hidden" name="shop" value={shop} />
+        <input type="hidden" name="pluginKey" value={plugin.key} />
+        <BlockStack gap="400">
+          <InlineStack align="space-between" blockAlign="start" gap="300">
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingLg">
+                Edit {plugin.name}
+              </Text>
+              <Text as="p" tone="subdued">
+                Update storefront settings directly from the admin panel.
+              </Text>
+            </BlockStack>
+            <Button url={`/admin?shop=${encodeURIComponent(shop)}&tab=plugins`}>
+              Close
+            </Button>
+          </InlineStack>
+
+          <div className="admin-editor-grid">
+            {fields.map((field) => {
+              const rawValue = getValueByPath(values, field.name);
+              const fieldId = `plugin-${plugin.key}-${field.name}`;
+
+              if (field.type === "checkbox") {
+                return (
+                  <label className="admin-edit-check" key={field.name}>
+                    <input type="hidden" name={field.name} value="false" />
+                    <input
+                      defaultChecked={Boolean(rawValue)}
+                      id={fieldId}
+                      name={field.name}
+                      type="checkbox"
+                      value="true"
+                    />
+                    <span>{field.label}</span>
+                  </label>
+                );
+              }
+
+              if (field.type === "select") {
+                return (
+                  <label className="admin-edit-field" key={field.name}>
+                    <span>{field.label}</span>
+                    <select
+                      defaultValue={String(rawValue ?? "")}
+                      id={fieldId}
+                      name={field.name}
+                    >
+                      {field.options?.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              }
+
+              if (field.type === "textarea") {
+                return (
+                  <label className="admin-edit-field admin-edit-field-wide" key={field.name}>
+                    <span>{field.label}</span>
+                    <textarea
+                      defaultValue={
+                        Array.isArray(rawValue) ? listToCsv(rawValue) : String(rawValue ?? "")
+                      }
+                      id={fieldId}
+                      name={field.name}
+                      rows={4}
+                    />
+                    {field.helpText ? <small>{field.helpText}</small> : null}
+                  </label>
+                );
+              }
+
+              return (
+                <label className="admin-edit-field" key={field.name}>
+                  <span>{field.label}</span>
+                  <input
+                    defaultValue={String(rawValue ?? "")}
+                    id={fieldId}
+                    name={field.name}
+                    step={field.type === "number" ? "any" : undefined}
+                    type={field.type === "color" ? "color" : field.type}
+                  />
+                  {field.helpText ? <small>{field.helpText}</small> : null}
+                </label>
+              );
+            })}
+          </div>
+
+          <InlineStack align="end" gap="200">
+            <Button submit variant="primary" loading={isSaving}>
+              Save changes
+            </Button>
+          </InlineStack>
+        </BlockStack>
+      </Form>
+    </div>
+  );
+}
+
 export default function AdminPanel() {
   const {
     polarisTranslations,
     shops,
     selectedShop,
     activeTab,
+    selectedPluginKey,
     stats,
     program,
     setupTasks,
     plugins,
+    pluginSettings,
     recentTransactions,
   } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
@@ -560,6 +1057,12 @@ export default function AdminPanel() {
       return matchesQuery && matchesCategory && matchesStatus;
     });
   }, [category, plugins, query, status]);
+  const selectedPlugin = plugins.find(
+    (plugin) => plugin.key === selectedPluginKey,
+  );
+  const isSavingPlugin =
+    navigation.state === "submitting" &&
+    navigation.formData?.get("intent") === "update-plugin";
 
   const rows = recentTransactions.map((transaction) => [
     transaction.customer,
@@ -689,6 +1192,79 @@ export default function AdminPanel() {
             border-radius: 12px;
             background: #f8fafc;
             padding: 14px;
+          }
+
+          .admin-editor-card {
+            border: 1px solid #c7d7fe;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+            padding: 18px;
+          }
+
+          .admin-editor-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+          }
+
+          .admin-edit-field,
+          .admin-edit-check {
+            display: grid;
+            gap: 6px;
+          }
+
+          .admin-edit-field-wide {
+            grid-column: 1 / -1;
+          }
+
+          .admin-edit-field span,
+          .admin-edit-check span {
+            color: #344054;
+            font-size: 13px;
+            font-weight: 650;
+          }
+
+          .admin-edit-field input,
+          .admin-edit-field select,
+          .admin-edit-field textarea {
+            width: 100%;
+            border: 1px solid #cfd7e2;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #111827;
+            font: inherit;
+            min-height: 40px;
+            padding: 8px 10px;
+          }
+
+          .admin-edit-field input[type="color"] {
+            padding: 4px;
+          }
+
+          .admin-edit-field textarea {
+            resize: vertical;
+            min-height: 96px;
+          }
+
+          .admin-edit-field small {
+            color: #667085;
+            font-size: 12px;
+          }
+
+          .admin-edit-check {
+            align-items: center;
+            grid-template-columns: 18px 1fr;
+            border: 1px solid #e3e8ef;
+            border-radius: 10px;
+            padding: 11px 12px;
+            background: #f8fafc;
+          }
+
+          .admin-edit-check input {
+            width: 16px;
+            height: 16px;
+            margin: 0;
           }
 
           .admin-checklist-card {
@@ -825,6 +1401,10 @@ export default function AdminPanel() {
 
             .admin-sidebar {
               position: static;
+            }
+
+            .admin-editor-grid {
+              grid-template-columns: 1fr;
             }
           }
         `}
@@ -1071,11 +1651,19 @@ export default function AdminPanel() {
                               Plugin manager
                             </Text>
                             <Text as="p" tone="subdued">
-                              Enable storefront tools and monitor what is live.
+                              Enable tools and edit storefront settings without leaving admin.
                             </Text>
                           </BlockStack>
                           <Badge tone="info">{filteredPlugins.length} shown</Badge>
                         </div>
+                        {selectedPlugin && selectedPlugin.editable ? (
+                          <PluginSettingsEditor
+                            shop={selectedShop}
+                            plugin={selectedPlugin}
+                            values={(pluginSettings as Record<string, any>)[selectedPlugin.key] || {}}
+                            isSaving={isSavingPlugin}
+                          />
+                        ) : null}
                         <div className="admin-filter-card">
                           <InlineGrid columns={{ xs: 1, md: 3 }} gap="300">
                             <TextField
@@ -1132,27 +1720,45 @@ export default function AdminPanel() {
                                 {plugin.key === "stockAlerts" ? (
                                   <Button disabled>Analytics only</Button>
                                 ) : (
-                                  <Form method="post">
-                                    <input type="hidden" name="shop" value={selectedShop} />
-                                    <input
-                                      type="hidden"
-                                      name="pluginKey"
-                                      value={plugin.key}
-                                    />
-                                    <input
-                                      type="hidden"
-                                      name="enabled"
-                                      value={String(!plugin.enabled)}
-                                    />
-                                    <Button
-                                      submit
-                                      variant={plugin.enabled ? "secondary" : "primary"}
-                                      tone={plugin.enabled ? "critical" : undefined}
-                                      loading={navigation.state === "submitting"}
-                                    >
-                                      {plugin.enabled ? "Disable" : "Enable"}
-                                    </Button>
-                                  </Form>
+                                  <InlineStack gap="200">
+                                    {plugin.editable ? (
+                                      <Button
+                                        url={`/admin?shop=${encodeURIComponent(
+                                          selectedShop,
+                                        )}&tab=plugins&plugin=${encodeURIComponent(plugin.key)}`}
+                                      >
+                                        Edit
+                                      </Button>
+                                    ) : (
+                                      <Button disabled>Edit coming soon</Button>
+                                    )}
+                                    <Form method="post">
+                                      <input type="hidden" name="intent" value="toggle-plugin" />
+                                      <input type="hidden" name="shop" value={selectedShop} />
+                                      <input
+                                        type="hidden"
+                                        name="pluginKey"
+                                        value={plugin.key}
+                                      />
+                                      <input
+                                        type="hidden"
+                                        name="enabled"
+                                        value={String(!plugin.enabled)}
+                                      />
+                                      <Button
+                                        submit
+                                        variant={plugin.enabled ? "secondary" : "primary"}
+                                        tone={plugin.enabled ? "critical" : undefined}
+                                        loading={
+                                          navigation.state === "submitting" &&
+                                          navigation.formData?.get("pluginKey") === plugin.key &&
+                                          navigation.formData?.get("intent") === "toggle-plugin"
+                                        }
+                                      >
+                                        {plugin.enabled ? "Disable" : "Enable"}
+                                      </Button>
+                                    </Form>
+                                  </InlineStack>
                                 )}
                               </BlockStack>
                             </div>
