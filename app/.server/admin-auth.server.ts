@@ -64,18 +64,27 @@ function verifyAdminPassword(password: string, passwordHash: string) {
 }
 
 async function ensureBootstrapAdmin() {
-  const existing = await AdminUser.countDocuments({});
-  if (existing > 0) return;
-
-  const credentials = getAdminCredentials();
-  await AdminUser.create({
-    email: credentials.username.toLowerCase(),
-    name: "Bootstrap admin",
-    passwordHash: hashAdminPassword(credentials.password),
+  const existingLoginAdmin = await AdminUser.findOne({
     role: "super_admin",
     status: "active",
-    allowedShops: [],
+    passwordHash: { $ne: "" },
   });
+  if (existingLoginAdmin) return;
+
+  const credentials = getAdminCredentials();
+  await AdminUser.findOneAndUpdate(
+    { email: credentials.username.toLowerCase() },
+    {
+      $set: {
+        name: "Bootstrap admin",
+        passwordHash: hashAdminPassword(credentials.password),
+        role: "super_admin",
+        status: "active",
+        allowedShops: [],
+      },
+    },
+    { upsert: true, setDefaultsOnInsert: true },
+  );
 }
 
 export async function authenticateAdminUser(username: string, password: string) {
