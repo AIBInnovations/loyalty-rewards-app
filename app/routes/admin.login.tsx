@@ -70,8 +70,15 @@ export default function AdminLogin() {
             background: #f4f7fb;
           }
 
+          html,
+          body {
+            width: 100%;
+            overflow-x: hidden;
+          }
+
           .admin-login-page {
             min-height: 100vh;
+            min-height: 100dvh;
             display: grid;
             place-items: center;
             padding: 32px 20px;
@@ -200,17 +207,124 @@ export default function AdminLogin() {
           }
 
           @media (max-width: 860px) {
+            .admin-login-page {
+              padding: 20px 14px;
+              align-items: start;
+            }
+
             .admin-login-shell {
               grid-template-columns: 1fr;
+              max-width: 620px;
+              border-radius: 16px;
             }
 
             .admin-login-brand {
               min-height: auto;
-              gap: 28px;
+              gap: 22px;
+              padding: 28px;
             }
 
             .admin-login-form {
               padding: 30px 24px;
+            }
+
+            .admin-login-brand h1 {
+              font-size: 28px;
+            }
+          }
+
+          @media (max-width: 520px) {
+            .admin-login-page {
+              display: block;
+              padding: 0;
+              background: #ffffff;
+            }
+
+            .admin-login-shell {
+              min-height: 100vh;
+              min-height: 100dvh;
+              width: 100%;
+              border: 0;
+              border-radius: 0;
+              box-shadow: none;
+            }
+
+            .admin-login-brand {
+              padding: 22px 20px 18px;
+              gap: 16px;
+              border-radius: 0 0 22px 22px;
+            }
+
+            .admin-login-logo {
+              width: 42px;
+              height: 42px;
+              border-radius: 11px;
+            }
+
+            .admin-login-brand h1 {
+              font-size: 23px;
+              line-height: 1.18;
+            }
+
+            .admin-login-brand p {
+              font-size: 14px;
+              line-height: 1.5;
+              margin-top: 8px;
+            }
+
+            .admin-login-pills {
+              grid-template-columns: 1fr;
+              gap: 8px;
+            }
+
+            .admin-login-pill {
+              min-height: 40px;
+              padding: 9px 10px;
+              font-size: 12px;
+            }
+
+            .admin-login-form {
+              padding: 26px 20px 32px;
+              align-items: start;
+            }
+
+            .admin-login-title {
+              font-size: 25px;
+            }
+
+            .admin-login-copy {
+              font-size: 14px;
+            }
+
+            .admin-login-alerts {
+              margin: 18px 0;
+            }
+
+            .admin-login-submit {
+              margin-top: 8px;
+            }
+
+            .admin-login-form .Polaris-TextField__Input {
+              min-height: 46px;
+              font-size: 16px;
+            }
+          }
+
+          @media (max-width: 380px) {
+            .admin-login-brand {
+              padding: 18px 16px 16px;
+            }
+
+            .admin-login-form {
+              padding: 22px 16px 28px;
+            }
+
+            .admin-login-brand h1 {
+              font-size: 21px;
+            }
+
+            .admin-login-title {
+              font-size: 23px;
             }
           }
         `}
