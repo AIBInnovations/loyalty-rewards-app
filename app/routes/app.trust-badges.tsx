@@ -20,11 +20,54 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ settings: JSON.parse(JSON.stringify(settings)) });
 };
 
+// Mirrors the SVGS map in extensions/loyalty-widget/blocks/trust-badges.liquid.
+// Anything outside this set is coerced rather than stored.
+const ALLOWED_ICONS = [
+  "",
+  "cod",
+  "lock",
+  "shield",
+  "card",
+  "truck",
+  "returns",
+  "check",
+  "star",
+  "package",
+  "gift",
+  "clock",
+];
+const MAX_BADGES = 6;
+const MAX_BADGE_TEXT = 60;
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   await connectDB();
   const fd = await request.formData();
-  const badges: ITrustBadge[] = JSON.parse(String(fd.get("badges") || "[]"));
+
+  // Unguarded JSON.parse here was a 500 on malformed input, and the parsed
+  // value went to the DB unvalidated before being rendered on the storefront.
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(String(fd.get("badges") || "[]"));
+  } catch {
+    return json({ error: "Badges must be valid JSON" }, { status: 400 });
+  }
+
+  if (!Array.isArray(parsed)) {
+    return json({ error: "Badges must be a list" }, { status: 400 });
+  }
+
+  const badges: ITrustBadge[] = parsed.slice(0, MAX_BADGES).map((b) => {
+    const badge = (b || {}) as Partial<ITrustBadge>;
+    return {
+      text: String(badge.text || "").slice(0, MAX_BADGE_TEXT),
+      // Fall back to no icon rather than substituting an arbitrary one.
+      icon: ALLOWED_ICONS.includes(String(badge.icon ?? ""))
+        ? String(badge.icon ?? "")
+        : "",
+    } as ITrustBadge;
+  });
+
   await TrustBadgesSettings.findOneAndUpdate(
     { shopId: session.shop },
     {

@@ -117,17 +117,32 @@
     clock:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
   };
 
-  function buildBadgeHtml(badges, layout) {
-    var html = "";
+  // Badge text is merchant-supplied and stored without validation, so it must
+  // never be concatenated into markup. The SVG is safe because it comes from
+  // the whitelisted SVGS map above, keyed by name — never from the payload.
+  function buildBadgeNodes(badges) {
+    var frag = document.createDocumentFragment();
     badges.forEach(function(b) {
       if (!b.text) return;
-      var svg = b.icon && SVGS[b.icon] ? SVGS[b.icon] : "";
-      html += '<div class="tb-badge">' +
-        '<span class="tb-icon">' + svg + '</span>' +
-        '<span class="tb-text">' + b.text + '</span>' +
-        '</div>';
+
+      var badge = document.createElement("div");
+      badge.className = "tb-badge";
+
+      var icon = document.createElement("span");
+      icon.className = "tb-icon";
+      if (b.icon && Object.prototype.hasOwnProperty.call(SVGS, b.icon)) {
+        icon.innerHTML = SVGS[b.icon];
+      }
+
+      var text = document.createElement("span");
+      text.className = "tb-text";
+      text.textContent = String(b.text).slice(0, 120);
+
+      badge.appendChild(icon);
+      badge.appendChild(text);
+      frag.appendChild(badge);
     });
-    return html;
+    return frag;
   }
 
   function injectBadges(data) {
@@ -140,7 +155,8 @@
 
     if (data && data.enabled && data.badges && data.badges.length) {
       dynamicEl.className = "tb-grid tb-layout-" + (data.layout || "inline");
-      dynamicEl.innerHTML = buildBadgeHtml(data.badges, data.layout);
+      dynamicEl.textContent = "";
+      dynamicEl.appendChild(buildBadgeNodes(data.badges));
       staticEl.style.display = "none";
       dynamicEl.style.display = "";
     }

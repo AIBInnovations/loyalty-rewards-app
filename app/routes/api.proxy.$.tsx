@@ -60,11 +60,24 @@ import {
   type VisitorContext,
 } from "../.server/services/smart-popup.service";
 
-// Rate limit tracker (in-memory, per-instance)
+// Rate limit tracker (in-memory, per-instance).
+// TODO: move to Redis or a Mongo TTL collection — this resets on deploy and is
+// not shared across instances, so limits multiply when scaling horizontally.
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
+let lastRateLimitSweep = Date.now();
+
+/** Drop expired entries so the map cannot grow unboundedly (memory DoS). */
+function sweepRateLimits(now: number): void {
+  if (now - lastRateLimitSweep < 60_000) return;
+  lastRateLimitSweep = now;
+  for (const [key, entry] of rateLimits) {
+    if (entry.resetAt < now) rateLimits.delete(key);
+  }
+}
 
 function checkRateLimit(key: string, maxPerMinute: number): boolean {
   const now = Date.now();
+  sweepRateLimits(now);
   const entry = rateLimits.get(key);
   if (!entry || entry.resetAt < now) {
     rateLimits.set(key, { count: 1, resetAt: now + 60_000 });
@@ -74,6 +87,34 @@ function checkRateLimit(key: string, maxPerMinute: number): boolean {
   entry.count++;
   return true;
 }
+
+/**
+ * Best-effort per-caller identity. The proxy signature authenticates the shop,
+ * not the shopper, so anonymous endpoints need their own key. Prefers the
+ * Shopify-signed customer id and falls back to the client IP.
+ */
+function getClientIp(request: Request): string {
+  const fwd = request.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0].trim();
+  return request.headers.get("x-real-ip") || "unknown";
+}
+
+function getVisitorKey(request: Request, params: URLSearchParams): string {
+  const customerId = getCustomerIdFromProxy(params);
+  if (customerId) return `c:${customerId}`;
+  return `ip:${getClientIp(request)}`;
+}
+
+/** Normalize so foo+1@x.com and Foo@X.com cannot bypass one-per-email checks. */
+export function normalizeEmail(raw: unknown): string {
+  const email = String(raw || "").trim().toLowerCase();
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return email;
+  return email.slice(0, at).split("+")[0] + email.slice(at);
+}
+
+const rateLimited = () =>
+  json({ error: "Too many requests. Please try again shortly." }, { status: 429 });
 
 /**
  * App Proxy handler -- all storefront requests come through here.
@@ -153,6 +194,10 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
   }
 
   if (path === "popup-submit" || action === "popup-submit") {
+    // Mints real discount codes — cap per caller, not just per shop.
+    if (!checkRateLimit(`popup:${shop}:${getClientIp(request)}`, 5)) {
+      return rateLimited();
+    }
     return handlePopupSubmit(params, shop);
   }
 
@@ -179,18 +224,31 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
   }
 
   if (path === "wheel-spin" || action === "wheel-spin") {
+    if (!checkRateLimit(`wheel:${shop}:${getClientIp(request)}`, 5)) {
+      return rateLimited();
+    }
     return handleWheelSpin(params, shop);
   }
 
   if (path === "wheel-spin-preview" || action === "wheel-spin-preview") {
-    return handleWheelSpinPreview(params, shop);
+    // Mints a prize server-side, so it must be bound to a visitor and capped.
+    if (!checkRateLimit(`wheel-preview:${shop}:${getClientIp(request)}`, 5)) {
+      return rateLimited();
+    }
+    return handleWheelSpinPreview(params, shop, getVisitorKey(request, params));
   }
 
   if (path === "wheel-claim" || action === "wheel-claim") {
-    return handleWheelClaim(params, shop);
+    if (!checkRateLimit(`wheel-claim:${shop}:${getClientIp(request)}`, 5)) {
+      return rateLimited();
+    }
+    return handleWheelClaim(params, shop, getVisitorKey(request, params));
   }
 
   if (path === "stock-subscribe" || action === "stock-subscribe") {
+    if (!checkRateLimit(`stock:${shop}:${getClientIp(request)}`, 10)) {
+      return rateLimited();
+    }
     return handleStockSubscribe(params, shop);
   }
 
@@ -327,7 +385,9 @@ async function handleGetPopupSettings(shop: string) {
 }
 
 async function handlePopupSubmit(params: URLSearchParams, shop: string) {
-  const email = params.get("email");
+  // Normalize before the dedup check below, or plus-addressing mints
+  // unlimited discount codes from one mailbox.
+  const email = normalizeEmail(params.get("email"));
   if (!email || !email.includes("@")) return json({ error: "Valid email required" }, { status: 400 });
 
   // Check if already submitted
@@ -535,10 +595,34 @@ async function handleWheelSpin(params: URLSearchParams, shop: string) {
 
 // ─── Wheel Spin Preview (Step 1: picks prize, returns token — no email needed) ─
 
-async function handleWheelSpinPreview(params: URLSearchParams, shop: string) {
+async function handleWheelSpinPreview(
+  params: URLSearchParams,
+  shop: string,
+  visitorKey: string,
+) {
   const settings = await WheelSettings.findOne({ shopId: shop });
   if (!settings || !settings.enabled || !settings.prizes.length) {
     return json({ error: "Not configured" }, { status: 400 });
+  }
+
+  // One outstanding spin per visitor. Without this the caller could request
+  // previews in a loop, discard every result until the jackpot appeared, and
+  // claim only that one — making the configured probabilities meaningless.
+  const outstanding = await WheelSpinToken.findOne({
+    shopId: shop,
+    visitorKey,
+    used: false,
+  }).sort({ createdAt: -1 });
+
+  if (outstanding) {
+    return json({
+      prizeIndex: outstanding.prizeIndex,
+      token: outstanding.token,
+      prize: {
+        label: outstanding.prizeLabel,
+        discountType: outstanding.prizeDiscountType,
+      },
+    });
   }
 
   // Weighted random selection
@@ -557,6 +641,8 @@ async function handleWheelSpinPreview(params: URLSearchParams, shop: string) {
   await WheelSpinToken.create({
     token,
     shopId: shop,
+    visitorKey,
+    used: false,
     prizeIndex: selectedIndex,
     prizeLabel: prize.label,
     prizeDiscountType: prize.discountType,
@@ -568,20 +654,31 @@ async function handleWheelSpinPreview(params: URLSearchParams, shop: string) {
 
 // ─── Wheel Claim (Step 2: email + token → creates discount, sends email) ───────
 
-async function handleWheelClaim(params: URLSearchParams, shop: string) {
-  const email = params.get("email");
+async function handleWheelClaim(
+  params: URLSearchParams,
+  shop: string,
+  visitorKey: string,
+) {
+  // Normalize so foo+1@x.com cannot bypass the one-claim-per-email check.
+  const email = normalizeEmail(params.get("email"));
   const token = params.get("token");
 
   if (!email || !email.includes("@")) return json({ error: "Valid email required" }, { status: 400 });
   if (!token) return json({ error: "Invalid spin token" }, { status: 400 });
 
-  const spinToken = await WheelSpinToken.findOne({ token, shopId: shop });
+  // Claim atomically and bind to the visitor who span. Marking used inside the
+  // query means two concurrent claims cannot both mint a discount.
+  const spinToken = await WheelSpinToken.findOneAndUpdate(
+    { token, shopId: shop, visitorKey, used: false },
+    { $set: { used: true } },
+    { new: true },
+  );
   if (!spinToken) return json({ error: "Spin session expired. Please spin again." }, { status: 400 });
 
   // Check if already claimed
   const existing = await Subscriber.findOne({ shopId: shop, email, source: "spin_wheel" });
   if (existing) {
-    await WheelSpinToken.deleteOne({ token });
+    await WheelSpinToken.deleteOne({ token, shopId: shop });
     return json({ error: "You've already claimed a prize! Check your email." });
   }
 
@@ -1747,12 +1844,15 @@ async function handleGetSalesPopEvents(params: URLSearchParams, shop: string) {
     }
   }
 
-  // Fallback: if nothing found within the freshness window, show the most recent events regardless of age
+  // Fallback: widen the product/collection targeting, but keep the merchant's
+  // freshness window. This previously dropped the minPurchasedAt bound
+  // entirely, so a shop with no recent sales silently surfaced years-old
+  // purchases as "recently" — bypassing the merchant's own privacy control.
   if (collected.length === 0) {
     const fallbackDocs = await SalesPopEvent.find({
       shopId: shop,
       isActive: true,
-      purchasedAt: { $lte: maxPurchasedAt },
+      purchasedAt: { $gte: minPurchasedAt, $lte: maxPurchasedAt },
     })
       .sort({ purchasedAt: -1 })
       .limit(limit)

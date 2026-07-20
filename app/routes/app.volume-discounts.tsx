@@ -102,11 +102,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ? settings.campaigns.find((c) => String(c._id) === campaignId)
       : null;
 
+    // Enforce server-side what the UI only checked client-side. Saving a
+    // product-scoped campaign with no products would otherwise create a
+    // store-wide Shopify discount.
+    const scope = (payload.scope as any) || "products";
+    const targetProducts = (payload.products as IVolumeTargetProduct[]) || [];
+    if (scope !== "all" && targetProducts.length === 0) {
+      return json(
+        {
+          error:
+            'Select at least one product, or set the scope to "all products" to discount the entire catalog.',
+        },
+        { status: 400 },
+      );
+    }
+
     const merged: IVolumeDiscountCampaign = {
       title: payload.title || "Volume Discount",
       enabled: !!payload.enabled,
-      scope: (payload.scope as any) || "products",
-      products: (payload.products as IVolumeTargetProduct[]) || [],
+      scope,
+      products: targetProducts,
       tiers: tiers.map((t, i) => ({
         minQuantity: Number(t.minQuantity) || i + 1,
         valueType: (t.valueType as any) || "percentage",

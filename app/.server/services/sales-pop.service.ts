@@ -27,6 +27,7 @@ interface OrderAddress {
 }
 
 interface OrderCustomer {
+  id?: string | number;
   first_name?: string;
   last_name?: string;
   tags?: string;
@@ -106,6 +107,9 @@ export async function ingestOrderForSalesPop(
             productImage: meta.image,
             collectionIds: meta.collectionIds,
             vendor: meta.vendor || item.vendor,
+            // Recorded so GDPR customers/redact can locate and delete these
+            // rows — they hold the buyer's name and location.
+            shopifyCustomerId: customer.id ? String(customer.id) : undefined,
             rawFirstName:
               customer.first_name || address.first_name || undefined,
             rawCity: address.city || undefined,

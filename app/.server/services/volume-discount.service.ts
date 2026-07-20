@@ -40,8 +40,19 @@ function buildTierInput(
     .map((p) => p.shopifyProductId)
     .filter(Boolean);
 
+  // An empty product list must never silently widen the campaign to the whole
+  // catalog. This previously fell through to `{ all: true }`, so a campaign
+  // saved with scope "products" and no products created a live store-wide
+  // discount — the "add at least one product" check existed only in the UI.
+  if (campaign.scope !== "all" && productIds.length === 0) {
+    throw new Error(
+      `Volume discount "${campaign.title}" is scoped to specific products but has none selected. ` +
+        `Add products, or set the scope to "all" to discount the entire catalog.`,
+    );
+  }
+
   const items =
-    campaign.scope === "all" || productIds.length === 0
+    campaign.scope === "all"
       ? { all: true }
       : { products: { productsToAdd: productIds } };
 

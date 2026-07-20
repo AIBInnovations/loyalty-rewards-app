@@ -53,15 +53,20 @@ const salesPopSettingsSchema = new Schema<ISalesPopSettings>(
     showCta: { type: Boolean, default: true },
     showThumbnail: { type: Boolean, default: true },
 
+    // Privacy-preserving defaults. These previously defaulted to "first_name"
+    // and "city", so enabling Sales Pop published a scrapeable feed of real
+    // buyer first names paired with their city — re-identifiable personal data
+    // shown to every anonymous storefront visitor, with no customer notice.
+    // A merchant can still opt into the more specific styles deliberately.
     nameStyle: {
       type: String,
       enum: ["masked", "generic", "first_name"],
-      default: "first_name",
+      default: "masked",
     },
     locationStyle: {
       type: String,
       enum: ["city", "state", "country", "hidden"],
-      default: "city",
+      default: "country",
     },
     genericFallback: { type: String, default: "Someone" },
 

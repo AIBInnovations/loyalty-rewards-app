@@ -10,7 +10,14 @@ export interface ISalesPopEvent extends Document {
   productImage?: string;
   collectionIds: string[];
   vendor?: string;
-  // Raw identity fields (server-side only; never exposed)
+  /** Shopify customer id, so GDPR customers/redact can find these rows. */
+  shopifyCustomerId?: string;
+  // Raw identity fields.
+  //
+  // NOTE: the previous "server-side only; never exposed" comment was wrong —
+  // these are read by formatDisplayName/formatDisplayLocation and surfaced to
+  // anonymous storefront visitors via the proxy feed. Treat them as PII: they
+  // are subject to the TTL below and to customers/redact.
   rawFirstName?: string;
   rawCity?: string;
   rawState?: string;
@@ -34,6 +41,8 @@ const salesPopEventSchema = new Schema<ISalesPopEvent>(
     collectionIds: { type: [String], default: [], index: true },
     vendor: { type: String },
 
+    shopifyCustomerId: { type: String, index: true },
+
     rawFirstName: { type: String },
     rawCity: { type: String },
     rawState: { type: String },
@@ -53,6 +62,29 @@ salesPopEventSchema.index(
 
 // Feed queries: shop + active + recent
 salesPopEventSchema.index({ shopId: 1, isActive: 1, purchasedAt: -1 });
+
+// The feed also filters by productHandle and by collection; without these the
+// per-pop queries scan. Each covers its filter plus the purchasedAt sort.
+salesPopEventSchema.index({
+  shopId: 1,
+  isActive: 1,
+  productHandle: 1,
+  purchasedAt: -1,
+});
+salesPopEventSchema.index({
+  shopId: 1,
+  isActive: 1,
+  collectionIds: 1,
+  purchasedAt: -1,
+});
+
+// Retention: these rows hold buyer names and locations and were previously
+// kept forever with no cleanup path. 90 days is ample for a "recent purchase"
+// feed and bounds the exposure window.
+salesPopEventSchema.index(
+  { purchasedAt: 1 },
+  { expireAfterSeconds: 60 * 60 * 24 * 90 },
+);
 
 export const SalesPopEvent: Model<ISalesPopEvent> =
   mongoose.models.SalesPopEvent ||
