@@ -38,6 +38,15 @@ export interface ICartDrawerSettings extends Document {
   checkoutButtonText: string;
   prepaidBannerText: string;
   showPrepaidBanner: boolean;
+  /** Green banner under the header. Hidden when empty. */
+  shippingBannerText: string;
+  /** Small print under the checkout button, e.g. accepted payment methods. */
+  paymentMethodsText: string;
+  /** Dashed coupon card. Hidden unless enabled AND a code is set. */
+  couponEnabled: boolean;
+  couponCode: string;
+  couponDescription: string;
+  couponOffersUrl: string;
   primaryColor: string;
   interceptAddToCart: boolean;
   showUpsell: boolean;
@@ -121,6 +130,15 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     checkoutButtonText: { type: String, default: "CHECKOUT" },
     prepaidBannerText: { type: String, default: "5% Off on Prepaid Orders!" },
     showPrepaidBanner: { type: Boolean, default: true },
+
+    // Empty by default: the drawer hides these sections entirely rather than
+    // making a shipping or discount promise the merchant hasn't opted into.
+    shippingBannerText: { type: String, default: "", maxlength: 80 },
+    paymentMethodsText: { type: String, default: "", maxlength: 120 },
+    couponEnabled: { type: Boolean, default: false },
+    couponCode: { type: String, default: "", maxlength: 40 },
+    couponDescription: { type: String, default: "", maxlength: 80 },
+    couponOffersUrl: { type: String, default: "", maxlength: 500 },
     primaryColor: { type: String, default: "#5C6AC4" },
     interceptAddToCart: { type: Boolean, default: true },
     showUpsell: { type: Boolean, default: false },

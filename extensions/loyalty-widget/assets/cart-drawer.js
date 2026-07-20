@@ -34,6 +34,7 @@
     recommendations: [],
     recsLoading: false,
     settingsLoaded: false,
+    appliedCoupon: "",
   };
 
   // Parse initial cart from Liquid
@@ -78,11 +79,32 @@
   }
 
   // ─── Escape HTML ──────────────────────────────────────────────
+  // Safe for text nodes only: the textContent/innerHTML round-trip escapes
+  // & < > but NOT quotes, so it must never be used inside an attribute.
   function esc(str) {
     if (!str) return "";
     var d = document.createElement("div");
     d.textContent = str;
     return d.innerHTML;
+  }
+
+  // Attribute-safe escaping. Product titles containing a quote previously
+  // broke out of alt="…" and src="…".
+  function escAttr(str) {
+    return String(str == null ? "" : str)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  // Only http(s) image URLs reach a src attribute.
+  function safeImageUrl(url) {
+    var s = String(url == null ? "" : url).trim();
+    if (!s) return "";
+    if (s.indexOf("//") === 0) return s; // protocol-relative Shopify CDN
+    return /^https?:\/\//i.test(s) ? s : "";
   }
 
   // ─── Fetch Settings from App Proxy ────────────────────────────
@@ -333,23 +355,81 @@
   }
 
   // ─── Open / Close ─────────────────────────────────────────────
+  // Element that had focus before opening, so it can be restored on close.
+  var lastFocused = null;
+
+  var FOCUSABLE =
+    'button:not([disabled]), a[href], input:not([disabled]), ' +
+    'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  /** Keep Tab inside the drawer while it is open. */
+  function trapFocus(e) {
+    if (e.key !== "Tab" || !state.isOpen || !drawer) return;
+
+    var focusable = drawer.querySelectorAll(FOCUSABLE);
+    if (!focusable.length) return;
+
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  function onKeydown(e) {
+    if (!state.isOpen) return;
+    if (e.key === "Escape") {
+      closeDrawer();
+      return;
+    }
+    trapFocus(e);
+  }
+
   function openDrawer() {
+    if (state.isOpen) return;
     state.isOpen = true;
+    lastFocused = document.activeElement;
+
     if (!isRendered) createDOM();
     hideNativeCartDrawer();
     render();
     fetchCart().then(function () { fetchRecommendations(); });
+
     overlay.classList.add("open");
     drawer.classList.add("open");
+    drawer.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
+
+    document.addEventListener("keydown", onKeydown);
+
+    // Move focus into the drawer so screen readers and keyboard users land
+    // inside it rather than behind the overlay.
+    var closeBtn = drawer.querySelector(".cd-close");
+    if (closeBtn) closeBtn.focus();
   }
 
   function closeDrawer() {
+    if (!state.isOpen) return;
     state.isOpen = false;
+
     overlay.classList.remove("open");
     drawer.classList.remove("open");
+    drawer.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
+
+    document.removeEventListener("keydown", onKeydown);
     hideNativeCartDrawer();
+
+    // Return focus to whatever opened the drawer.
+    if (lastFocused && typeof lastFocused.focus === "function") {
+      lastFocused.focus();
+    }
+    lastFocused = null;
   }
 
   // ─── Create DOM Shell ─────────────────────────────────────────
@@ -360,6 +440,11 @@
 
     drawer = document.createElement("div");
     drawer.className = "cd-drawer";
+    // Announce as a modal dialog — the drawer previously had no role at all.
+    drawer.setAttribute("role", "dialog");
+    drawer.setAttribute("aria-modal", "true");
+    drawer.setAttribute("aria-label", "Shopping cart");
+    drawer.setAttribute("aria-hidden", "true");
 
     document.body.appendChild(overlay);
     document.body.appendChild(drawer);
@@ -367,6 +452,8 @@
   }
 
   // ─── Render ───────────────────────────────────────────────────
+  // Layout: fixed header, scrollable body, pinned summary. The summary must
+  // stay reachable without scrolling past the recommendations.
   function render() {
     if (!drawer) return;
     var cart = state.cart;
@@ -374,10 +461,14 @@
 
     drawer.innerHTML =
       renderHeader(itemCount) +
-      (config.showProgress && state.tiers.length ? renderProgressBar(cart) : "") +
-      (itemCount > 0 ? renderItems(cart) : renderEmpty()) +
-      (shouldShowUpsell() ? renderUpsell() : "") +
-      (config.showRecommendations && state.recommendations.length ? renderRecommendations() : "") +
+      '<div class="cd-body">' +
+        renderShippingBanner() +
+        (config.showProgress && state.tiers.length ? renderProgressBar(cart) : "") +
+        (itemCount > 0 ? renderItems(cart) : renderEmpty()) +
+        (itemCount > 0 ? renderCoupon() : "") +
+        (shouldShowUpsell() ? renderUpsell() : "") +
+        (config.showRecommendations && state.recommendations.length ? renderRecommendations() : "") +
+      '</div>' +
       (itemCount > 0 ? renderFooter(cart) : "");
 
     attachEvents();
@@ -385,12 +476,25 @@
 
   // ─── Render Header ────────────────────────────────────────────
   function renderHeader(count) {
+    var label = count === 1 ? "1 item" : count + " items";
     return '<div class="cd-header">' +
-      '<h2 class="cd-header-title">Your Cart<span class="cd-header-count">(' + count + ')</span></h2>' +
-      '<button class="cd-close" data-action="close" aria-label="Close">' +
-        '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M14 4L4 14M4 4l10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
+      '<h2 class="cd-header-title">' +
+        '<b>Your Cart</b>' +
+        '<span class="cd-header-count">' + esc(label) + '</span>' +
+      '</h2>' +
+      '<button class="cd-close" type="button" data-action="close" aria-label="Close cart">' +
+        '<svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M14 4L4 14M4 4l10 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' +
       '</button>' +
     '</div>';
+  }
+
+  // ─── Render Shipping Banner ───────────────────────────────────
+  // Merchant-configured; hidden entirely when no text is set, so it never
+  // makes a shipping promise the store hasn't opted into.
+  function renderShippingBanner() {
+    var text = state.settings && state.settings.shippingBannerText;
+    if (!text) return "";
+    return '<div class="cd-ship-banner">' + esc(text) + "</div>";
   }
 
   // ─── Render Progress Bar ──────────────────────────────────────
@@ -423,12 +527,14 @@
       var remainingFormatted = nextTier.type === "amount"
         ? formatMoney(Math.ceil(remaining) * 100)
         : String(Math.ceil(remaining));
-      message = nextTier.belowMessage
-        .replace("{remaining}", remainingFormatted)
-        .replace("{label}", "<strong>" + esc(nextTier.label) + "</strong>");
+      // The merchant's template is escaped before interpolation; the two
+      // placeholders are the only markup we introduce.
+      message = esc(nextTier.belowMessage)
+        .replace("{remaining}", "<em>" + esc(remainingFormatted) + "</em>")
+        .replace("{label}", "<em>" + esc(nextTier.label) + "</em>");
     } else if (activeTierIndex >= 0) {
-      message = tiers[activeTierIndex].reachedMessage
-        .replace("{label}", "<strong>" + esc(tiers[activeTierIndex].label) + "</strong>");
+      message = esc(tiers[activeTierIndex].reachedMessage)
+        .replace("{label}", "<em>" + esc(tiers[activeTierIndex].label) + "</em>");
     }
 
     // Calculate fill percentage
@@ -449,37 +555,45 @@
     }
     if (fillPercent > 100) fillPercent = 100;
 
-    // Render milestones
-    var milestonesHtml = "";
+    // Milestone nodes sit on the track, evenly spaced by tier index. Each
+    // shows a check once reached and the tier number until then.
+    var nodesHtml = "";
+    var legendHtml = "";
     for (var j = 0; j < tiers.length; j++) {
       var t = tiers[j];
       var isReached = j <= activeTierIndex;
-      var isActive = j === nextTierIndex;
-      var dotClass = "cd-tier-dot" + (isReached ? " reached" : "") + (isActive ? " active" : "");
-      var labelClass = "cd-tier-label" + (isReached ? " reached" : "");
+      var nodeLeft = ((j + 1) / tiers.length) * 100;
 
-      milestonesHtml +=
-        '<div class="cd-tier-milestone">' +
-          '<div class="' + dotClass + '">' +
-            (isReached ? "✓" : (j + 1)) +
-          '</div>' +
-          '<span class="' + labelClass + '">' + esc(t.label) + '</span>' +
-          '<span class="cd-tier-sublabel">' +
-            (t.type === "items" ? t.threshold + " item" + (t.threshold > 1 ? "s" : "") : formatMoney(t.threshold * 100)) +
-          '</span>' +
+      nodesHtml +=
+        '<div class="cd-progress-node' + (isReached ? " reached" : "") + '"' +
+          ' style="left:' + nodeLeft + '%">' +
+          (isReached ? "✓" : String(j + 1)) +
         '</div>';
+
+      var threshold = t.type === "items"
+        ? t.threshold + " item" + (t.threshold > 1 ? "s" : "")
+        : formatMoney(t.threshold * 100);
+
+      legendHtml +=
+        '<span class="' + (isReached ? "reached" : "") + '">' +
+          esc(threshold) + " · " + esc(t.label) +
+        '</span>';
     }
 
     var goalReachedClass = activeTierIndex === tiers.length - 1 ? " goal-reached" : "";
 
-    return '<div class="cd-progress-section' + goalReachedClass + '">' +
+    return '<section class="cd-progress-section' + goalReachedClass + '"' +
+      ' aria-label="Reward progress">' +
       (message ? '<p class="cd-progress-message">' + message + '</p>' : "") +
-      '<div class="cd-progress-tiers">' +
-        '<div class="cd-progress-track"></div>' +
+      '<div class="cd-progress-track" role="progressbar"' +
+        ' aria-valuemin="0" aria-valuemax="100"' +
+        ' aria-valuenow="' + Math.round(fillPercent) + '">' +
         '<div class="cd-progress-fill" style="width:' + fillPercent + '%"></div>' +
-        milestonesHtml +
+        '<div class="cd-progress-dot" style="left:' + fillPercent + '%"></div>' +
+        nodesHtml +
       '</div>' +
-    '</div>';
+      '<div class="cd-progress-legend">' + legendHtml + '</div>' +
+    '</section>';
   }
 
   // ─── Render Cart Items ────────────────────────────────────────
@@ -489,13 +603,14 @@
     var html = '<div class="cd-items">';
     cart.items.forEach(function (item) {
       var hasCompare = item.original_line_price > item.final_line_price;
-      var discountPercent = hasCompare
-        ? Math.round((1 - item.final_line_price / item.original_line_price) * 100)
-        : 0;
-      var imgSrc = item.featured_image
-        ? item.featured_image.url || item.image
-        : item.image || "";
-      // Resize image
+      var savings = hasCompare ? item.original_line_price - item.final_line_price : 0;
+
+      var imgSrc = safeImageUrl(
+        item.featured_image
+          ? item.featured_image.url || item.image
+          : item.image || ""
+      );
+      // Request a CDN-resized variant rather than the full-size original.
       if (imgSrc) {
         imgSrc = imgSrc.replace(/(\.\w+)(\?|$)/, "_200x200$1$2");
       }
@@ -503,34 +618,66 @@
       var variantTitle = item.variant_title && item.variant_title !== "Default Title"
         ? item.variant_title : "";
 
+      var title = item.product_title || item.title || "";
+
       html +=
         '<div class="cd-item">' +
           '<div class="cd-item-img">' +
-            (imgSrc ? '<img src="' + esc(imgSrc) + '" alt="' + esc(item.title) + '" loading="lazy"/>' : '') +
+            (imgSrc
+              ? '<img src="' + escAttr(imgSrc) + '" alt="' + escAttr(title) + '" loading="lazy"/>'
+              : '') +
           '</div>' +
           '<div class="cd-item-details">' +
-            '<p class="cd-item-title">' + esc(item.product_title) + '</p>' +
+            '<p class="cd-item-title">' + esc(title) + '</p>' +
             (variantTitle ? '<p class="cd-item-variant">' + esc(variantTitle) + '</p>' : '') +
             '<div class="cd-item-price-row">' +
               '<span class="cd-item-price">' + formatMoney(item.final_line_price) + '</span>' +
-              (hasCompare ? '<span class="cd-item-compare-price">' + formatMoney(item.original_line_price) + '</span>' : '') +
-              (discountPercent > 0 ? '<span class="cd-item-discount-badge">' + discountPercent + '% OFF</span>' : '') +
+              (hasCompare
+                ? '<span class="cd-item-compare-price">' + formatMoney(item.original_line_price) + '</span>' +
+                  '<span class="cd-item-save">Save ' + formatMoney(savings) + '</span>'
+                : '') +
             '</div>' +
             '<div class="cd-item-actions">' +
               '<div class="cd-qty">' +
-                '<button data-action="qty-minus" data-key="' + item.key + '" data-qty="' + (item.quantity - 1) + '">-</button>' +
-                '<span>' + item.quantity + '</span>' +
-                '<button data-action="qty-plus" data-key="' + item.key + '" data-qty="' + (item.quantity + 1) + '">+</button>' +
+                '<button type="button" data-action="qty-minus" data-key="' + escAttr(item.key) + '"' +
+                  ' data-qty="' + (item.quantity - 1) + '"' +
+                  ' aria-label="Decrease quantity">&minus;</button>' +
+                '<span aria-live="polite">' + item.quantity + '</span>' +
+                '<button type="button" data-action="qty-plus" data-key="' + escAttr(item.key) + '"' +
+                  ' data-qty="' + (item.quantity + 1) + '"' +
+                  ' aria-label="Increase quantity">+</button>' +
               '</div>' +
-              '<button class="cd-item-remove" data-action="remove" data-key="' + item.key + '" aria-label="Remove">' +
-                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>' +
-              '</button>' +
+              '<button type="button" class="cd-item-remove" data-action="remove"' +
+                ' data-key="' + escAttr(item.key) + '">Remove</button>' +
             '</div>' +
           '</div>' +
         '</div>';
     });
     html += '</div>';
     return html;
+  }
+
+  // ─── Render Coupon ────────────────────────────────────────────
+  // Shown only when the merchant has configured a code. "Apply" appends the
+  // discount to the checkout URL (Shopify's supported mechanism) rather than
+  // pretending to validate it here.
+  function renderCoupon() {
+    var s = state.settings;
+    if (!s || !s.couponEnabled || !s.couponCode) return "";
+
+    var desc = s.couponDescription ? " <small>· " + esc(s.couponDescription) + "</small>" : "";
+    var offersUrl = s.couponOffersUrl || "";
+
+    return '<section class="cd-coupon">' +
+      '<div>' +
+        '<div class="cd-coupon-code">' + esc(s.couponCode) + desc + '</div>' +
+        (offersUrl
+          ? '<a class="cd-coupon-link" href="' + escAttr(offersUrl) + '">View all offers &rarr;</a>'
+          : '') +
+      '</div>' +
+      '<button type="button" class="cd-coupon-apply" data-action="apply-coupon"' +
+        ' data-code="' + escAttr(s.couponCode) + '">APPLY</button>' +
+    '</section>';
   }
 
   // ─── Render Empty Cart ────────────────────────────────────────
@@ -543,55 +690,64 @@
   }
 
   // ─── Render Recommendations ───────────────────────────────────
-  // Track collapsible state
-  var recsExpanded = true;
+  // Two-up product grid ("Pairs well with" in the mockup). Capped at four so
+  // the summary stays reachable without a long scroll.
+  var MAX_RECS = 4;
+
+  function renderProductCard(opts) {
+    var imgSrc = safeImageUrl(opts.image);
+    if (imgSrc) imgSrc = imgSrc.replace(/(\.\w+)(\?|$)/, "_300x300$1$2");
+
+    return '<div class="cd-prod">' +
+      '<div class="cd-prod-img">' +
+        (imgSrc
+          ? '<img src="' + escAttr(imgSrc) + '" alt="' + escAttr(opts.title) + '" loading="lazy"/>'
+          : '') +
+      '</div>' +
+      '<p class="cd-prod-name">' + esc(opts.title) + '</p>' +
+      '<div class="cd-prod-foot">' +
+        '<span class="cd-prod-prices">' +
+          '<span class="cd-prod-price">' + formatMoney(opts.price) + '</span>' +
+          (opts.comparePrice
+            ? '<span class="cd-prod-compare">' + formatMoney(opts.comparePrice) + '</span>'
+            : '') +
+        '</span>' +
+        '<button type="button" class="cd-prod-add" data-action="' + escAttr(opts.action) + '"' +
+          ' data-variant-id="' + escAttr(opts.variantId) + '"' +
+          ' aria-label="Add ' + escAttr(opts.title) + ' to cart">+ Add</button>' +
+      '</div>' +
+    '</div>';
+  }
 
   function renderRecommendations() {
     if (!state.recommendations.length) return "";
 
     var title = (state.settings && state.settings.recommendationsTitle) || config.recommendationsTitle;
 
-    var html = '<div class="cd-recs-section">' +
-      '<div class="cd-recs-header" data-action="toggle-recs">' +
-        '<h3 class="cd-recs-title">' + esc(title) + '</h3>' +
-        '<span class="cd-recs-toggle' + (recsExpanded ? ' open' : '') + '">' +
-          '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-        '</span>' +
-      '</div>' +
-      '<div class="cd-recs-body' + (recsExpanded ? ' open' : '') + '">' +
-      '<div class="cd-recs-carousel">';
+    var html = '<section class="cd-recs-section">' +
+      '<h3 class="cd-recs-title">' + esc(title) + '</h3>' +
+      '<div class="cd-recs-grid">';
 
-    state.recommendations.forEach(function (p) {
+    state.recommendations.slice(0, MAX_RECS).forEach(function (p) {
       var hasCompare = p.compare_at_price && p.compare_at_price > p.price;
-      var discountPercent = hasCompare
-        ? Math.round((1 - p.price / p.compare_at_price) * 100)
-        : 0;
-      var imgSrc = "";
+      var image = "";
       if (p.featured_image) {
-        imgSrc = typeof p.featured_image === "string" ? p.featured_image : (p.featured_image.url || "");
-      }
-      if (imgSrc) {
-        imgSrc = imgSrc.replace(/(\.\w+)(\?|$)/, "_300x300$1$2");
+        image = typeof p.featured_image === "string"
+          ? p.featured_image
+          : (p.featured_image.url || "");
       }
 
-      var variantId = p.variants && p.variants.length ? p.variants[0].id : "";
-
-      html +=
-        '<div class="cd-rec-card">' +
-          (discountPercent > 0 ? '<span class="cd-rec-badge">' + discountPercent + '% OFF</span>' : '') +
-          (imgSrc ? '<img class="cd-rec-img" src="' + esc(imgSrc) + '" alt="' + esc(p.title) + '" loading="lazy"/>' : '<div class="cd-rec-img" style="background:#f0f0f0"></div>') +
-          '<div class="cd-rec-info">' +
-            '<p class="cd-rec-name">' + esc(p.title) + '</p>' +
-            '<div class="cd-rec-prices">' +
-              '<span class="cd-rec-price">' + formatMoney(p.price) + '</span>' +
-              (hasCompare ? '<span class="cd-rec-compare">' + formatMoney(p.compare_at_price) + '</span>' : '') +
-            '</div>' +
-          '</div>' +
-          '<button class="cd-rec-add" data-action="add-rec" data-variant-id="' + variantId + '">+ Add</button>' +
-        '</div>';
+      html += renderProductCard({
+        title: p.title,
+        image: image,
+        price: p.price,
+        comparePrice: hasCompare ? p.compare_at_price : 0,
+        variantId: p.variants && p.variants.length ? p.variants[0].id : "",
+        action: "add-rec",
+      });
     });
 
-    html += '</div></div></div>';
+    html += '</div></section>';
     return html;
   }
 
@@ -617,24 +773,19 @@
     var imgSrc = p.imageUrl || "";
     if (imgSrc) imgSrc = imgSrc.replace(/(\.\w+)(\?|$)/, "_160x160$1$2");
 
-    return '<div class="cd-upsell-section">' +
-      '<div class="cd-upsell-badge">🎁 Special Offer</div>' +
-      '<p class="cd-upsell-headline">' + esc(headline) + '</p>' +
-      '<div class="cd-upsell-card">' +
-        (imgSrc ? '<img class="cd-upsell-img" src="' + esc(imgSrc) + '" alt="' + esc(p.title) + '" loading="lazy"/>' : '') +
-        '<div class="cd-upsell-info">' +
-          '<p class="cd-upsell-title">' + esc(p.title) + '</p>' +
-          '<div class="cd-upsell-prices">' +
-            (discount > 0 ? '<span class="cd-upsell-original">' + formatMoney(originalPrice) + '</span>' : '') +
-            '<span class="cd-upsell-price">' + formatMoney(discountedPrice) + '</span>' +
-            (discount > 0 ? '<span class="cd-upsell-save">SAVE ' + discount + '%</span>' : '') +
-          '</div>' +
-          '<button class="cd-upsell-add" data-action="add-upsell" data-variant-id="' + variantId + '">' +
-            '+ Add for ' + formatMoney(discountedPrice) +
-          '</button>' +
-        '</div>' +
+    return '<section class="cd-upsell-section">' +
+      '<h3 class="cd-upsell-headline">' + esc(headline) + '</h3>' +
+      '<div class="cd-recs-grid">' +
+        renderProductCard({
+          title: p.title,
+          image: imgSrc,
+          price: discountedPrice,
+          comparePrice: discount > 0 ? originalPrice : 0,
+          variantId: variantId,
+          action: "add-upsell",
+        }) +
       '</div>' +
-    '</div>';
+    '</section>';
   }
 
   // ─── Render Footer ────────────────────────────────────────────
@@ -649,30 +800,40 @@
     var showPrepaid = state.settings && state.settings.showPrepaidBanner && state.settings.prepaidBannerText;
     var checkoutText = (state.settings && state.settings.checkoutButtonText) || "CHECKOUT";
 
+    var payMethods = state.settings && state.settings.paymentMethodsText;
+
     var html = '<div class="cd-footer">';
 
     if (showPrepaid) {
-      html += '<div class="cd-prepaid-banner">🏷 ' + esc(state.settings.prepaidBannerText) + '</div>';
+      html += '<div class="cd-prepaid-banner">' + esc(state.settings.prepaidBannerText) + '</div>';
     }
 
+    // Subtotal / discount / total breakdown, per the mockup.
+    html += '<div class="cd-summary-row">' +
+      '<span>Subtotal</span>' +
+      '<span>' + formatMoney(originalTotal) + '</span>' +
+    '</div>';
+
     if (hasSavings) {
-      html += '<div class="cd-savings">' +
-        '<span class="cd-savings-badge">Saving ' + formatMoney(savings) + '</span>' +
+      html += '<div class="cd-summary-row cd-summary-row--disc">' +
+        '<span>Discounts</span>' +
+        '<span>&minus;' + formatMoney(savings) + '</span>' +
       '</div>';
     }
 
     html += '<div class="cd-total-row">' +
-      '<div>' +
-        '<span class="cd-total-price">' + formatMoney(totalPrice) + '</span>' +
-        (hasSavings ? '<span class="cd-total-compare">' + formatMoney(originalTotal) + '</span>' : '') +
-      '</div>' +
-      '<span class="cd-total-label">See Details</span>' +
+      '<span>Total</span>' +
+      '<span>' + formatMoney(totalPrice) + '</span>' +
     '</div>';
 
-    html += '<button class="cd-checkout-btn" data-action="checkout">' +
-      esc(checkoutText) +
-      '<span class="cd-checkout-icons">💳</span>' +
+    html += '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
+      esc(checkoutText) + ' · ' + formatMoney(totalPrice) +
+      '<span class="cd-checkout-arrow" aria-hidden="true">&rarr;</span>' +
     '</button>';
+
+    if (payMethods) {
+      html += '<div class="cd-pay-methods">' + esc(payMethods) + '</div>';
+    }
 
     html += '</div>';
     return html;
@@ -687,14 +848,14 @@
       btn.addEventListener("click", closeDrawer);
     });
 
-    // Toggle recommendations collapse
-    drawer.querySelectorAll('[data-action="toggle-recs"]').forEach(function (btn) {
+    // Apply coupon — stash the code and let the checkout handler append it to
+    // the checkout URL, which is Shopify's supported way to pre-apply a
+    // discount. We deliberately do not claim the code is valid here.
+    drawer.querySelectorAll('[data-action="apply-coupon"]').forEach(function (btn) {
       btn.addEventListener("click", function () {
-        recsExpanded = !recsExpanded;
-        var body = drawer.querySelector(".cd-recs-body");
-        var toggle = drawer.querySelector(".cd-recs-toggle");
-        if (body) body.classList.toggle("open", recsExpanded);
-        if (toggle) toggle.classList.toggle("open", recsExpanded);
+        state.appliedCoupon = this.dataset.code || "";
+        this.textContent = "APPLIED";
+        this.disabled = true;
       });
     });
 
@@ -751,7 +912,14 @@
     drawer.querySelectorAll('[data-action="checkout"]').forEach(function (btn) {
       btn.addEventListener("click", function () {
         closeDrawer();
-        window.location.href = "/checkout";
+        // Pre-apply the coupon via the discount query param — Shopify validates
+        // it at checkout, so an invalid code degrades to a normal checkout
+        // rather than silently claiming a discount the customer won't get.
+        var url = "/checkout";
+        if (state.appliedCoupon) {
+          url += "?discount=" + encodeURIComponent(state.appliedCoupon);
+        }
+        window.location.href = url;
       });
     });
   }

@@ -61,6 +61,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           checkoutButtonText: data.checkoutButtonText || "CHECKOUT",
           prepaidBannerText: data.prepaidBannerText || "",
           showPrepaidBanner: data.showPrepaidBanner === "true",
+          shippingBannerText: String(data.shippingBannerText || "").slice(0, 80),
+          paymentMethodsText: String(data.paymentMethodsText || "").slice(0, 120),
+          couponEnabled: data.couponEnabled === "true",
+          couponCode: String(data.couponCode || "").trim().slice(0, 40),
+          couponDescription: String(data.couponDescription || "").slice(0, 80),
+          // Only store http(s) links — this value is rendered into an href.
+          couponOffersUrl: /^https?:\/\//i.test(String(data.couponOffersUrl || ""))
+            ? String(data.couponOffersUrl).slice(0, 500)
+            : "",
           primaryColor: data.primaryColor || "#5C6AC4",
           interceptAddToCart: data.interceptAddToCart === "true",
           showUpsell: data.showUpsell === "true",
@@ -128,6 +137,22 @@ export default function CartSettingsPage() {
   const [showPrepaidBanner, setShowPrepaidBanner] = useState(
     settings.showPrepaidBanner,
   );
+  const [shippingBannerText, setShippingBannerText] = useState(
+    settings.shippingBannerText || "",
+  );
+  const [paymentMethodsText, setPaymentMethodsText] = useState(
+    settings.paymentMethodsText || "",
+  );
+  const [couponEnabled, setCouponEnabled] = useState(
+    Boolean(settings.couponEnabled),
+  );
+  const [couponCode, setCouponCode] = useState(settings.couponCode || "");
+  const [couponDescription, setCouponDescription] = useState(
+    settings.couponDescription || "",
+  );
+  const [couponOffersUrl, setCouponOffersUrl] = useState(
+    settings.couponOffersUrl || "",
+  );
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [tiers, setTiers] = useState<ICartTier[]>(settings.tiers || []);
   const [showUpsell, setShowUpsell] = useState(settings.showUpsell || false);
@@ -172,6 +197,12 @@ export default function CartSettingsPage() {
     formData.set("checkoutButtonText", checkoutButtonText);
     formData.set("prepaidBannerText", prepaidBannerText);
     formData.set("showPrepaidBanner", String(showPrepaidBanner));
+    formData.set("shippingBannerText", shippingBannerText);
+    formData.set("paymentMethodsText", paymentMethodsText);
+    formData.set("couponEnabled", String(couponEnabled));
+    formData.set("couponCode", couponCode);
+    formData.set("couponDescription", couponDescription);
+    formData.set("couponOffersUrl", couponOffersUrl);
     formData.set("primaryColor", primaryColor);
     formData.set("tiers", JSON.stringify(tiers));
     formData.set("showUpsell", String(showUpsell));
@@ -183,7 +214,9 @@ export default function CartSettingsPage() {
     enabled, interceptAddToCart, showRecommendations, recommendationsTitle,
     recommendationsCount, recommendationMode, manualProducts, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor,
-    tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct, submit,
+    tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct,
+    shippingBannerText, paymentMethodsText, couponEnabled, couponCode,
+    couponDescription, couponOffersUrl, submit,
   ]);
 
   const removeManualProduct = useCallback((index: number) => {
@@ -623,6 +656,24 @@ export default function CartSettingsPage() {
                   onChange={setCheckoutButtonText}
                   autoComplete="off"
                 />
+                <TextField
+                  label="Payment methods line"
+                  helpText="Small print under the checkout button. Leave blank to hide."
+                  placeholder="UPI · Cards · Paytm · COD available"
+                  value={paymentMethodsText}
+                  onChange={setPaymentMethodsText}
+                  maxLength={120}
+                  autoComplete="off"
+                />
+                <TextField
+                  label="Shipping banner"
+                  helpText="Green banner under the cart header. Leave blank to hide."
+                  placeholder="Free shipping on all orders"
+                  value={shippingBannerText}
+                  onChange={setShippingBannerText}
+                  maxLength={80}
+                  autoComplete="off"
+                />
                 <Checkbox
                   label="Show savings amount"
                   helpText="Displays how much the customer is saving (compare_at_price vs price)"
@@ -642,6 +693,51 @@ export default function CartSettingsPage() {
                     onChange={setPrepaidBannerText}
                     autoComplete="off"
                   />
+                )}
+                <Divider />
+                <Checkbox
+                  label="Show coupon card"
+                  helpText="Displays a promo code in the cart. Tapping Apply carries the code through to checkout, where Shopify validates it."
+                  checked={couponEnabled}
+                  onChange={setCouponEnabled}
+                />
+                {couponEnabled && (
+                  <>
+                    <TextField
+                      label="Coupon code"
+                      placeholder="FREECASH100"
+                      value={couponCode}
+                      onChange={setCouponCode}
+                      maxLength={40}
+                      autoComplete="off"
+                      error={
+                        couponEnabled && !couponCode.trim()
+                          ? "Enter a code, or turn the coupon card off"
+                          : undefined
+                      }
+                    />
+                    <TextField
+                      label="Coupon description"
+                      placeholder="₹100 off first order"
+                      value={couponDescription}
+                      onChange={setCouponDescription}
+                      maxLength={80}
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="View all offers link"
+                      helpText="Optional. Must start with https://"
+                      placeholder="https://your-store.com/pages/offers"
+                      value={couponOffersUrl}
+                      onChange={setCouponOffersUrl}
+                      autoComplete="off"
+                      error={
+                        couponOffersUrl && !/^https?:\/\//i.test(couponOffersUrl)
+                          ? "Enter a full URL starting with https://"
+                          : undefined
+                      }
+                    />
+                  </>
                 )}
                 <Divider />
                 <TextField
