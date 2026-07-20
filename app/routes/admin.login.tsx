@@ -33,29 +33,50 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect(url.searchParams.get("redirectTo") || "/admin");
   }
 
-  return json({
-    polarisTranslations,
-    usesDefaultPassword: !process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD,
-  });
+  // Never disclose credential state before authentication. This used to
+  // return a flag that rendered "Default login is admin / admin123" to any
+  // unauthenticated visitor whenever the env vars were unset.
+  return json({ polarisTranslations });
 };
+
+/** Reject protocol-relative and backslash forms, which browsers treat as external. */
+function safeRedirect(target: string): string {
+  if (!target.startsWith("/") || /^\/[/\\]/.test(target)) return "/admin";
+  return target;
+}
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const username = String(formData.get("username") || "");
   const password = String(formData.get("password") || "");
-  const redirectTo = String(formData.get("redirectTo") || "/admin");
-  const admin = await authenticateAdminUser(username, password);
+  const redirectTo = safeRedirect(String(formData.get("redirectTo") || "/admin"));
 
-  if (admin && redirectTo.startsWith("/")) {
-    return createAdminSession(admin, redirectTo);
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
+
+  const result = await authenticateAdminUser(username, password, ip);
+
+  if (result.ok) {
+    return createAdminSession(result.user, redirectTo, {
+      ip,
+      userAgent: request.headers.get("user-agent") || undefined,
+    });
+  }
+
+  if (result.reason === "rate_limited") {
+    return json(
+      { error: "Too many failed attempts. Try again in 15 minutes." },
+      { status: 429 },
+    );
   }
 
   return json({ error: "Invalid username or password" }, { status: 401 });
 };
 
 export default function AdminLogin() {
-  const { polarisTranslations, usesDefaultPassword } =
-    useLoaderData<typeof loader>();
+  const { polarisTranslations } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
@@ -378,16 +399,6 @@ export default function AdminLogin() {
 
                   <div className="admin-login-alerts">
                     <BlockStack gap="300">
-                      {usesDefaultPassword && (
-                        <Banner tone="warning">
-                          <p>
-                            Default login is admin / admin123. Set
-                            ADMIN_USERNAME and ADMIN_PASSWORD in env before
-                            production.
-                          </p>
-                        </Banner>
-                      )}
-
                       {actionData?.error && (
                         <Banner tone="critical">
                           <p>{actionData.error}</p>

@@ -29,6 +29,8 @@ import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { useMemo, useState } from "react";
 import { connectDB } from "../db.server";
 import {
+  assertShopAccess,
+  canAccessShop,
   hashAdminPassword,
   requireAdmin,
   requireAdminPermission,
@@ -288,12 +290,22 @@ function listToCsv(value: unknown) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await requireAdmin(request);
+  const adminSession = await requireAdmin(request);
   await connectDB();
 
   const url = new URL(request.url);
-  const shops = await Settings.distinct("shopId");
-  const selectedShop = url.searchParams.get("shop") || shops[0] || "";
+
+  // Restrict the shop list to what this admin may see. `allowedShops` was
+  // previously stored and displayed but never enforced, so any authenticated
+  // admin could read any merchant's data by changing ?shop=.
+  const allShops = await Settings.distinct("shopId");
+  const shops = allShops.filter((shop: string) =>
+    canAccessShop(adminSession, shop),
+  );
+
+  const requestedShop = url.searchParams.get("shop") || shops[0] || "";
+  if (requestedShop) assertShopAccess(adminSession, requestedShop);
+  const selectedShop = requestedShop;
   const activeTab = url.searchParams.get("tab") || "overview";
   const requestedPluginKey = url.searchParams.get("plugin") || "";
   const selectedPluginKey = editablePluginKeys.has(requestedPluginKey)
@@ -988,6 +1000,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = String(formData.get("intent") || "toggle-plugin");
   const shopId = String(formData.get("shop") || "");
   const pluginKey = String(formData.get("pluginKey") || "");
+
+  // Every shop-scoped mutation below reads this same shopId, so one check here
+  // covers all of them. Without it, a shop-restricted admin could write to any
+  // tenant by posting a different shop value.
+  if (shopId) assertShopAccess(adminSession, shopId);
 
   if (intent === "update-store-status") {
     await requireAdminPermission(request, "stores:write");
