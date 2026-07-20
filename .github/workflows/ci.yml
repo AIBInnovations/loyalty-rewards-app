@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build-time only; env.server.ts requires these to be present.
+          SHOPIFY_API_KEY: ci-placeholder
+          SHOPIFY_API_SECRET: ci-placeholder
+          SHOPIFY_APP_URL: https://example.com
+          MONGODB_URI: mongodb://localhost:27017/ci
+          SCOPES: read_products

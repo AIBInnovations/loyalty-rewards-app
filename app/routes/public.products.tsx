@@ -12,10 +12,12 @@ function hostnameFromRequest(request: Request) {
 }
 
 async function resolveShopId(request: Request) {
-  const url = new URL(request.url);
-  const shopFromQuery = url.searchParams.get("shop");
-  if (shopFromQuery) return shopFromQuery;
-
+  // Tenant identity comes ONLY from the verified domain mapping.
+  //
+  // This previously accepted `?shop=` and let it short-circuit the lookup,
+  // which made every merchant's catalog — including draft and archived
+  // products with per-variant price, SKU and inventory — readable by anyone
+  // who knew their domain, with no authentication of any kind.
   const domain = await StorefrontDomain.findOne({
     domain: hostnameFromRequest(request),
   }).lean();
@@ -31,9 +33,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({ error: "Storefront domain is not mapped" }, { status: 404 });
   }
 
+  // Fail closed on an unknown shop. Using `platformShop?.status && ...` meant a
+  // shop with no PlatformShop record fell through and got a 200 with defaults,
+  // which distinguished "installed" from "unknown" and allowed enumeration of
+  // the whole merchant list. Return an identical 404 in every failure case.
   const platformShop = await PlatformShop.findOne({ shopId }).lean();
-  if (platformShop?.status && platformShop.status !== "active") {
-    return json({ error: "Store is not active" }, { status: 403 });
+  if (!platformShop || platformShop.status !== "active") {
+    return json({ error: "Not found" }, { status: 404 });
   }
 
   const limit = Math.min(Number(url.searchParams.get("limit") || 24), 100);

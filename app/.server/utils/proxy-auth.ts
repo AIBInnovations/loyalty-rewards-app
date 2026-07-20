@@ -23,16 +23,22 @@ export function verifyAppProxySignature(
     return false;
   }
 
-  // Build the message: sort ALL params except 'signature', concatenate as key=value
-  // Shopify signs everything that's in the URL including custom params
-  const params: string[] = [];
+  // Build the message: sort ALL params except 'signature', concatenate as key=value.
+  // Shopify signs everything in the URL including custom params, and joins
+  // repeated keys with a comma (key=v1,v2). Emitting them as separate entries
+  // fails closed rather than open, but breaks any endpoint sent an array param.
+  const grouped = new Map<string, string[]>();
   for (const [key, value] of queryParams.entries()) {
-    if (key !== "signature") {
-      params.push(`${key}=${value}`);
-    }
+    if (key === "signature") continue;
+    const existing = grouped.get(key);
+    if (existing) existing.push(value);
+    else grouped.set(key, [value]);
   }
-  params.sort();
-  const message = params.join("");
+
+  const message = [...grouped.entries()]
+    .map(([key, values]) => `${key}=${values.join(",")}`)
+    .sort()
+    .join("");
 
   const expectedSignature = crypto
     .createHmac("sha256", secret)

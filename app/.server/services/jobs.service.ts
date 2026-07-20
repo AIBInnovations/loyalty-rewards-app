@@ -122,60 +122,77 @@ async function expireOldPoints(): Promise<void> {
         shopSettings.pointsExpiry.daysToExpire * 24 * 60 * 60 * 1000,
     );
 
-    // Find earned transactions that have expired and haven't been expired yet
+    // Only sweep EARN rows past their expiry that have not already been swept.
+    //
+    // `expiredAt` is what makes this job safe to re-run. Previously the guard
+    // looked for idempotencyKey `expire_${tx._id}` while the write used
+    // `expire_batch_${custId}_${Date.now()}` — a key that is never the one
+    // checked, and which can never dedupe because it embeds the current time.
+    // Every nightly run therefore re-expired the same transactions until the
+    // customer's balance reached zero.
     const expiredTransactions = await Transaction.find({
       shopId: shopSettings.shopId,
       type: "EARN",
       expiresAt: { $lt: new Date(), $exists: true },
+      expiredAt: { $exists: false },
     }).limit(200);
 
-    // Group by customer
-    const customerPoints = new Map<string, number>();
+    // Deduct per source transaction, so each deduction has a stable key.
     for (const tx of expiredTransactions) {
       const custId = tx.customerId.toString();
-      // Check if already expired (look for matching expiry transaction)
-      const alreadyExpired = await Transaction.exists({
-        shopId: shopSettings.shopId,
-        idempotencyKey: `expire_${tx._id}`,
-      });
-      if (!alreadyExpired) {
-        customerPoints.set(
-          custId,
-          (customerPoints.get(custId) || 0) + tx.points,
-        );
+      const markSwept = () =>
+        Transaction.updateOne({ _id: tx._id }, { $set: { expiredAt: new Date() } });
+
+      if (tx.points <= 0) {
+        await markSwept();
+        continue;
       }
-    }
 
-    // Deduct expired points from each customer
-    for (const [custId, points] of customerPoints) {
-      const customer = await Customer.findOne({
-        _id: custId,
-        shopId: shopSettings.shopId,
-      });
-      if (!customer || points <= 0) continue;
-
-      const actualDeduction = Math.min(points, customer.currentBalance);
-      if (actualDeduction <= 0) continue;
-
-      await Customer.updateOne(
+      // Clamp at zero inside the update so concurrent deductions cannot drive
+      // the balance negative. Mongoose's `min: 0` does not apply to $inc.
+      const updated = await Customer.findOneAndUpdate(
         { _id: custId, shopId: shopSettings.shopId },
-        { $inc: { currentBalance: -actualDeduction } },
+        [
+          {
+            $set: {
+              currentBalance: {
+                $max: [0, { $subtract: ["$currentBalance", tx.points] }],
+              },
+            },
+          },
+        ],
+        { new: true },
       );
 
-      const updated = await Customer.findOne({
-        _id: custId,
-        shopId: shopSettings.shopId,
-      });
-      await Transaction.create({
-        shopId: shopSettings.shopId,
-        customerId: custId,
-        type: "EXPIRE",
-        points: -actualDeduction,
-        balanceAfter: updated?.currentBalance || 0,
-        source: "EXPIRY",
-        description: `${actualDeduction} points expired`,
-        idempotencyKey: `expire_batch_${custId}_${Date.now()}`,
-      });
+      if (!updated) {
+        await markSwept();
+        continue;
+      }
+
+      try {
+        await Transaction.create({
+          shopId: shopSettings.shopId,
+          customerId: custId,
+          type: "EXPIRE",
+          points: -tx.points,
+          balanceAfter: updated.currentBalance,
+          source: "EXPIRY",
+          description: `${tx.points} points expired`,
+          idempotencyKey: `expire_${tx._id}`,
+        });
+      } catch (error: unknown) {
+        // Another instance already recorded this expiry — undo our deduction.
+        if ((error as { code?: number }).code === 11000) {
+          await Customer.updateOne(
+            { _id: custId, shopId: shopSettings.shopId },
+            { $inc: { currentBalance: tx.points } },
+          );
+        } else {
+          throw error;
+        }
+      }
+
+      await markSwept();
     }
   }
 }

@@ -69,11 +69,48 @@ export async function earnPoints(
 
   if (points <= 0) return null;
 
-  // Check idempotency -- if a transaction with this key exists, skip
-  const existing = await Transaction.findOne({ shopId, idempotencyKey });
-  if (existing) {
-    console.log(`Skipping duplicate: ${idempotencyKey}`);
+  const existingCustomer = await Customer.findOne({ shopId, shopifyCustomerId });
+  if (!existingCustomer) {
+    console.error(`Customer not found: ${shopifyCustomerId} in ${shopId}`);
     return null;
+  }
+
+  const settings = await Settings.findOne({ shopId });
+  const expiresAt =
+    settings?.pointsExpiry.enabled
+      ? new Date(
+          Date.now() + settings.pointsExpiry.daysToExpire * 24 * 60 * 60 * 1000,
+        )
+      : undefined;
+
+  // Claim the idempotency key BEFORE touching the balance.
+  //
+  // Shopify retries orders/paid aggressively. With the old check-then-increment
+  // ordering, two concurrent deliveries both passed the findOne check and both
+  // incremented, then the second Transaction.create failed on the unique index —
+  // leaving the balance double-credited with only one transaction row.
+  // Inserting first lets the unique index act as the lock.
+  // balanceAfter is backfilled once the increment lands.
+  let transaction;
+  try {
+    transaction = await Transaction.create({
+      shopId,
+      customerId: existingCustomer._id,
+      type: "EARN" as TransactionType,
+      points,
+      balanceAfter: 0,
+      source,
+      referenceId,
+      description,
+      idempotencyKey,
+      expiresAt,
+    });
+  } catch (error: unknown) {
+    if ((error as { code?: number }).code === 11000) {
+      console.log(`Skipping duplicate: ${idempotencyKey}`);
+      return null;
+    }
+    throw error;
   }
 
   // Atomic increment on customer balance
@@ -89,40 +126,30 @@ export async function earnPoints(
   );
 
   if (!customer) {
+    // Customer vanished between the read and the increment — release the key so
+    // a retry can succeed rather than being swallowed as a duplicate.
+    await Transaction.deleteOne({ _id: transaction._id });
     console.error(`Customer not found: ${shopifyCustomerId} in ${shopId}`);
     return null;
   }
 
-  // Update tier based on new lifetime earned
-  const settings = await Settings.findOne({ shopId });
+  await Transaction.updateOne(
+    { _id: transaction._id },
+    { $set: { balanceAfter: customer.currentBalance } },
+  );
+
+  // Update tier. Use a targeted $set rather than customer.save(), which would
+  // write back a stale currentBalance and discard concurrent increments.
   if (settings) {
     const newTier = determineTier(customer.lifetimeEarned, settings.tiers);
     if (newTier !== customer.tier) {
+      await Customer.updateOne(
+        { _id: customer._id, shopId },
+        { $set: { tier: newTier } },
+      );
       customer.tier = newTier;
-      await customer.save();
     }
   }
-
-  // Create immutable transaction record
-  const expiresAt =
-    settings?.pointsExpiry.enabled
-      ? new Date(
-          Date.now() + settings.pointsExpiry.daysToExpire * 24 * 60 * 60 * 1000,
-        )
-      : undefined;
-
-  await Transaction.create({
-    shopId,
-    customerId: customer._id,
-    type: "EARN" as TransactionType,
-    points,
-    balanceAfter: customer.currentBalance,
-    source,
-    referenceId,
-    description,
-    idempotencyKey,
-    expiresAt,
-  });
 
   // Sync to Shopify metafields (non-blocking)
   if (admin) {
@@ -157,6 +184,43 @@ export interface RedeemPointsResult {
  * Redeem points for a discount code.
  * Uses atomic check-and-deduct to prevent race conditions.
  */
+/**
+ * Give back points deducted for a redemption that then failed. Writes a
+ * compensating ADJUST row so the ledger reconciles against the balance.
+ */
+async function refundRedemption(
+  customerId: unknown,
+  shopId: string,
+  points: number,
+  reason: string,
+): Promise<void> {
+  try {
+    const restored = await Customer.findOneAndUpdate(
+      { _id: customerId, shopId },
+      { $inc: { currentBalance: points, lifetimeRedeemed: -points } },
+      { new: true },
+    );
+    await Transaction.create({
+      shopId,
+      customerId,
+      type: "ADJUST" as TransactionType,
+      points,
+      balanceAfter: restored?.currentBalance ?? 0,
+      source: "REDEMPTION",
+      description: `Redemption failed (${reason}) — points restored`,
+    });
+  } catch (err) {
+    // Never mask the original failure; this path is best-effort and loud.
+    console.error("CRITICAL: failed to restore points after redemption failure", {
+      customerId,
+      shopId,
+      points,
+      reason,
+      err,
+    });
+  }
+}
+
 export async function redeemPoints(
   input: RedeemPointsInput,
 ): Promise<RedeemPointsResult> {
@@ -192,43 +256,70 @@ export async function redeemPoints(
     throw new Error("Insufficient points or customer not found");
   }
 
-  // Create discount code in Shopify
-  const { discountCode, shopifyDiscountId } = await createRedemptionDiscount(
-    admin,
-    {
+  // Enforce the per-customer cap, which the schema declared but nothing read.
+  if (reward.maxUsesPerCustomer && reward.maxUsesPerCustomer > 0) {
+    const usedCount = await Redemption.countDocuments({
+      shopId,
+      customerId: customer._id,
+      rewardId: reward._id,
+    });
+    if (usedCount >= reward.maxUsesPerCustomer) {
+      await refundRedemption(customer._id, shopId, reward.pointsCost, "cap");
+      throw new Error(
+        "You have already redeemed this reward the maximum number of times",
+      );
+    }
+  }
+
+  // Everything past this point can fail against Shopify's API, so any failure
+  // must give the points back. Previously a throttled or errored discount call
+  // left the points deducted with no discount and no audit row to reconcile from.
+  let discountCode: string;
+  let shopifyDiscountId: string;
+  try {
+    ({ discountCode, shopifyDiscountId } = await createRedemptionDiscount(admin, {
       shopifyCustomerId,
       discountType: reward.discountType,
       discountValue: reward.discountValue,
       minimumOrderAmount: reward.minimumOrderAmount,
       title: `Loyalty: ${reward.name}`,
-    },
-  );
+    }));
+  } catch (error) {
+    await refundRedemption(customer._id, shopId, reward.pointsCost, "discount-failed");
+    throw error;
+  }
 
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  // Create redemption record
-  await Redemption.create({
-    shopId,
-    customerId: customer._id,
-    rewardId: reward._id,
-    pointsSpent: reward.pointsCost,
-    discountCode,
-    shopifyDiscountId,
-    status: "CREATED",
-    expiresAt,
-  });
+  try {
+    // Create redemption record
+    await Redemption.create({
+      shopId,
+      customerId: customer._id,
+      rewardId: reward._id,
+      pointsSpent: reward.pointsCost,
+      discountCode,
+      shopifyDiscountId,
+      status: "CREATED",
+      expiresAt,
+    });
 
-  // Create transaction record
-  await Transaction.create({
-    shopId,
-    customerId: customer._id,
-    type: "REDEEM" as TransactionType,
-    points: -reward.pointsCost,
-    balanceAfter: customer.currentBalance,
-    source: "REDEMPTION",
-    referenceId: discountCode,
-    description: `Redeemed for ${reward.name}`,
-  });
+    // Create transaction record
+    await Transaction.create({
+      shopId,
+      customerId: customer._id,
+      type: "REDEEM" as TransactionType,
+      points: -reward.pointsCost,
+      balanceAfter: customer.currentBalance,
+      source: "REDEMPTION",
+      referenceId: discountCode,
+      description: `Redeemed for ${reward.name}`,
+      idempotencyKey: `redeem_${discountCode}`,
+    });
+  } catch (error) {
+    await refundRedemption(customer._id, shopId, reward.pointsCost, "ledger-failed");
+    throw error;
+  }
 
   // Sync metafields (non-blocking)
   syncCustomerMetafields(admin, shopifyCustomerId, {
@@ -279,40 +370,67 @@ export async function reversePoints(
 
   if (points <= 0) return null;
 
-  // Check idempotency
-  const existing = await Transaction.findOne({ shopId, idempotencyKey });
-  if (existing) {
-    console.log(`Skipping duplicate reversal: ${idempotencyKey}`);
-    return null;
-  }
-
-  // Atomic deduct, but don't go below 0
-  // Use $max to ensure currentBalance doesn't go negative
   const customer = await Customer.findOne({ shopId, shopifyCustomerId });
   if (!customer) return null;
 
-  const actualDeduction = Math.min(points, customer.currentBalance);
-  if (actualDeduction <= 0) return customer;
+  // Claim the idempotency key first — same reasoning as earnPoints. The old
+  // check-then-write ordering let concurrent refunds both pass the check.
+  let transaction;
+  try {
+    transaction = await Transaction.create({
+      shopId,
+      customerId: customer._id,
+      type: "ADJUST" as TransactionType,
+      points: 0,
+      balanceAfter: 0,
+      source,
+      referenceId,
+      description: description || `Reversed ${points} points`,
+      idempotencyKey,
+    });
+  } catch (error: unknown) {
+    if ((error as { code?: number }).code === 11000) {
+      console.log(`Skipping duplicate reversal: ${idempotencyKey}`);
+      return null;
+    }
+    throw error;
+  }
 
+  // Clamp inside the update. Reading the balance, computing min(), then
+  // decrementing let two concurrent refunds each deduct the full amount and
+  // drive the balance negative — Mongoose's `min: 0` does not apply to $inc.
+  const balanceBefore = customer.currentBalance;
   const updated = await Customer.findOneAndUpdate(
     { shopId, shopifyCustomerId },
-    { $inc: { currentBalance: -actualDeduction } },
+    [
+      {
+        $set: {
+          currentBalance: {
+            $max: [0, { $subtract: ["$currentBalance", points] }],
+          },
+        },
+      },
+    ],
     { new: true },
   );
 
-  if (!updated) return null;
+  if (!updated) {
+    await Transaction.deleteOne({ _id: transaction._id });
+    return null;
+  }
 
-  await Transaction.create({
-    shopId,
-    customerId: updated._id,
-    type: "ADJUST" as TransactionType,
-    points: -actualDeduction,
-    balanceAfter: updated.currentBalance,
-    source,
-    referenceId,
-    description: description || `Reversed ${actualDeduction} points`,
-    idempotencyKey,
-  });
+  const actualDeduction = Math.max(0, balanceBefore - updated.currentBalance);
+
+  await Transaction.updateOne(
+    { _id: transaction._id },
+    {
+      $set: {
+        points: -actualDeduction,
+        balanceAfter: updated.currentBalance,
+        description: description || `Reversed ${actualDeduction} points`,
+      },
+    },
+  );
 
   // Sync metafields
   if (admin) {

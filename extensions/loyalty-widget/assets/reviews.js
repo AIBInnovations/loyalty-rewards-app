@@ -17,6 +17,35 @@
   var MAX_DIMENSION = 1200;
   var JPEG_QUALITY = 0.8;
 
+  // ── Escaping ─────────────────────────────────────────────────────
+  // Review bodies, author names and Q&A are shopper-submitted and rendered
+  // into innerHTML below. Without escaping, a review is a stored XSS vector on
+  // every product page — and with autoApprove enabled it needs no merchant
+  // action to go live.
+
+  function escHtml(str) {
+    var div = document.createElement("div");
+    div.appendChild(document.createTextNode(String(str == null ? "" : str)));
+    return div.innerHTML;
+  }
+
+  // The textContent/innerHTML trick does not escape quotes, so it is unsafe in
+  // attribute position. This one is.
+  function escAttr(str) {
+    return String(str == null ? "" : str)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  // Only http(s) images — blocks javascript: and data: payloads in src.
+  function safeImageUrl(url) {
+    var s = String(url == null ? "" : url).trim();
+    return /^https?:\/\//i.test(s) ? s : "";
+  }
+
   function compressImage(file) {
     return new Promise(function (resolve, reject) {
       if (!file.type || file.type.indexOf("image/") !== 0) {
@@ -126,14 +155,16 @@
         html +=
           '<div class="rv-card">' +
             '<div class="rv-card-header">' +
-              '<span class="rv-author">' + (r.authorName || "Customer") + '</span>' +
+              '<span class="rv-author">' + escHtml(r.authorName || "Customer") + '</span>' +
               '<span class="rv-stars">' + stars(r.rating) + '</span>' +
-              '<span class="rv-date">' + new Date(r.createdAt).toLocaleDateString("en-IN") + '</span>' +
+              '<span class="rv-date">' + escHtml(new Date(r.createdAt).toLocaleDateString()) + '</span>' +
             '</div>' +
-            '<p class="rv-body">' + r.body + '</p>' +
+            '<p class="rv-body">' + escHtml(r.body) + '</p>' +
             (r.photoUrls && r.photoUrls.length
               ? '<div class="rv-photos">' + r.photoUrls.map(function (u) {
-                  return '<img class="rv-photo" src="' + u + '" alt="Review photo" loading="lazy">';
+                  var safe = safeImageUrl(u);
+                  if (!safe) return "";
+                  return '<img class="rv-photo" src="' + escAttr(safe) + '" alt="Review photo" loading="lazy">';
                 }).join("") + '</div>'
               : '') +
           '</div>';
@@ -160,8 +191,8 @@
       state.questions.forEach(function (q) {
         html +=
           '<div class="rv-qa-item">' +
-            '<p class="rv-question">Q: ' + q.question + '</p>' +
-            (q.answer ? '<p class="rv-answer">A: ' + q.answer + '</p>' : '') +
+            '<p class="rv-question">Q: ' + escHtml(q.question) + '</p>' +
+            (q.answer ? '<p class="rv-answer">A: ' + escHtml(q.answer) + '</p>' : '') +
           '</div>';
       });
     } else {

@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { connectDB } from "../db.server";
 import { handleCallOutcome } from "../.server/services/voice-agent.service";
 
@@ -31,7 +31,13 @@ function verifyElevenLabsSignature(
     .update(`${timestamp}.${rawBody}`)
     .digest("hex");
 
-  return expected === signature;
+  // Constant-time compare. timingSafeEqual throws on length mismatch, so
+  // check lengths first rather than letting a malformed header 500.
+  const expectedBuf = Buffer.from(expected, "utf8");
+  const actualBuf = Buffer.from(signature, "utf8");
+  if (expectedBuf.length !== actualBuf.length) return false;
+
+  return timingSafeEqual(expectedBuf, actualBuf);
 }
 
 /**
@@ -46,15 +52,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const rawBody = await request.text();
   const webhookSecret = process.env.ELEVENLABS_WEBHOOK_SECRET || "";
 
-  // Verify signature if secret is configured
-  if (webhookSecret) {
-    const signatureHeader = request.headers.get("ElevenLabs-Signature");
-    if (!verifyElevenLabsSignature(rawBody, signatureHeader, webhookSecret)) {
-      return new Response(JSON.stringify({ error: "Invalid signature" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+  // Fail closed. A missing secret must never mean "skip verification" — that
+  // turns this into an unauthenticated write endpoint against abandoned carts.
+  if (!webhookSecret) {
+    console.error(
+      "ELEVENLABS_WEBHOOK_SECRET is not configured; rejecting voice webhook.",
+    );
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const signatureHeader = request.headers.get("ElevenLabs-Signature");
+  if (!verifyElevenLabsSignature(rawBody, signatureHeader, webhookSecret)) {
+    return new Response(JSON.stringify({ error: "Invalid signature" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   await connectDB();

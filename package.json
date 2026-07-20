@@ -10,8 +10,11 @@
     "start": "remix-serve ./build/server/index.js",
     "docker-start": "remix-serve ./build/server/index.js",
     "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
+    "typecheck": "tsc --noEmit",
+    "audit:tenancy": "node scripts/audit-tenant-isolation.mjs",
     "shopify": "shopify",
-    "test": "vitest"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@remix-run/dev": "^2.7.0",
@@ -34,6 +37,9 @@
   },
   "devDependencies": {
     "@remix-run/eslint-config": "^2.7.0",
+    "@types/busboy": "^1.5.4",
+    "@types/node-cron": "^3.0.11",
+    "eslint": "^8.57.1",
     "@types/node": "^22.0.0",
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^18.2.0",

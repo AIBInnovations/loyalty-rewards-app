@@ -26,6 +26,8 @@ export interface ITransaction extends Document {
   description?: string;
   idempotencyKey?: string;
   expiresAt?: Date;
+  /** Set once this EARN row has been swept by the expiry job, so it is never swept twice. */
+  expiredAt?: Date;
   createdAt: Date;
 }
 
@@ -65,12 +67,24 @@ const transactionSchema = new Schema<ITransaction>(
     description: { type: String },
     idempotencyKey: { type: String, unique: true, sparse: true },
     expiresAt: { type: Date },
+    expiredAt: { type: Date },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
 
 transactionSchema.index({ customerId: 1, createdAt: -1 });
 transactionSchema.index({ shopId: 1, referenceId: 1 });
+
+// Admin transactions list and dashboard both sort by createdAt within a shop.
+// Without this, every list view is an in-memory sort (aborts above 32MB).
+transactionSchema.index({ shopId: 1, createdAt: -1 });
+transactionSchema.index({ shopId: 1, type: 1, source: 1, createdAt: -1 });
+
+// Dashboard "total points earned" aggregate — covered index, no document fetch.
+transactionSchema.index({ shopId: 1, type: 1, points: 1 });
+
+// Nightly expiry sweep.
+transactionSchema.index({ shopId: 1, type: 1, expiresAt: 1, expiredAt: 1 });
 
 export const Transaction: Model<ITransaction> =
   mongoose.models.Transaction ||

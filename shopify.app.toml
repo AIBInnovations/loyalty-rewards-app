@@ -11,18 +11,39 @@ automatically_update_urls_on_dev = true
 [webhooks]
 api_version = "2025-01"
 
+  # The points engine depends on orders/* and customers/*; the abandoned-cart
+  # poller depends on checkouts/*. These were previously only registered at
+  # runtime by webhook-register.service.ts, which silently no-ops when
+  # SHOPIFY_APP_URL is unset and misses shops installing before it runs.
   [[webhooks.subscriptions]]
   topics = [
-  "products/create",
-  "products/delete",
-  "products/update",
-  "app/uninstalled"
-]
+    "app/uninstalled",
+    "orders/paid",
+    "orders/cancelled",
+    "refunds/create",
+    "customers/create",
+    "customers/update",
+    "checkouts/create",
+    "checkouts/update",
+    "products/create",
+    "products/update",
+    "products/delete"
+  ]
   uri = "/webhooks"
+
+  # Mandatory for public apps. The handlers exist in app/routes/webhooks.tsx
+  # but were never subscribed, so Shopify never called them — automated App
+  # Store review fails without these.
+  [webhooks.privacy_compliance]
+  customer_data_request_url = "https://loyalty-rewards-app-gxb7.onrender.com/webhooks"
+  customer_deletion_url = "https://loyalty-rewards-app-gxb7.onrender.com/webhooks"
+  shop_deletion_url = "https://loyalty-rewards-app-gxb7.onrender.com/webhooks"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_customers,read_discounts,read_orders,read_products,write_customers,write_discounts"
+# read_checkouts is required by the abandoned-cart poller and the
+# checkouts/create|update handlers in app/routes/webhooks.tsx.
+scopes = "read_customers,read_discounts,read_orders,read_products,read_checkouts,write_customers,write_discounts"
 
 [auth]
 redirect_urls = [

@@ -344,12 +344,41 @@ export async function handleCustomerRedact(
     (payload.customer as Record<string, unknown>)?.id,
   );
 
-  // Delete all customer data
+  const rawEmail = (payload.customer as Record<string, unknown>)?.email;
+  const email =
+    typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : null;
+
   const customer = await Customer.findOne({ shopId: shop, shopifyCustomerId });
   if (customer) {
     await Transaction.deleteMany({ shopId: shop, customerId: customer._id });
     await Redemption.deleteMany({ shopId: shop, customerId: customer._id });
     await Customer.deleteOne({ _id: customer._id, shopId: shop });
+  }
+
+  // Data keyed by the Shopify customer id rather than our internal id.
+  // None of the below was previously deleted at all.
+  const { Review, Question } = await import("../models/review.model");
+  const { WishlistItem } = await import("../models/wishlist.model");
+  const { SalesPopEvent } = await import("../models/sales-pop-event.model");
+
+  await Review.deleteMany({ shopId: shop, customerId: shopifyCustomerId });
+  await Question.deleteMany({ shopId: shop, customerId: shopifyCustomerId });
+  await WishlistItem.deleteMany({
+    shopId: shop,
+    shopifyCustomerId,
+  });
+  await SalesPopEvent.deleteMany({ shopId: shop, shopifyCustomerId });
+
+  // PII held against the email rather than a customer record.
+  if (email) {
+    const { Subscriber } = await import("../models/subscriber.model");
+    const { AbandonedCart } = await import("../models/abandoned-cart.model");
+    const { SmartPopupLead } = await import("../models/smart-popup.model");
+
+    await Subscriber.deleteMany({ shopId: shop, email });
+    await AbandonedCart.deleteMany({ shopId: shop, customerEmail: email });
+    await SmartPopupLead.deleteMany({ shopId: shop, email });
+    await Review.deleteMany({ shopId: shop, authorEmail: email });
   }
 
   console.log(
@@ -360,16 +389,29 @@ export async function handleCustomerRedact(
 export async function handleShopRedact(
   shop: string,
 ): Promise<void> {
-  // Delete all data for this shop (48 hours after uninstall)
-  await Transaction.deleteMany({ shopId: shop });
-  await Redemption.deleteMany({ shopId: shop });
-  await Customer.deleteMany({ shopId: shop });
-  await (await import("../models/settings.model")).Settings.deleteOne({
-    shopId: shop,
-  });
-  await (await import("../models/reward.model")).Reward.deleteMany({
-    shopId: shop,
-  });
+  // Delete every shop-scoped collection, not a hand-maintained subset.
+  // This previously covered 5 of 46 models, leaving behind customer phone
+  // numbers and call transcripts, buyer names and cities, subscriber emails,
+  // and stored Shopify access tokens after uninstall.
+  const { SHOP_SCOPED_MODELS } = await import("../models/registry");
 
-  console.log(`[GDPR] Shop data redacted for ${shop}`);
+  const results = await Promise.allSettled(
+    SHOP_SCOPED_MODELS.map((model) => model.deleteMany({ shopId: shop })),
+  );
+
+  const failed = results
+    .map((r, i) => (r.status === "rejected" ? SHOP_SCOPED_MODELS[i].modelName : null))
+    .filter(Boolean);
+
+  if (failed.length) {
+    // Surface loudly — an incomplete redaction is a compliance failure, and
+    // Shopify should retry rather than see a 200.
+    throw new Error(
+      `[GDPR] Shop redact incomplete for ${shop}; failed collections: ${failed.join(", ")}`,
+    );
+  }
+
+  console.log(
+    `[GDPR] Shop data redacted for ${shop} (${SHOP_SCOPED_MODELS.length} collections)`,
+  );
 }

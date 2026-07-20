@@ -237,8 +237,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         errorMessage: error instanceof Error ? error.message : String(error),
       },
     });
-    // Still return 200 to prevent Shopify from retrying on app errors.
-    // Idempotency keys protect us if retries happen for network issues.
+    // Return 500 so Shopify retries (with backoff, for up to 48h).
+    //
+    // This previously returned 200 on failure, reasoning that idempotency keys
+    // made retries safe. But idempotency prevents double-*processing* — it does
+    // nothing for *dropped* events. Returning 200 told Shopify the event was
+    // handled, so a transient Mongo blip during ORDERS_PAID permanently cost
+    // the customer their points, recorded only as a console line.
+    // The idempotency keys are what make returning 500 here safe.
+    return new Response(null, { status: 500 });
   }
 
   return new Response(null, { status: 200 });

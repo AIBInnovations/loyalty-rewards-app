@@ -22,10 +22,11 @@ function hostnameFromRequest(request: Request) {
 }
 
 async function resolveShopId(request: Request) {
-  const url = new URL(request.url);
-  const shopFromQuery = url.searchParams.get("shop");
-  if (shopFromQuery) return shopFromQuery;
-
+  // Tenant identity comes ONLY from the verified domain mapping.
+  //
+  // This previously accepted `?shop=` and let it short-circuit the lookup,
+  // exposing any merchant's full plugin configuration, feature flags and
+  // loyalty earning rates to an unauthenticated caller who knew their domain.
   const hostname = hostnameFromRequest(request);
   const domain = await StorefrontDomain.findOne({ domain: hostname }).lean();
   return domain?.shopId || "";
