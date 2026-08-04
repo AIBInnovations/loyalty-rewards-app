@@ -904,7 +904,6 @@ async function handleGetCartSettings(shop: string) {
     announcementBgColor: settings.announcementBgColor || "",
     progressBannerText: settings.progressBannerText || "",
     paymentMethodsText: settings.paymentMethodsText || "",
-    checkoutScriptTags: settings.checkoutScriptTags || "",
     couponEnabled: Boolean(settings.couponEnabled),
     couponCode: settings.couponCode || "",
     couponDescription: settings.couponDescription || "",
