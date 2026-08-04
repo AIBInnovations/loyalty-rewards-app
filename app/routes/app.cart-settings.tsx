@@ -18,6 +18,7 @@ import {
   Badge,
 } from "@shopify/polaris";
 import { useState, useCallback } from "react";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import {
@@ -129,6 +130,7 @@ export default function CartSettingsPage() {
   const submit = useSubmit();
   const navigation = useNavigation();
   const isLoading = navigation.state === "submitting";
+  const shopify = useAppBridge();
 
   const [enabled, setEnabled] = useState(settings.enabled);
   const [interceptAddToCart, setInterceptAddToCart] = useState(
@@ -152,8 +154,6 @@ export default function CartSettingsPage() {
   const [manualProducts, setManualProducts] = useState<IManualProduct[]>(
     settings.manualProducts || [],
   );
-  const [newProductUrl, setNewProductUrl] = useState("");
-  const [addingProduct, setAddingProduct] = useState(false);
   const [addProductError, setAddProductError] = useState("");
   const [showSavings, setShowSavings] = useState(settings.showSavings);
   const [checkoutButtonText, setCheckoutButtonText] = useState(
@@ -306,56 +306,48 @@ export default function CartSettingsPage() {
     setManualProducts((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const handleAddProduct = useCallback(async () => {
-    if (!newProductUrl.trim()) return;
-    setAddingProduct(true);
+  const handleBrowseProducts = useCallback(async () => {
     setAddProductError("");
 
     try {
-      // Extract handle from URL: /products/handle or full URL
-      let handle = newProductUrl.trim();
-      const match = handle.match(/\/products\/([a-zA-Z0-9\-_]+)/);
-      if (match) handle = match[1];
-      // Remove query params
-      handle = handle.split("?")[0].split("#")[0];
+      const selected = await shopify.resourcePicker({
+        type: "product",
+        multiple: true,
+        action: "select",
+      });
+      if (!selected || selected.length === 0) return;
 
-      // Fetch product data from Shopify Storefront
-      const res = await fetch(
-        `/api/product-lookup?handle=${encodeURIComponent(handle)}`,
-      );
-      const body = await res.json().catch(() => null);
-      if (!res.ok || !body || body.error) {
-        throw new Error(body?.error || `Product lookup failed (${res.status})`);
-      }
-      const product = body;
+      const already = new Set(manualProducts.map((p) => p.shopifyProductId));
+      const picked: IManualProduct[] = [];
 
-      // Check if already added
-      if (manualProducts.some((p) => p.shopifyProductId === product.id)) {
-        setAddProductError("That product is already in the list.");
-        setAddingProduct(false);
-        return;
-      }
-
-      setManualProducts((prev) => [
-        ...prev,
-        {
+      for (const product of selected as any[]) {
+        if (already.has(product.id) || picked.some((p) => p.shopifyProductId === product.id)) {
+          continue;
+        }
+        const variant = product.variants?.[0];
+        picked.push({
           shopifyProductId: product.id,
           title: product.title,
           handle: product.handle,
-          imageUrl: product.imageUrl,
-          price: product.price,
-          compareAtPrice: product.compareAtPrice,
-          variantId: product.variantId,
-        },
-      ]);
-      setNewProductUrl("");
+          imageUrl: product.images?.[0]?.originalSrc || product.images?.[0]?.url || "",
+          price: Math.round(parseFloat(variant?.price || "0") * 100),
+          compareAtPrice: variant?.compareAtPrice
+            ? Math.round(parseFloat(variant.compareAtPrice) * 100)
+            : undefined,
+          variantId: variant?.id || "",
+        });
+      }
+
+      if (picked.length > 0) {
+        setManualProducts((prev) => [...prev, ...picked]);
+      }
     } catch (err) {
-      setAddProductError(
-        err instanceof Error ? err.message : "Could not find that product. Check the handle or URL and try again.",
-      );
+      // A cancelled picker rejects too — only surface real failures.
+      if (err instanceof Error && err.message) {
+        setAddProductError(err.message);
+      }
     }
-    setAddingProduct(false);
-  }, [newProductUrl, manualProducts]);
+  }, [shopify, manualProducts]);
 
   const handleAddUpsellProduct = useCallback(async () => {
     if (!upsellProductUrl.trim()) return;
@@ -634,34 +626,14 @@ export default function CartSettingsPage() {
                           </div>
                         ))}
                         <Divider />
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Enter a product handle or URL to add it. Example:
-                          "my-product" or
-                          "https://your-store.myshopify.com/products/my-product"
-                        </Text>
                         {addProductError && (
                           <Banner tone="critical" onDismiss={() => setAddProductError("")}>
                             {addProductError}
                           </Banner>
                         )}
-                        <InlineStack gap="200" blockAlign="end">
-                          <div style={{ flex: 1 }}>
-                            <TextField
-                              label="Product Handle or URL"
-                              value={newProductUrl}
-                              onChange={(v) => { setNewProductUrl(v); setAddProductError(""); }}
-                              placeholder="e.g., my-awesome-product"
-                              autoComplete="off"
-                              labelHidden
-                            />
-                          </div>
-                          <Button
-                            onClick={handleAddProduct}
-                            loading={addingProduct}
-                          >
-                            Add Product
-                          </Button>
-                        </InlineStack>
+                        <Button onClick={handleBrowseProducts}>
+                          Browse products
+                        </Button>
                       </BlockStack>
                     )}
                   </>
