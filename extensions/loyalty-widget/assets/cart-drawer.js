@@ -1333,6 +1333,21 @@
     drawer.querySelectorAll('[data-action="checkout"]').forEach(function (btn) {
       btn.addEventListener("click", function () {
         closeDrawer();
+
+        // ShipRocket (Fastrr Boost), when installed and active on the store,
+        // exposes this on window — calling it opens their payment popup
+        // directly instead of navigating to Shopify's native checkout.
+        // Confirmed working via manual console test before wiring this in.
+        if (typeof window.shiprocketCheckoutBuyCartHandler === "function") {
+          try {
+            window.shiprocketCheckoutBuyCartHandler();
+            return;
+          } catch (err) {
+            // Fall through to native checkout rather than leaving the
+            // customer stuck on a failed handler call.
+          }
+        }
+
         // Pre-apply the coupon via the discount query param — Shopify validates
         // it at checkout, so an invalid code degrades to a normal checkout
         // rather than silently claiming a discount the customer won't get.
