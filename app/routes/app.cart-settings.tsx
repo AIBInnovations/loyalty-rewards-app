@@ -35,28 +35,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ settings: JSON.parse(JSON.stringify(settings)) });
 };
 
-/**
- * Merchants paste a payment gateway's raw embed snippet here (e.g.
- * ShipRocket's Fastrr Boost script tags) to inject into the storefront.
- * Only <script src="https://..."> and <link href="https://..."> tags are
- * kept — everything else in the pasted snippet (any other markup, inline
- * script bodies, non-https URLs) is discarded, so this can't become a
- * generic HTML/script injection point beyond "load this external SDK URL".
- */
-function sanitizeCheckoutScriptTags(raw: string): string {
-  const tags: string[] = [];
-  const scriptRe = /<script\b[^>]*\bsrc=["'](https:\/\/[^"'<>]+)["'][^>]*>\s*<\/script>/gi;
-  const linkRe = /<link\b[^>]*\bhref=["'](https:\/\/[^"'<>]+)["'][^>]*>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = scriptRe.exec(raw))) {
-    tags.push(`<script src="${match[1]}" defer></script>`);
-  }
-  while ((match = linkRe.exec(raw))) {
-    tags.push(`<link rel="stylesheet" href="${match[1]}">`);
-  }
-  return tags.slice(0, 10).join("\n");
-}
-
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   await connectDB();
@@ -97,7 +75,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           announcementBgColor: String(data.announcementBgColor || "").slice(0, 20),
           progressBannerText: String(data.progressBannerText || "").slice(0, 100),
           paymentMethodsText: String(data.paymentMethodsText || "").slice(0, 120),
-          checkoutScriptTags: sanitizeCheckoutScriptTags(String(data.checkoutScriptTags || "")),
           couponEnabled: data.couponEnabled === "true",
           couponCode: String(data.couponCode || "").trim().slice(0, 40),
           couponDescription: String(data.couponDescription || "").slice(0, 80),
@@ -210,9 +187,6 @@ export default function CartSettingsPage() {
   const [paymentMethodsText, setPaymentMethodsText] = useState(
     settings.paymentMethodsText || "",
   );
-  const [checkoutScriptTags, setCheckoutScriptTags] = useState(
-    settings.checkoutScriptTags || "",
-  );
   const [couponEnabled, setCouponEnabled] = useState(
     Boolean(settings.couponEnabled),
   );
@@ -294,7 +268,6 @@ export default function CartSettingsPage() {
     formData.set("announcementBgColor", announcementBgColor);
     formData.set("progressBannerText", progressBannerText);
     formData.set("paymentMethodsText", paymentMethodsText);
-    formData.set("checkoutScriptTags", checkoutScriptTags);
     formData.set("couponEnabled", String(couponEnabled));
     formData.set("couponCode", couponCode);
     formData.set("couponDescription", couponDescription);
@@ -327,7 +300,7 @@ export default function CartSettingsPage() {
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor, showProgressBar,
     tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct,
     shippingBannerText, announcementTexts, announcementDelay, announcementTextColor, announcementBgColor,
-    progressBannerText, paymentMethodsText, checkoutScriptTags, couponEnabled, couponCode,
+    progressBannerText, paymentMethodsText, couponEnabled, couponCode,
     couponDescription, couponOffersUrl,
     fontFamily, fontSize, progressBarColor, offerLineBg, offerLineTextColor,
     buttonColor, buttonHoverColor, buttonHoverTextColor, headerCountSize, drawerWidth,
@@ -799,17 +772,6 @@ export default function CartSettingsPage() {
                   value={paymentMethodsText}
                   onChange={setPaymentMethodsText}
                   maxLength={120}
-                  autoComplete="off"
-                />
-                <Divider />
-                <Text as="h3" variant="headingSm">Payment gateway checkout script</Text>
-                <TextField
-                  label="Script"
-                  helpText={"Paste the embed snippet your payment/checkout provider gave you (e.g. ShipRocket Fastrr Boost) — only <script src=\"https://...\"> and <link href=\"https://...\"> tags are used, anything else is discarded. Loaded on every storefront page. Leave blank if you don't use one."}
-                  placeholder={'<script src="https://fastrr-boost-ui.pickrr.com/assets/js/channels/shopify.js"></script>'}
-                  value={checkoutScriptTags}
-                  onChange={setCheckoutScriptTags}
-                  multiline={4}
                   autoComplete="off"
                 />
                 <Divider />
