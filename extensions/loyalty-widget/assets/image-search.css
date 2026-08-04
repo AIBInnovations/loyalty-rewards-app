@@ -311,6 +311,14 @@
   cursor: pointer;
 }
 
+/* ── Access Denied (customer blocked from this plugin) ───────────── */
+.is-access-denied {
+  font-size: 13px;
+  color: #b42318;
+  padding: 10px 14px;
+  text-align: center;
+}
+
 /* ── Mobile ──────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   .is-modal {

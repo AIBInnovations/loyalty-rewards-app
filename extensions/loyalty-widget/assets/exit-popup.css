@@ -139,6 +139,7 @@
 .ep-apply-btn:hover { transform: translateY(-1px); }
 
 .ep-error { font-size: 13px; color: #dc3545; margin-top: 10px; }
+.ep-access-denied { font-size: 13px; color: #dc3545; padding: 6px 4px; }
 .ep-skip {
   display: inline-block;
   margin-top: 18px; font-size: 13px; color: #a3a8b5; cursor: pointer;

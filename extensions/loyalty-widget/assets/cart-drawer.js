@@ -13,10 +13,18 @@
   // ─── Config from data attributes ──────────────────────────────
   var config = {
     primaryColor: container.dataset.primaryColor || "#5C6AC4",
-    showRecommendations: container.dataset.showRecommendations === "true",
+    // Same theme-block-defaults gap as showProgress/interceptAtc below.
+    showRecommendations: container.dataset.showRecommendations !== "false",
     recommendationsTitle: container.dataset.recommendationsTitle || "People Also Bought",
-    showProgress: container.dataset.showProgress === "true",
-    interceptAtc: container.dataset.interceptAtc === "true",
+    // Block schema default is true; a theme block installed before this
+    // setting existed can have an empty (not "false") value in the theme's
+    // settings_data.json, which read as "off" under a strict === "true"
+    // check. Only an explicit "false" disables it now.
+    showProgress: container.dataset.showProgress !== "false",
+    // Same theme-block-defaults gap as showProgress above: block schema
+    // default is true, but a per-shop settings_data.json missing this key
+    // renders an empty string here. Only an explicit "false" disables it.
+    interceptAtc: container.dataset.interceptAtc !== "false",
     shopDomain: container.dataset.shopDomain || "",
     currency: container.dataset.currency || "INR",
     moneyFormat: container.dataset.moneyFormat || "₹{{amount}}",
@@ -31,10 +39,21 @@
     cart: null,
     tiers: [],
     settings: null,
+    accessDenied: false,
     recommendations: [],
     recsLoading: false,
     settingsLoaded: false,
     appliedCoupon: "",
+    // Which announcement-bar message is currently showing.
+    announcementIndex: 0,
+    // Last tier index the customer has actually seen filled in. null means
+    // "not yet shown" (skip animation on the very first paint).
+    lastActiveTierIndex: null,
+    pendingActiveTierIndex: null,
+    // Whether the completion burst has already played this session — so it
+    // celebrates the moment all tiers are unlocked once, not on every
+    // re-render or every time the drawer is reopened.
+    confettiFired: false,
   };
 
   // Parse initial cart from Liquid
@@ -107,9 +126,81 @@
     return /^https?:\/\//i.test(s) ? s : "";
   }
 
+  // ─── Load a custom font family ─────────────────────────────────
+  // Setting --cd-font alone does nothing if the font was never actually
+  // loaded — it just silently falls through to the next name in the stack
+  // (usually a system font that looks close enough to the default that the
+  // change appears to have no effect at all). Fetch it from Google Fonts
+  // so a merchant's choice is actually visible. Generic keywords (system-ui,
+  // sans-serif, etc.) are skipped since there's nothing to fetch for those.
+  var GENERIC_FONT_KEYWORDS = {
+    "serif": 1, "sans-serif": 1, "monospace": 1, "cursive": 1, "fantasy": 1,
+    "system-ui": 1, "-apple-system": 1, "blinkmacsystemfont": 1,
+    "ui-sans-serif": 1, "ui-serif": 1, "ui-monospace": 1, "ui-rounded": 1,
+  };
+
+  function loadGoogleFont(fontFamily) {
+    if (!fontFamily) return;
+    var primary = fontFamily.split(",")[0].trim().replace(/^['"]|['"]$/g, "");
+    if (!primary || GENERIC_FONT_KEYWORDS[primary.toLowerCase()]) return;
+
+    var id = "cd-google-font-" + primary.replace(/\s+/g, "-").toLowerCase();
+    if (document.getElementById(id)) return;
+
+    var link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=" +
+      encodeURIComponent(primary).replace(/%20/g, "+") +
+      ":wght@400;500;600;700;800&display=swap";
+    document.head.appendChild(link);
+  }
+
+  // ─── Apply Appearance Overrides ────────────────────────────────
+  // Custom properties declared inside the .cd-drawer/.cd-overlay rule itself
+  // (cart-drawer.css) always win over a :root-level override with the same
+  // name, so these must be set as inline styles directly on the elements.
+  function applyAppearance() {
+    if (!drawer || !overlay) return;
+    var s = state.settings || {};
+    loadGoogleFont(s.fontFamily);
+
+    var vars = {
+      "--cd-progress-bg": s.progressBarColor,
+      "--cd-offer-bg": s.offerLineBg,
+      "--cd-offer-text": s.offerLineTextColor,
+      "--cd-pill-bg": s.pillColor,
+      "--cd-pill-text": s.pillTextColor,
+      "--cd-node-bg": s.nodeColor,
+      "--cd-node-text": s.nodeTextColor,
+      "--cd-btn-bg": s.buttonColor,
+      "--cd-btn-hover-bg": s.buttonHoverColor,
+      "--cd-btn-hover-text": s.buttonHoverTextColor,
+      "--cd-announcement-bg": s.announcementBgColor,
+      "--cd-announcement-text": s.announcementTextColor,
+      "--cd-font-size": s.fontSize ? s.fontSize + "px" : "",
+      "--cd-header-count-size": s.headerCountSize ? s.headerCountSize + "px" : "",
+      "--cd-drawer-width": s.drawerWidth ? s.drawerWidth + "px" : "",
+    };
+    if (s.fontFamily) {
+      vars["--cd-font"] = s.fontFamily + ", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    }
+
+    for (var key in vars) {
+      var val = vars[key];
+      if (val) {
+        drawer.style.setProperty(key, val);
+        overlay.style.setProperty(key, val);
+      } else {
+        drawer.style.removeProperty(key);
+        overlay.style.removeProperty(key);
+      }
+    }
+  }
+
   // ─── Fetch Settings from App Proxy ────────────────────────────
   function fetchSettings() {
-    fetch("/apps/loyalty/cart-settings")
+    fetch("/apps/loyalty/cart-settings?t=" + Date.now())
       .then(function (r) {
         if (!r.ok) throw new Error("Failed");
         var ct = r.headers.get("content-type") || "";
@@ -118,9 +209,16 @@
       })
       .then(function (data) {
         state.settings = data;
-        state.tiers = data.tiers || [];
+        state.accessDenied = !!data.accessDenied;
+        // Node positions, activeTierIndex, and fill% all assume ascending
+        // order by threshold; the API does not guarantee that order.
+        state.tiers = (data.tiers || []).slice().sort(function (a, b) {
+          return a.threshold - b.threshold;
+        });
         state.settingsLoaded = true;
         if (data.primaryColor) document.documentElement.style.setProperty("--cd-primary", data.primaryColor);
+        applyAppearance();
+        startAnnouncementRotation();
         if (state.isOpen) render();
       })
       .catch(function (err) {
@@ -396,6 +494,7 @@
     lastFocused = document.activeElement;
 
     if (!isRendered) createDOM();
+    applyAppearance();
     hideNativeCartDrawer();
     render();
     fetchCart().then(function () { fetchRecommendations(); });
@@ -459,19 +558,140 @@
     var cart = state.cart;
     var itemCount = cart ? cart.item_count : 0;
 
+    // Nothing to show progress toward, or suggest alongside, an empty cart.
+    var hasProgress = itemCount > 0 && config.showProgress && state.tiers.length > 0;
+    var hasUpsell = shouldShowUpsell();
+    var hasRecs = itemCount > 0 && config.showRecommendations && state.recommendations.length > 0;
+
+    var shippingBannerHtml = renderShippingBanner();
+    // Shipping banner and progress card share one sticky container — two
+    // separate elements both pinned at top:0 would just overlap.
+    var stickyTopHtml = shippingBannerHtml || hasProgress
+      ? '<div class="cd-sticky-top">' + shippingBannerHtml + (hasProgress ? renderProgressBar(cart) : "") + '</div>'
+      : "";
+
     drawer.innerHTML =
       renderHeader(itemCount) +
       '<div class="cd-body">' +
-        renderShippingBanner() +
-        (config.showProgress && state.tiers.length ? renderProgressBar(cart) : "") +
+        stickyTopHtml +
+        (state.accessDenied ? '<div class="cd-access-denied">Access needed for Cart Drawer rewards. Contact the store for access.</div>' : "") +
+        (hasProgress && itemCount > 0 ? '<div class="cd-section-divider"></div>' : "") +
         (itemCount > 0 ? renderItems(cart) : renderEmpty()) +
         (itemCount > 0 ? renderCoupon() : "") +
-        (shouldShowUpsell() ? renderUpsell() : "") +
-        (config.showRecommendations && state.recommendations.length ? renderRecommendations() : "") +
+        (itemCount > 0 && hasUpsell ? '<div class="cd-section-divider"></div>' : "") +
+        (hasUpsell ? renderUpsell() : "") +
+        (hasRecs ? renderRecommendations() : "") +
       '</div>' +
-      (itemCount > 0 ? renderFooter(cart) : "");
+      (itemCount > 0 ? renderFooter(cart) : "") +
+      (itemCount > 0 ? renderPriceSummary(cart) : "");
 
     attachEvents();
+    revealNewMilestones();
+  }
+
+  // ─── Completion burst ──────────────────────────────────────────
+  // A one-off sprinkle of pieces bursting outward from the progress track,
+  // played the moment the customer unlocks the last tier.
+  var CONFETTI_COLORS = ["#fff", "#e6c9c0", "#b3543f", "#f5e6a8", "#fff"];
+
+  function fireConfetti(section) {
+    if (!section) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    var wrap = document.createElement("div");
+    wrap.className = "cd-confetti";
+    var count = 16;
+    var streamerCount = 8;
+    var total = count + streamerCount;
+    for (var i = 0; i < total; i++) {
+      var isStreamer = i >= count;
+      var piece = document.createElement("span");
+      piece.className = isStreamer ? "cd-confetti-piece cd-confetti-piece--streamer" : "cd-confetti-piece";
+      var angle = (Math.PI * 2 * i) / total + (Math.random() * 0.5 - 0.25);
+      // Streamers fly a little further and curl more so they read as ribbons
+      // uncurling in flight, not just bigger confetti dots.
+      var dist = isStreamer ? 30 + Math.random() * 36 : 20 + Math.random() * 28;
+      var tx = Math.cos(angle) * dist;
+      var ty = Math.sin(angle) * dist * 0.5; // flatten so it stays inside the strip
+      piece.style.setProperty("--cd-tx", tx.toFixed(1) + "px");
+      piece.style.setProperty("--cd-ty", ty.toFixed(1) + "px");
+      piece.style.setProperty("--cd-rot", ((isStreamer ? 540 : 360) * (Math.random() > 0.5 ? 1 : -1) * Math.random()).toFixed(0) + "deg");
+      piece.style.setProperty("--cd-delay", (Math.random() * 140).toFixed(0) + "ms");
+      piece.style.setProperty("--cd-c", CONFETTI_COLORS[i % CONFETTI_COLORS.length]);
+      wrap.appendChild(piece);
+    }
+    section.appendChild(wrap);
+    setTimeout(function () {
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+    }, 1300);
+  }
+
+  // ─── Reveal newly-crossed milestones ───────────────────────────
+  // Runs after each render. If the customer just crossed one or more new
+  // tiers, those checkpoints were painted unfilled (see renderProgressBar's
+  // displayIndex); toggle them to "filled" one at a time, on the
+  // already-attached elements, so the CSS transition plays instead of the
+  // state jumping straight to its end value.
+  function revealNewMilestones() {
+    var target = state.pendingActiveTierIndex;
+    if (target === null || target === undefined) return;
+
+    var lastTierIndex = state.tiers.length - 1;
+    // Dropping back below full lets the burst celebrate again if the
+    // customer empties and re-fills the cart later in the same session.
+    if (target < lastTierIndex) state.confettiFired = false;
+
+    if (state.lastActiveTierIndex === null || target <= state.lastActiveTierIndex) {
+      // First paint already at full completion — don't burst on every open,
+      // just mark it as already celebrated.
+      if (state.lastActiveTierIndex === null && target === lastTierIndex) {
+        state.confettiFired = true;
+      }
+      state.lastActiveTierIndex = target;
+      return;
+    }
+
+    var from = state.lastActiveTierIndex;
+    var section = drawer.querySelector(".cd-progress-section");
+    if (!section) { state.lastActiveTierIndex = target; return; }
+    var track = section.querySelector(".cd-progress-track");
+
+    var checkpoints = section.querySelectorAll(".cd-progress-checkpoint");
+
+    var queue = [];
+    for (var i = from + 1; i <= target; i++) queue.push(i);
+
+    var step = 0;
+    function revealNext() {
+      if (step >= queue.length) {
+        state.lastActiveTierIndex = target;
+        if (target === lastTierIndex && !state.confettiFired) {
+          state.confettiFired = true;
+          fireConfetti(track || section);
+        }
+        return;
+      }
+      var idx = queue[step];
+      var cp = checkpoints[idx];
+      if (cp) {
+        var line = cp.querySelector(".cd-progress-checkpoint-line");
+        if (line) { line.classList.remove("current"); line.classList.add("filled"); line.innerHTML = ""; }
+        var dot = cp.querySelector(".cd-progress-dot");
+        if (dot) { dot.classList.add("reached"); dot.textContent = "✓"; }
+        var label = cp.querySelector(".cd-progress-tier-label");
+        if (label) label.classList.add("reached");
+        var thresh = cp.querySelector(".cd-progress-tier-threshold");
+        if (thresh) thresh.classList.add("reached");
+      }
+      var nextCp = checkpoints[idx + 1];
+      if (nextCp) {
+        var nextLine = nextCp.querySelector(".cd-progress-checkpoint-line");
+        if (nextLine) nextLine.classList.add("current");
+      }
+      step++;
+      setTimeout(revealNext, 450);
+    }
+    revealNext();
   }
 
   // ─── Render Header ────────────────────────────────────────────
@@ -491,10 +711,52 @@
   // ─── Render Shipping Banner ───────────────────────────────────
   // Merchant-configured; hidden entirely when no text is set, so it never
   // makes a shipping promise the store hasn't opted into.
+  // Multiple messages (announcementTexts) take priority; a single legacy
+  // shippingBannerText is used as a one-slide fallback for shops that set
+  // it before the multi-message announcement bar existed.
+  function getAnnouncementTexts() {
+    var s = state.settings;
+    if (s && s.announcementTexts && s.announcementTexts.length) return s.announcementTexts;
+    if (s && s.shippingBannerText) return [s.shippingBannerText];
+    return [];
+  }
+
   function renderShippingBanner() {
-    var text = state.settings && state.settings.shippingBannerText;
-    if (!text) return "";
-    return '<div class="cd-ship-banner">' + esc(text) + "</div>";
+    var texts = getAnnouncementTexts();
+    if (!texts.length) return "";
+
+    var itemsHtml = texts.map(function (t) {
+      return '<div class="cd-announcement-item">' + esc(t) + '</div>';
+    }).join("");
+
+    var offset = state.announcementIndex % texts.length;
+    return '<div class="cd-announcement-bar">' +
+      '<div class="cd-announcement-track" style="transform:translateY(-' + (offset * 100) + '%)">' +
+        itemsHtml +
+      '</div>' +
+    '</div>';
+  }
+
+  // ─── Announcement bar rotation ──────────────────────────────────
+  // One persistent timer (not restarted on every render, so cart updates
+  // don't reset the slide back to the first message) that re-locates the
+  // live track element each tick — full innerHTML rebuilds replace that
+  // element, so a cached reference would go stale.
+  var announcementTimer = null;
+
+  function startAnnouncementRotation() {
+    if (announcementTimer) { clearInterval(announcementTimer); announcementTimer = null; }
+    var texts = getAnnouncementTexts();
+    if (texts.length <= 1) return;
+
+    var delaySec = (state.settings && state.settings.announcementDelay) || 4;
+    announcementTimer = setInterval(function () {
+      var current = getAnnouncementTexts();
+      if (current.length <= 1) return;
+      state.announcementIndex = (state.announcementIndex + 1) % current.length;
+      var track = drawer && drawer.querySelector(".cd-announcement-track");
+      if (track) track.style.transform = "translateY(-" + (state.announcementIndex * 100) + "%)";
+    }, Math.max(1, delaySec) * 1000);
   }
 
   // ─── Render Progress Bar ──────────────────────────────────────
@@ -537,63 +799,84 @@
         .replace("{label}", "<em>" + esc(tiers[activeTierIndex].label) + "</em>");
     }
 
-    // Calculate fill percentage
-    var totalTiers = tiers.length;
-    var fillPercent = 0;
-    if (activeTierIndex >= 0) {
-      fillPercent = ((activeTierIndex + 1) / totalTiers) * 100;
-    }
-    // Add partial progress to next tier
-    if (nextTierIndex < totalTiers) {
-      var nt = tiers[nextTierIndex];
-      var cv = nt.type === "items" ? itemCount : cartTotal / 100;
-      var prevThreshold = activeTierIndex >= 0 ? tiers[activeTierIndex].threshold : 0;
-      var segmentProgress = (cv - prevThreshold) / (nt.threshold - prevThreshold);
-      if (segmentProgress < 0) segmentProgress = 0;
-      if (segmentProgress > 1) segmentProgress = 1;
-      fillPercent += (segmentProgress / totalTiers) * 100;
-    }
-    if (fillPercent > 100) fillPercent = 100;
+    // Stash the true target so the caller can reveal any newly-crossed
+    // milestones a beat after paint, letting the fill transition actually
+    // play (a full innerHTML rebuild has no "previous state" to animate
+    // from, so painting straight to the target would just snap instantly).
+    state.pendingActiveTierIndex = activeTierIndex;
+    var displayIndex = state.lastActiveTierIndex === null
+      ? activeTierIndex
+      : Math.min(activeTierIndex, state.lastActiveTierIndex);
 
-    // Milestone nodes sit on the track, evenly spaced by tier index. Each
-    // shows a check once reached and the tier number until then.
-    var nodesHtml = "";
-    var legendHtml = "";
+    // Each tier gets one equal-width flex column — reached/current/empty
+    // line segment, offer label, checkpoint icon, and threshold text all
+    // stacked and centered within that single column. Because every
+    // column is exactly 1/N of the track regardless of how far apart the
+    // actual threshold VALUES are, neighboring tiers can never collide —
+    // positioning by index this way (not by value-proportional %) is what
+    // fixes the overlap that occurred when thresholds bunched together
+    // (e.g. 2/3/4 items within a 0-4 range).
+    var checkpointsHtml = "";
     for (var j = 0; j < tiers.length; j++) {
       var t = tiers[j];
-      var isReached = j <= activeTierIndex;
-      var nodeLeft = ((j + 1) / tiers.length) * 100;
+      var isReached = j <= displayIndex;
+      var isCurrent = !isReached && j === displayIndex + 1;
 
-      nodesHtml +=
-        '<div class="cd-progress-node' + (isReached ? " reached" : "") + '"' +
-          ' style="left:' + nodeLeft + '%">' +
-          (isReached ? "✓" : String(j + 1)) +
-        '</div>';
+      // How far into this specific segment the cart actually is (e.g. 5 of
+      // 100 items = 5%) — so the "current" segment visibly fills as items
+      // are added, instead of staying a single static color the whole time.
+      var subFillPct = 0;
+      if (isCurrent) {
+        var segValue = t.type === "items" ? itemCount : cartTotal / 100;
+        var segPrevThreshold = displayIndex >= 0 ? tiers[displayIndex].threshold : 0;
+        subFillPct = ((segValue - segPrevThreshold) / (t.threshold - segPrevThreshold)) * 100;
+        if (subFillPct < 0) subFillPct = 0;
+        if (subFillPct > 100) subFillPct = 100;
+        if (subFillPct > 0) subFillPct = Math.max(subFillPct, 10);
+      }
+
+      var lineClass = isReached ? " filled" : (isCurrent ? " current" : "");
+      var lineInner = isCurrent
+        ? '<div class="cd-progress-seg-fill" style="width:' + subFillPct + '%"></div>'
+        : "";
 
       var threshold = t.type === "items"
         ? t.threshold + " item" + (t.threshold > 1 ? "s" : "")
         : formatMoney(t.threshold * 100);
+      var reachedClass = isReached ? " reached" : "";
 
-      legendHtml +=
-        '<span class="' + (isReached ? "reached" : "") + '">' +
-          esc(threshold) + " · " + esc(t.label) +
-        '</span>';
+      checkpointsHtml +=
+        '<div class="cd-progress-checkpoint">' +
+          '<span class="cd-progress-tier-label' + reachedClass + '">' + esc(t.label) + '</span>' +
+          '<div class="cd-progress-checkpoint-row">' +
+            '<div class="cd-progress-checkpoint-line' + lineClass + '">' + lineInner + '</div>' +
+            '<div class="cd-progress-dot' + reachedClass + '">' + (isReached ? "✓" : "%") + '</div>' +
+          '</div>' +
+          '<span class="cd-progress-tier-threshold' + reachedClass + '">' + esc(threshold) + '</span>' +
+        '</div>';
     }
 
-    var goalReachedClass = activeTierIndex === tiers.length - 1 ? " goal-reached" : "";
+    // Two independent sibling divs — a disclaimer line and the reward
+    // message — rather than one combined block, matching the reference
+    // markup so each can be targeted/styled on its own.
+    var bannerText = state.settings && state.settings.progressBannerText;
+    var messageBlock =
+      (bannerText ? '<div class="cd-progress-topbar">' + esc(bannerText) + '</div>' : "") +
+      (message ? '<div class="cd-progress-reward-message">' + message + '</div>' : "");
 
-    return '<section class="cd-progress-section' + goalReachedClass + '"' +
-      ' aria-label="Reward progress">' +
-      (message ? '<p class="cd-progress-message">' + message + '</p>' : "") +
-      '<div class="cd-progress-track" role="progressbar"' +
-        ' aria-valuemin="0" aria-valuemax="100"' +
-        ' aria-valuenow="' + Math.round(fillPercent) + '">' +
-        '<div class="cd-progress-fill" style="width:' + fillPercent + '%"></div>' +
-        '<div class="cd-progress-dot" style="left:' + fillPercent + '%"></div>' +
-        nodesHtml +
-      '</div>' +
-      '<div class="cd-progress-legend">' + legendHtml + '</div>' +
-    '</section>';
+    // No sticky wrapper here — render() wraps this together with the
+    // shipping banner in one shared sticky container, since two separate
+    // elements both pinned at top:0 would just overlap each other.
+    return '<section class="cd-progress-section' + (bannerText ? " has-banner" : "") + '" aria-label="Reward progress">' +
+        messageBlock +
+        '<div class="cd-progress-body">' +
+        '<div class="cd-progress-track" role="progressbar"' +
+          ' aria-valuemin="0" aria-valuemax="' + tiers.length + '"' +
+          ' aria-valuenow="' + (activeTierIndex + 1) + '">' +
+          checkpointsHtml +
+        '</div>' +
+        '</div>' +
+      '</section>';
   }
 
   // ─── Render Cart Items ────────────────────────────────────────
@@ -628,7 +911,15 @@
               : '') +
           '</div>' +
           '<div class="cd-item-details">' +
-            '<p class="cd-item-title">' + esc(title) + '</p>' +
+            '<div class="cd-item-top-row">' +
+              '<p class="cd-item-title">' + esc(title) + '</p>' +
+              '<button type="button" class="cd-item-remove" data-action="remove"' +
+                ' data-key="' + escAttr(item.key) + '" aria-label="Remove ' + escAttr(title) + '">' +
+                '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">' +
+                  '<path d="M17 6H22V8H20V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V8H2V6H7V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V6ZM18 8H6V20H18V8ZM9 11H11V17H9V11ZM13 11H15V17H13V11ZM9 4V6H15V4H9Z"></path>' +
+                '</svg>' +
+              '</button>' +
+            '</div>' +
             (variantTitle ? '<p class="cd-item-variant">' + esc(variantTitle) + '</p>' : '') +
             '<div class="cd-item-price-row">' +
               '<span class="cd-item-price">' + formatMoney(item.final_line_price) + '</span>' +
@@ -647,8 +938,6 @@
                   ' data-qty="' + (item.quantity + 1) + '"' +
                   ' aria-label="Increase quantity">+</button>' +
               '</div>' +
-              '<button type="button" class="cd-item-remove" data-action="remove"' +
-                ' data-key="' + escAttr(item.key) + '">Remove</button>' +
             '</div>' +
           '</div>' +
         '</div>';
@@ -698,23 +987,51 @@
     var imgSrc = safeImageUrl(opts.image);
     if (imgSrc) imgSrc = imgSrc.replace(/(\.\w+)(\?|$)/, "_300x300$1$2");
 
-    return '<div class="cd-prod">' +
-      '<div class="cd-prod-img">' +
-        (imgSrc
-          ? '<img src="' + escAttr(imgSrc) + '" alt="' + escAttr(opts.title) + '" loading="lazy"/>'
-          : '') +
-      '</div>' +
-      '<p class="cd-prod-name">' + esc(opts.title) + '</p>' +
-      '<div class="cd-prod-foot">' +
-        '<span class="cd-prod-prices">' +
-          '<span class="cd-prod-price">' + formatMoney(opts.price) + '</span>' +
-          (opts.comparePrice
-            ? '<span class="cd-prod-compare">' + formatMoney(opts.comparePrice) + '</span>'
-            : '') +
-        '</span>' +
-        '<button type="button" class="cd-prod-add" data-action="' + escAttr(opts.action) + '"' +
+    var discountPct = opts.comparePrice
+      ? Math.round(((opts.comparePrice - opts.price) / opts.comparePrice) * 100)
+      : 0;
+
+    var priceRow = '<div class="cd-prod-prices">' +
+      '<span class="cd-prod-price">' + formatMoney(opts.price) + '</span>' +
+      (opts.comparePrice
+        ? '<span class="cd-prod-compare">' + formatMoney(opts.comparePrice) + '</span>'
+        : '') +
+    '</div>';
+
+    var imgBlock = '<div class="cd-prod-img">' +
+      (imgSrc
+        ? '<img src="' + escAttr(imgSrc) + '" alt="' + escAttr(opts.title) + '" loading="lazy" onerror="this.style.display=\'none\'"/>'
+        : '') +
+      (discountPct > 0
+        ? '<span class="cd-prod-discount-badge">-' + discountPct + '% OFF</span>'
+        : '') +
+    '</div>';
+
+    // Steal Deals keeps its existing circular "+" button beside the price.
+    if (opts.roundAdd) {
+      var roundBtn = '<button type="button" class="cd-prod-add-round" data-action="' + escAttr(opts.action) + '"' +
           ' data-variant-id="' + escAttr(opts.variantId) + '"' +
-          ' aria-label="Add ' + escAttr(opts.title) + ' to cart">+ Add</button>' +
+          ' aria-label="Add ' + escAttr(opts.title) + ' to cart">+</button>';
+      return '<div class="cd-prod cd-prod--deal">' +
+        imgBlock +
+        '<div class="cd-prod-info">' +
+          '<p class="cd-prod-name">' + esc(opts.title) + '</p>' +
+          priceRow +
+        '</div>' +
+        roundBtn +
+      '</div>';
+    }
+
+    // Recommendation cards: fixed 142x142 image, full-width "Add to Cart"
+    // button pinned to the card bottom — matches the reference layout.
+    return '<div class="cd-prod cd-prod--rec">' +
+      imgBlock +
+      '<div class="cd-prod-info">' +
+        '<p class="cd-prod-name">' + esc(opts.title) + '</p>' +
+        priceRow +
+        '<button type="button" class="cd-prod-add-full" data-action="' + escAttr(opts.action) + '"' +
+          ' data-variant-id="' + escAttr(opts.variantId) + '"' +
+          ' aria-label="Add ' + escAttr(opts.title) + ' to cart">Add to Cart</button>' +
       '</div>' +
     '</div>';
   }
@@ -723,12 +1040,19 @@
     if (!state.recommendations.length) return "";
 
     var title = (state.settings && state.settings.recommendationsTitle) || config.recommendationsTitle;
+    // The grid caps at 4 to keep the summary reachable without a long
+    // vertical scroll; the slider scrolls sideways instead, so it can show
+    // as many as the merchant configured (recommendationsCount, up to 8).
+    var isSlider = Boolean(state.settings && state.settings.recommendationsSlider);
+    var limit = isSlider
+      ? (state.settings && state.settings.recommendationsCount) || MAX_RECS
+      : MAX_RECS;
 
     var html = '<section class="cd-recs-section">' +
       '<h3 class="cd-recs-title">' + esc(title) + '</h3>' +
-      '<div class="cd-recs-grid">';
+      '<div class="' + (isSlider ? "cd-recs-slider" : "cd-recs-grid") + '">';
 
-    state.recommendations.slice(0, MAX_RECS).forEach(function (p) {
+    state.recommendations.slice(0, limit).forEach(function (p) {
       var hasCompare = p.compare_at_price && p.compare_at_price > p.price;
       var image = "";
       if (p.featured_image) {
@@ -755,7 +1079,7 @@
   function shouldShowUpsell() {
     if (!state.settings || !state.settings.showUpsell) return false;
     if (!state.settings.upsellProduct) return false;
-    if (!state.cart || !state.cart.items) return false;
+    if (!state.cart || !state.cart.items || !state.cart.items.length) return false;
     // Hide if product already in cart
     var cartIds = state.cart.items.map(function(i) { return String(i.product_id); });
     var upId = String(state.settings.upsellProduct.shopifyProductId || "")
@@ -766,26 +1090,53 @@
   function renderUpsell() {
     var p = state.settings.upsellProduct;
     var discount = Number(state.settings.upsellDiscount) || 0;
-    var headline = state.settings.upsellHeadline || "Special Offer Just For You!";
+    var headline = state.settings.upsellHeadline || "Steal Deals";
     var originalPrice = p.price || 0;
     var discountedPrice = Math.round(originalPrice * (1 - discount / 100));
     var variantId = String(p.variantId || "").replace("gid://shopify/ProductVariant/", "");
-    var imgSrc = p.imageUrl || "";
-    if (imgSrc) imgSrc = imgSrc.replace(/(\.\w+)(\?|$)/, "_160x160$1$2");
+    // renderProductCard() already resizes the image itself — resizing here
+    // too stacked two suffixes into one filename (e.g. "..._160x160_300x300.jpg"),
+    // which doesn't exist on Shopify's CDN and 404s.
 
     return '<section class="cd-upsell-section">' +
-      '<h3 class="cd-upsell-headline">' + esc(headline) + '</h3>' +
-      '<div class="cd-recs-grid">' +
+      '<div class="cd-upsell-heading-row">' +
+        '<h3 class="cd-upsell-headline">' + esc(headline) + '</h3>' +
+        '<span class="cd-upsell-unlocked">' +
+          '<svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true">' +
+            '<path d="M5 9V6.5a5 5 0 0 1 9.6-1.9M5.5 9h9A1.5 1.5 0 0 1 16 10.5v6A1.5 1.5 0 0 1 14.5 18h-9A1.5 1.5 0 0 1 4 16.5v-6A1.5 1.5 0 0 1 5.5 9Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '</svg>' +
+          'UNLOCKED' +
+        '</span>' +
+      '</div>' +
+      '<div class="cd-upsell-grid">' +
         renderProductCard({
           title: p.title,
-          image: imgSrc,
+          image: p.imageUrl || "",
           price: discountedPrice,
           comparePrice: discount > 0 ? originalPrice : 0,
           variantId: variantId,
           action: "add-upsell",
+          roundAdd: true,
         }) +
       '</div>' +
     '</section>';
+  }
+
+  // ─── Payment method badges ─────────────────────────────────────
+  // Small generic initials badges inside the checkout button — not real
+  // brand logos (no such assets/rights), just a lightweight visual cue
+  // built from the merchant's own "Payment methods line" text.
+  function renderPayBadges(payMethods) {
+    if (!payMethods) return "";
+    var names = payMethods.split(/[·,|]/).map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 4);
+    if (!names.length) return "";
+
+    var html = '<span class="cd-pay-badges" aria-hidden="true">';
+    names.forEach(function (name) {
+      html += '<span class="cd-pay-badge">' + esc(name.slice(0, 2).toUpperCase()) + '</span>';
+    });
+    html += '</span><span class="cd-sr-only">Accepted: ' + esc(payMethods) + '</span>';
+    return html;
   }
 
   // ─── Render Footer ────────────────────────────────────────────
@@ -802,41 +1153,91 @@
 
     var payMethods = state.settings && state.settings.paymentMethodsText;
 
-    var html = '<div class="cd-footer">';
+    var html = '<div class="cd-footer' + (showPrepaid ? " cd-footer--has-ribbon" : "") + '">';
 
     if (showPrepaid) {
-      html += '<div class="cd-prepaid-banner">' + esc(state.settings.prepaidBannerText) + '</div>';
+      html +=
+        '<div class="cd-prepaid-ribbon">' +
+          '<svg class="cd-prepaid-ribbon-wing" width="14" height="19" viewBox="0 0 14 19" fill="none" aria-hidden="true">' +
+            '<path d="M8.34334 4.75V9.5H0V4.75C0 2.12665 1.86772 0 4.17167 0C6.47562 0 8.34334 2.12665 8.34334 4.75Z" fill="#a00117"></path>' +
+            '<path d="M12.1545 19H13.9056V0H4.17167C6.27666 0 7.98284 1.943 7.98284 4.33981V14.25C7.98284 16.8734 9.85056 19 12.1545 19Z" fill="#ce021e"></path>' +
+          '</svg>' +
+          '<div class="cd-prepaid-ribbon-center">' + esc(state.settings.prepaidBannerText) + '</div>' +
+          '<svg class="cd-prepaid-ribbon-wing" width="14" height="19" viewBox="0 0 14 19" fill="none" aria-hidden="true">' +
+            '<path d="M5.65666 4.75V9.5H14V4.75C14 2.12665 12.1323 0 9.82833 0C7.52438 0 5.65666 2.12665 5.65666 4.75Z" fill="#a00117"></path>' +
+            '<path d="M1.84549 19H0.0944166V0H9.82833C7.72334 0 6.01716 1.943 6.01716 4.33981V14.25C6.01716 16.8734 4.14944 19 1.84549 19Z" fill="#ce021e"></path>' +
+          '</svg>' +
+        '</div>';
     }
-
-    // Subtotal / discount / total breakdown, per the mockup.
-    html += '<div class="cd-summary-row">' +
-      '<span>Subtotal</span>' +
-      '<span>' + formatMoney(originalTotal) + '</span>' +
-    '</div>';
 
     if (hasSavings) {
-      html += '<div class="cd-summary-row cd-summary-row--disc">' +
-        '<span>Discounts</span>' +
-        '<span>&minus;' + formatMoney(savings) + '</span>' +
-      '</div>';
+      html += '<div class="cd-footer-savings">Saving ' + formatMoney(savings) + '</div>';
     }
 
-    html += '<div class="cd-total-row">' +
-      '<span>Total</span>' +
-      '<span>' + formatMoney(totalPrice) + '</span>' +
+    // Price sits beside the checkout button instead of a separate
+    // subtotal/total block; "See Details" opens the fuller Price Summary
+    // panel and now sits under the price, not under the button.
+    html += '<div class="cd-footer-price-row">' +
+      '<div class="cd-footer-price">' +
+        '<span class="cd-footer-price-current">' + formatMoney(totalPrice) + '</span>' +
+        (hasSavings ? '<span class="cd-footer-price-compare">' + formatMoney(originalTotal) + '</span>' : '') +
+      '</div>' +
+      '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
+        '<span>' + esc(checkoutText) + '</span>' +
+        renderPayBadges(payMethods) +
+        '<span class="cd-checkout-arrow" aria-hidden="true">&rarr;</span>' +
+      '</button>' +
     '</div>';
 
-    html += '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
-      esc(checkoutText) + ' · ' + formatMoney(totalPrice) +
-      '<span class="cd-checkout-arrow" aria-hidden="true">&rarr;</span>' +
-    '</button>';
-
-    if (payMethods) {
-      html += '<div class="cd-pay-methods">' + esc(payMethods) + '</div>';
-    }
+    html += '<button type="button" class="cd-summary-details" data-action="open-summary">See Details</button>';
 
     html += '</div>';
     return html;
+  }
+
+  // ─── Render Price Summary panel ────────────────────────────────
+  // Full-panel overlay (slides up over the whole drawer) opened by "See
+  // Details" — a proper itemized breakdown rather than an inline strip.
+  function renderPriceSummary(cart) {
+    if (!cart) return "";
+
+    var totalPrice = cart.total_price;
+    var originalTotal = cart.original_total_price || totalPrice;
+    var hasSavings = originalTotal > totalPrice;
+    var savings = originalTotal - totalPrice;
+
+    var checkoutText = (state.settings && state.settings.checkoutButtonText) || "CHECKOUT";
+    var payMethods = state.settings && state.settings.paymentMethodsText;
+
+    return '<div class="cd-price-summary" aria-hidden="true">' +
+      '<div class="cd-price-summary-header">' +
+        '<h2>Price Summary</h2>' +
+        '<button type="button" class="cd-close" data-action="close-summary" aria-label="Close price summary">' +
+          '<svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M14 4L4 14M4 4l10 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="cd-price-summary-body">' +
+        '<div class="cd-breakdown-row"><span>Subtotal</span><span>' + formatMoney(originalTotal) + '</span></div>' +
+        (hasSavings
+          ? '<div class="cd-breakdown-row cd-breakdown-row--disc"><span>Discount</span><span>&minus;' + formatMoney(savings) + '</span></div>'
+          : '') +
+        '<div class="cd-breakdown-divider"></div>' +
+        '<div class="cd-breakdown-row cd-breakdown-row--total">' +
+          '<span>Grand Total' + (cart.taxes_included ? '<small>Inclusive of all taxes</small>' : '') + '</span>' +
+          '<span>' + formatMoney(totalPrice) + '</span>' +
+        '</div>' +
+      '</div>' +
+      (hasSavings
+        ? '<div class="cd-price-summary-banner">You saved ' + formatMoney(savings) + ' on your order</div>'
+        : '') +
+      '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
+        '<span>' + esc(checkoutText) + '</span>' +
+        renderPayBadges(payMethods) +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+          '<polyline points="9 6 15 12 9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '</svg>' +
+      '</button>' +
+    '</div>';
   }
 
   // ─── Attach Event Listeners ───────────────────────────────────
@@ -856,6 +1257,25 @@
         state.appliedCoupon = this.dataset.code || "";
         this.textContent = "APPLIED";
         this.disabled = true;
+      });
+    });
+
+    // Toggle the subtotal/discount breakdown under the total.
+    drawer.querySelectorAll('[data-action="open-summary"]').forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var panel = drawer.querySelector(".cd-price-summary");
+        if (!panel) return;
+        panel.classList.add("open");
+        panel.setAttribute("aria-hidden", "false");
+      });
+    });
+
+    drawer.querySelectorAll('[data-action="close-summary"]').forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var panel = drawer.querySelector(".cd-price-summary");
+        if (!panel) return;
+        panel.classList.remove("open");
+        panel.setAttribute("aria-hidden", "true");
       });
     });
 
@@ -935,32 +1355,44 @@
       var action = form.getAttribute("action");
       if (!action || !action.includes("/cart/add")) return;
 
+      var formData = new FormData(form);
+      var id = formData.get("id");
+      // No variant id on this form (theme names the field differently, or
+      // it's set dynamically outside FormData's reach) — don't swallow the
+      // submit, let the theme's own handling add the item instead.
+      // Previously this preventDefault()'d unconditionally, so a form we
+      // couldn't read from silently dropped the add-to-cart entirely.
+      if (!id) return;
+
       e.preventDefault();
       e.stopPropagation();
 
-      var formData = new FormData(form);
-      var items = [];
-      var id = formData.get("id");
       var qty = formData.get("quantity") || 1;
-      if (id) {
-        items.push({ id: Number(id), quantity: Number(qty) });
-      }
+      var items = [{ id: Number(id), quantity: Number(qty) }];
 
-      if (items.length) {
-        fetch("/cart/add.js", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: items }),
+      fetch("/cart/add.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: items }),
+      })
+        .then(function (r) {
+          if (!r.ok) return r.json().then(function (b) { throw new Error(b.description || "Add to cart failed"); });
+          return fetchCart();
         })
-          .then(function () { return fetchCart(); })
-          .then(function () {
-            fetchRecommendations();
-            openDrawer();
-          });
-      }
+        .then(function () {
+          fetchRecommendations();
+          openDrawer();
+        })
+        .catch(function (err) {
+          console.warn("Cart drawer: add to cart failed", err.message);
+        });
     }, true);
 
-    // Intercept fetch/XHR to /cart/add.js (for themes using AJAX)
+    // Intercept fetch/XHR to /cart/add.js (for themes using AJAX). Only the
+    // theme's own /cart/add call tells us whether Shopify actually accepted
+    // it (e.g. rejects out-of-stock variants with a non-2xx status) — react
+    // to that instead of always assuming success, and log the rejection so
+    // a silently-failing add is no longer invisible.
     var origFetch = window.fetch;
     window.fetch = function () {
       var args = arguments;
@@ -968,10 +1400,19 @@
       var result = origFetch.apply(this, args);
 
       if (/\/cart\/(add|update|change)/.test(url)) {
-        result.then(function () {
+        result.then(function (r) {
+          var isAdd = /\/cart\/add/.test(url);
+          if (isAdd && r && !r.ok) {
+            r.clone().json().then(function (b) {
+              console.warn("Cart drawer: theme's add-to-cart was rejected by Shopify", b.description || b.message || r.status);
+            }).catch(function () {
+              console.warn("Cart drawer: theme's add-to-cart was rejected by Shopify (status " + r.status + ")");
+            });
+            return;
+          }
           setTimeout(function () {
             fetchCart().then(function () {
-              if (/\/cart\/add/.test(url)) {
+              if (isAdd) {
                 fetchRecommendations();
                 openDrawer();
               }
@@ -994,9 +1435,16 @@
       var self = this;
       this.addEventListener("load", function () {
         if (self._cdUrl && /\/cart\/(add|update|change)/.test(self._cdUrl)) {
+          var isAdd = /\/cart\/add/.test(self._cdUrl);
+          if (isAdd && (self.status < 200 || self.status >= 300)) {
+            var reason = self.status;
+            try { reason = JSON.parse(self.responseText).description || reason; } catch (e) {}
+            console.warn("Cart drawer: theme's add-to-cart was rejected by Shopify", reason);
+            return;
+          }
           setTimeout(function () {
             fetchCart().then(function () {
-              if (/\/cart\/add/.test(self._cdUrl)) {
+              if (isAdd) {
                 fetchRecommendations();
                 openDrawer();
               }

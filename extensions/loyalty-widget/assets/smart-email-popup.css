@@ -172,6 +172,12 @@
   margin: 8px 0 0;
 }
 
+.sep-access-denied {
+  font-size: 13px;
+  color: #dc2626;
+  padding: 8px 10px;
+}
+
 .sep-consent {
   font-size: 11px;
   color: #6b7280;

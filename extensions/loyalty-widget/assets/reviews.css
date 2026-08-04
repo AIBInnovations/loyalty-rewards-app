@@ -214,6 +214,7 @@
 
 .rv-success-msg { color: #1a7a3c; font-weight: 600; font-size: 14px; margin-top: 10px; }
 .rv-empty { color: #888; font-size: 14px; text-align: center; padding: 24px; }
+.rv-access-denied { color: #b42318; font-weight: 600; font-size: 13px; text-align: center; padding: 16px; }
 
 @media (max-width: 480px) {
   .rv-avg { font-size: 36px; }

@@ -1,6 +1,6 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
-import { useLoaderData, Link, useSearchParams } from "@remix-run/react";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
+import { useLoaderData, useActionData, useNavigation, Link, useSearchParams, useSubmit } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -10,11 +10,59 @@ import {
   TextField,
   InlineStack,
   EmptyState,
+  Modal,
+  Button,
 } from "@shopify/polaris";
 import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { Customer } from "../.server/models/customer.model";
+
+const FIND_CUSTOMER_BY_EMAIL = `#graphql
+  query findCustomerByEmail($query: String!) {
+    customers(first: 1, query: $query) {
+      nodes {
+        id
+        email
+        firstName
+        lastName
+      }
+    }
+  }
+`;
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session, admin } = await authenticate.admin(request);
+  await connectDB();
+  const fd = await request.formData();
+  const email = String(fd.get("email") || "").trim();
+  if (!email) return json({ error: "Enter a customer email." }, { status: 400 });
+
+  const response = await admin.graphql(FIND_CUSTOMER_BY_EMAIL, {
+    variables: { query: `email:${email}` },
+  });
+  const result = await response.json();
+  const found = (result.data as any)?.customers?.nodes?.[0];
+  if (!found) {
+    return json({ error: `No Shopify customer found with email "${email}".` }, { status: 404 });
+  }
+
+  const shopifyCustomerId = String(found.id).replace("gid://shopify/Customer/", "");
+  const customer = await Customer.findOneAndUpdate(
+    { shopId: session.shop, shopifyCustomerId },
+    {
+      $setOnInsert: { shopId: session.shop, shopifyCustomerId },
+      $set: {
+        email: found.email || email,
+        firstName: found.firstName || "",
+        lastName: found.lastName || "",
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  return redirect(`/app/customers/${customer._id.toString()}`);
+};
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -64,12 +112,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function CustomersPage() {
   const { customers, total, page, totalPages, search } =
     useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
+  const nav = useNavigation();
+  const submit = useSubmit();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchValue, setSearchValue] = useState(search);
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const adding = nav.state === "submitting" && nav.formData?.get("email") != null;
 
   const handleSearch = useCallback(() => {
     setSearchParams({ q: searchValue, page: "1" });
   }, [searchValue, setSearchParams]);
+
+  const handleAddCustomer = useCallback(() => {
+    const fd = new FormData();
+    fd.set("email", newEmail);
+    submit(fd, { method: "POST" });
+  }, [newEmail, submit]);
 
   const tierColors: Record<string, "info" | "success" | "warning" | "critical"> = {
     Bronze: "info",
@@ -79,7 +140,31 @@ export default function CustomersPage() {
   };
 
   return (
-    <Page title={`Customers (${total})`}>
+    <Page
+      title={`Customers (${total})`}
+      primaryAction={{ content: "Add Customer", onAction: () => setAddOpen(true) }}
+    >
+      <Modal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title="Add Customer"
+        primaryAction={{ content: "Add", onAction: handleAddCustomer, loading: adding }}
+        secondaryActions={[{ content: "Cancel", onAction: () => setAddOpen(false) }]}
+      >
+        <Modal.Section>
+          <TextField
+            label="Customer email"
+            type="email"
+            value={newEmail}
+            onChange={setNewEmail}
+            autoComplete="off"
+            placeholder="customer@example.com"
+            helpText="Must match an existing Shopify customer's email."
+            error={actionData && "error" in actionData ? actionData.error : undefined}
+          />
+        </Modal.Section>
+      </Modal>
+
       <Card>
         <InlineStack gap="300" blockAlign="end">
           <div style={{ flexGrow: 1 }}>
@@ -161,23 +246,5 @@ export default function CustomersPage() {
         </Card>
       </div>
     </Page>
-  );
-}
-
-function Button({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "8px 16px",
-        background: "#5C6AC4",
-        color: "white",
-        border: "none",
-        borderRadius: "4px",
-        cursor: "pointer",
-      }}
-    >
-      {children}
-    </button>
   );
 }

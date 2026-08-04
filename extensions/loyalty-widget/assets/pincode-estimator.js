@@ -7,6 +7,13 @@
   var shopDomain = root.dataset.shopDomain;
   var CACHE_KEY  = "pe_last_pincode";
 
+  function esc(str) {
+    if (!str) return "";
+    var d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
   function render() {
     var widget = document.createElement("div");
     widget.id = "pincode-estimator-widget";
@@ -83,13 +90,27 @@
           return r.json();
         })
         .then(function (data) {
+          if (data.accessDenied) {
+            result.innerHTML =
+              '<span class="pe-access-denied">Access needed for Pincode Delivery Estimator. Contact the store for access.</span>';
+            result.classList.add("pe-show");
+            return;
+          }
           try { localStorage.setItem(CACHE_KEY, code); } catch (e) {}
           if (!data.deliverable) {
             result.innerHTML =
               '<span class="pe-unavailable">❌ Delivery not available to ' + code + '</span>';
           } else {
+            var days = "";
+            if (data.minDays != null && data.maxDays != null) {
+              days = data.minDays === data.maxDays
+                ? data.minDays + " day" + (data.minDays === 1 ? "" : "s")
+                : data.minDays + "-" + data.maxDays + " days";
+            }
+            var stateLabel = data.state ? " (" + esc(String(data.state)) + ")" : "";
             result.innerHTML =
-              '<span class="pe-delivery">Yes! We deliver to ' + code + '.</span><br>' +
+              '<span class="pe-delivery">Yes! We deliver to ' + code + stateLabel + '.</span><br>' +
+              (days ? '<span class="pe-days">🚚 Estimated delivery: ' + days + '</span><br>' : "") +
               (data.cod
                 ? '<span class="pe-cod-yes">✓ COD Available</span>'
                 : '<span class="pe-cod-no">✗ COD Not Available — Prepaid Only</span>');

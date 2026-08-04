@@ -13,7 +13,7 @@
 
 .cd-drawer,
 .cd-overlay {
-  /* Palette from the mockup */
+  /* Cream + brick-red mockup palette */
   --cd-ink: #1c1a17;
   --cd-cream: #fdfbf7;
   --cd-accent: #b3543f;
@@ -25,7 +25,7 @@
   --cd-line-strong: #e9e2d3;
   --cd-muted: #8a8377;
   --cd-muted-light: #a49b8c;
-  --cd-dash: #d8cdb4;
+  --cd-dash: #ecd9d2;
   --cd-stripe-a: #f4efe4;
   --cd-stripe-b: #ece5d4;
   --cd-surface: #ffffff;
@@ -35,6 +35,28 @@
   --cd-radius-pill: 999px;
 
   --cd-font: Karla, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --cd-font-size: 14px;
+
+  /* Appearance overrides — merchant-configurable, all fall back to the
+     built-in palette above when unset. Applied as inline styles on the
+     drawer/overlay elements themselves (see cart-drawer.js) since inline
+     style always wins over these component-scoped declarations.
+     --cd-progress-bg now drives the progress LINE/dot accent color (the
+     card itself is a plain bordered card, not a full-bleed block);
+     --cd-offer-bg drives the progress card's own background. */
+  --cd-progress-bg: var(--cd-accent);
+  --cd-offer-bg: var(--cd-cream);
+  --cd-offer-text: var(--cd-ink);
+  --cd-pill-bg: #fff;
+  --cd-pill-text: var(--cd-accent-dark);
+  --cd-node-bg: #fff;
+  --cd-node-text: var(--cd-progress-bg);
+  --cd-btn-bg: var(--cd-ink);
+  --cd-btn-hover-bg: #000;
+  --cd-btn-hover-text: #fff;
+  --cd-announcement-bg: var(--cd-green-bg);
+  --cd-announcement-text: var(--cd-green);
+  --cd-header-count-size: 20px;
 
   /* Above typical theme headers, below Shopify's own chrome. */
   --cd-z-overlay: 99990;
@@ -64,7 +86,7 @@
   top: 0;
   right: 0;
   z-index: var(--cd-z-drawer);
-  width: 420px;
+  width: var(--cd-drawer-width, 420px);
   max-width: 100vw;
   height: 100vh;
   height: 100dvh;
@@ -75,6 +97,7 @@
   transform: translateX(100%);
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   font-family: var(--cd-font);
+  font-size: var(--cd-font-size);
   color: var(--cd-ink);
 }
 
@@ -100,7 +123,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 20px 14px;
+  padding: 14px 16px 10px;
 }
 
 .cd-header-title {
@@ -108,18 +131,26 @@
   align-items: baseline;
   gap: 8px;
   margin: 0;
+  /* Themes commonly give h1-h6 their own heading font via a bare element
+     selector (e.g. `h2 { font-family: ... }`); an inherited value always
+     loses to ANY matching rule regardless of specificity, so this must be
+     set explicitly here rather than relying on inheriting it from
+     .cd-drawer. Explicit fallback matches the merchant's configured font
+     stack in case --cd-font isn't set for some reason. */
+  font-family: var(--cd-font, Karla, system-ui, sans-serif)!important;
 }
 
 .cd-header-title b {
+  font-family: inherit;
   font-weight: 700;
-  font-size: 19px;
+  font-size: 1.357em; /* 19px at the 14px base */
   line-height: 1.2;
   color: var(--cd-ink);
 }
 
 .cd-header-count {
   font-weight: 600;
-  font-size: 12px;
+  font-size: calc(var(--cd-header-count-size) * 0.6);
   color: var(--cd-muted);
 }
 
@@ -142,124 +173,303 @@
 
 /* ─── Free shipping banner ──────────────────────────────────────── */
 
-.cd-ship-banner {
-  background: var(--cd-green-bg);
-  color: var(--cd-green);
+/* Announcement bar — one or more messages that slide vertically. The
+   track holds every message stacked; JS translates it to the current
+   index on an interval (see startAnnouncementRotation in cart-drawer.js). */
+.cd-announcement-bar {
+  position: relative;
+  overflow: hidden;
+  height: 2.6em;
+  background: var(--cd-announcement-bg);
+}
+
+.cd-announcement-track {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.5s ease;
+}
+
+.cd-announcement-item {
+  flex: none;
+  height: 2.6em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
   font-weight: 600;
-  font-size: 11.5px;
+  font-size: 0.821em; /* 11.5px at the 14px base */
   line-height: 1.3;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   text-align: center;
-  padding: 8px 20px;
+  color: var(--cd-announcement-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ─── Reward progress ───────────────────────────────────────────── */
 
-.cd-progress-section {
-  margin: 16px 20px;
-  padding: 16px;
-  background: var(--cd-surface);
-  border: 1px solid var(--cd-line-strong);
-  border-radius: var(--cd-radius-md);
+/* Opaque, pinned to the top of .cd-body's scroll area so the card's own
+   margin never lets scrolling items peek through underneath it. */
+/* Shipping banner + progress card share this one sticky container — two
+   separate elements both pinned at top:0 would just overlap each other. */
+.cd-sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--cd-cream);
 }
 
-.cd-progress-message {
+/* Flat, borderless strip — no card chrome, just the plain page color. */
+.cd-progress-section {
+  position: relative;
+  margin: 6px 16px 8px;
+  background: #fdfbf7;
+  overflow: hidden;
+}
+
+/* Completion burst — a one-off sprinkle of pieces flung outward from the
+   track when the last tier is unlocked. See fireConfetti() in JS. */
+.cd-confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cd-confetti-piece {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 2px;
+  background: var(--cd-c, #fff);
+  opacity: 0;
+  animation: cd-confetti-burst 950ms ease-out forwards;
+  animation-delay: var(--cd-delay, 0ms);
+}
+
+/* Thin curling ribbon instead of a square dot — mixed in with the confetti
+   pieces so the burst reads as streamers + confetti, not just dots. */
+.cd-confetti-piece--streamer {
+  width: 3px;
+  height: 18px;
+  margin: -9px 0 0 -1.5px;
+  border-radius: 2px;
+  animation-name: cd-streamer-burst;
+  animation-duration: 1050ms;
+}
+
+@keyframes cd-confetti-burst {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+  100% { opacity: 0; transform: translate(var(--cd-tx), var(--cd-ty)) rotate(var(--cd-rot)) scale(0.4); }
+}
+
+@keyframes cd-streamer-burst {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scaleY(1); }
+  100% { opacity: 0; transform: translate(var(--cd-tx), var(--cd-ty)) rotate(var(--cd-rot)) scaleY(0.5); }
+}
+
+/* Disclaimer line, merchant-configured (Banner Text). A separate sibling
+   div from the reward message below — only rendered when set. */
+.cd-progress-topbar {
   margin: 0;
+  padding: 8px 8px 0;
+  background: transparent;
+  text-align: left;
+  font-size: 0.786em; /* 11px at the 14px base */
   font-weight: 600;
-  font-size: 14px;
+  letter-spacing: 0.03em;
+  color: var(--cd-muted);
+}
+
+/* Reward-progress message ("You're 1 item away from…" / "…unlocked!") —
+   its own div, independent of the disclaimer line above. */
+.cd-progress-reward-message {
+  margin: 0;
+  padding: 8px 8px 4px;
+  background: transparent;
+  text-align: center;
+  font-weight: 600;
+  font-size: 1em;
   line-height: 1.4;
-  color: var(--cd-ink);
+  color: var(--cd-offer-text);
 }
 
 /* The mockup highlights the "1 item away" fragment in the accent colour;
    renderProgressBar wraps the interpolated value in <em>. */
-.cd-progress-message em,
-.cd-progress-message strong {
+.cd-progress-reward-message em,
+.cd-progress-reward-message strong {
   font-style: normal;
-  font-weight: 600;
-  color: var(--cd-accent);
+  font-weight: 700;
+  color: var(--cd-progress-bg);
 }
 
+.cd-progress-body {
+  padding: 8px;
+}
+
+.cd-access-denied {
+  margin: 10px 12px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fdf1f0;
+  color: #c0392b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Each tier is its own equal-width flex column — line segment, offer
+   label, checkpoint icon, and threshold text all stacked and centered
+   within that single column. Every column is exactly 1/N of the track
+   regardless of how far apart the actual threshold VALUES are, so
+   neighboring tiers can never collide (unlike positioning by value%,
+   which bunches up when thresholds are close together). */
 .cd-progress-track {
-  position: relative;
-  margin: 18px 10px 6px;
-  height: 6px;
-  border-radius: 3px;
-  background: #efe8d8;
+  display: flex !important;
+  align-items: center;
+  margin: 3px 3px 0;
+  height: 58px;
 }
 
-.cd-progress-fill {
-  position: absolute;
+.cd-progress-checkpoint {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Fixed-height row holding just the line + dot together — the line always
+   centers on the dot this way regardless of how tall the label text above
+   it happens to be, instead of guessing a fixed pixel offset. */
+.cd-progress-checkpoint-row {
+  position: relative;
+  width: 100%;
+  height: 22px;
+}
+
+/* One fixed-width block per tier — filled solid once that tier is reached,
+   hatched for the tier actively being worked toward, plain otherwise.
+   Spans the full column so adjacent segments join into one visual line. */
+.cd-progress-checkpoint-line {
+  position: absolute !important;
+  display: block !important;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 6px;
+  min-height: 6px;
+  border-radius: 3px;
+  box-sizing: border-box !important;
+  background: var(--cd-dash);
+  z-index: 0;
+  transform: translateY(-50%);
+  transition: background-color 0.4s ease;
+}
+
+.cd-progress-checkpoint-line.filled {
+  background: var(--cd-progress-bg);
+}
+
+.cd-progress-checkpoint-line.current {
+  background: var(--cd-dash);
+}
+
+/* Proportional fill within the "current" segment only — grows as the
+   customer adds items toward that specific tier. */
+.cd-progress-seg-fill {
+  display: block !important;
+  position: absolute !important;
   left: 0;
   top: 0;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--cd-accent);
-  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  bottom: 0;
+  background: var(--cd-progress-bg);
+  transition: width 0.4s ease;
 }
 
-/* Current-position marker */
+.cd-progress-tier-label {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 4px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  font-size: 0.786em; /* 11px at the 14px base */
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--cd-muted-light);
+  transition: color 0.4s ease;
+}
+
+.cd-progress-tier-label.reached { color: var(--cd-progress-bg); }
+
+/* Tier checkpoint icon — hollow "%" until reached, checkmark once passed.
+   Centered within .cd-progress-checkpoint-row, same coordinate space as
+   the line above it, so the two always align regardless of label height. */
 .cd-progress-dot {
-  position: absolute;
+  position: absolute !important;
   top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--cd-accent);
-  border: 3px solid var(--cd-cream);
-  transition: left 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* Tier milestones along the track */
-.cd-progress-node {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  z-index: 1;
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--cd-surface);
+  background: #fff;
   border: 1.5px solid var(--cd-dash);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 10px;
+  font-size: 0.714em; /* 10px at the 14px base */
   line-height: 1;
-  color: var(--cd-muted);
+  color: var(--cd-muted-light);
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease;
 }
 
-.cd-progress-node.reached {
-  background: var(--cd-accent);
-  border-color: var(--cd-accent);
+.cd-progress-dot.reached {
+  background: var(--cd-progress-bg);
+  border-color: var(--cd-progress-bg);
   color: #fff;
 }
 
-.cd-progress-legend {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 12px;
-  font-weight: 500;
-  font-size: 11px;
-  line-height: 1.3;
-  color: var(--cd-muted);
+.cd-progress-tier-threshold {
+  position: relative;
+  z-index: 1;
+  margin-top: 4px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  font-size: 0.714em; /* 10px at the 14px base */
+  font-weight: 600;
+  color: var(--cd-muted-light);
+  transition: color 0.4s ease;
 }
 
-.cd-progress-legend span { flex: 1 1 0; min-width: 0; }
-.cd-progress-legend span:not(:first-child):not(:last-child) { text-align: center; }
-.cd-progress-legend span:last-child:not(:first-child) { text-align: right; }
-.cd-progress-legend .reached { color: var(--cd-accent); }
+.cd-progress-tier-threshold.reached { color: var(--cd-muted); }
 
 /* ─── Line items ────────────────────────────────────────────────── */
 
 .cd-item {
   display: flex;
-  gap: 14px;
-  padding: 16px 20px;
+  gap: 12px;
+  padding: 12px 16px;
   border-top: 1px solid var(--cd-line);
+}
+
+/* 12px grey band separating major sections — progress bar / items /
+   upsell — matching the reference layout's section separators. */
+.cd-section-divider {
+  flex: none;
+  height: 12px;
+  background: rgba(135, 135, 135, 0.09);
 }
 
 .cd-item-img {
@@ -292,15 +502,29 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+}
+
+.cd-item-top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .cd-item-title {
   margin: 0;
+  flex: 1;
+  min-width: 0;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 1em;
   line-height: 1.4;
   color: var(--cd-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .cd-item-variant {
@@ -314,12 +538,12 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .cd-item-price {
   font-weight: 700;
-  font-size: 15px;
+  font-size: 1.071em; /* 15px at the 14px base */
   color: var(--cd-ink);
 }
 
@@ -339,7 +563,7 @@
 .cd-item-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   margin-top: 2px;
 }
@@ -347,12 +571,16 @@
 .cd-qty {
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: center;
+  gap: 10px;
+  width: 87px;
+  height: 23px;
   border: 1px solid #ddd4c0;
   border-radius: var(--cd-radius-pill);
-  padding: 3px 12px;
+  padding: 3px 10px;
+  box-sizing: border-box;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.929em; /* 13px at the 14px base */
   color: var(--cd-ink);
   background: var(--cd-surface);
 }
@@ -373,25 +601,28 @@
 .cd-qty button[disabled] { opacity: 0.35; cursor: default; }
 
 .cd-item-remove {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border: none;
+  border-radius: 50%;
   background: none;
-  padding: 8px 0;
-  font-family: inherit;
-  font-weight: 500;
-  font-size: 12px;
+  padding: 0;
   color: var(--cd-muted);
-  text-decoration: underline;
-  text-underline-offset: 3px;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.cd-item-remove:hover { color: var(--cd-ink); }
+.cd-item-remove:hover { background: #f0ebe0; color: var(--cd-accent-dark); }
 
 /* ─── Coupon ────────────────────────────────────────────────────── */
 
 .cd-coupon {
-  margin: 16px 20px;
-  padding: 14px 16px;
+  margin: 12px 16px;
+  padding: 10px 14px;
   border: 1.5px dashed var(--cd-dash);
   border-radius: var(--cd-radius-md);
   background: var(--cd-surface);
@@ -436,7 +667,7 @@
   color: #fff;
   background: var(--cd-ink);
   border-radius: var(--cd-radius-sm);
-  padding: 11px 16px;
+  padding: 9px 14px;
   cursor: pointer;
 }
 
@@ -447,13 +678,14 @@
 
 .cd-recs-section,
 .cd-upsell-section {
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-top: 1px solid var(--cd-line);
 }
 
-.cd-recs-title,
-.cd-upsell-headline {
-  margin: 0 0 12px;
+
+.cd-recs-title {
+  margin: 0 0 10px;
+  font-family: var(--cd-font);
   font-weight: 600;
   font-size: 12px;
   letter-spacing: 0.1em;
@@ -461,25 +693,86 @@
   color: var(--cd-muted);
 }
 
-/* Two-up product grid from the mockup. */
+.cd-upsell-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+
+.cd-upsell-headline {
+  margin: 0;
+  font-family: var(--cd-font);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cd-ink);
+}
+
+.cd-upsell-unlocked {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--cd-radius-pill);
+  background: var(--cd-ink);
+  color: #fff;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+/* Three-up product grid, matching the reference layout. */
 .cd-recs-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* Single Steal Deals card — was reusing the 3-column recs grid, which
+   only gave it 1/3 of the row's width. */
+.cd-upsell-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+/* Horizontal scroll alternative — one row, swipeable, snaps card-to-card. */
+.cd-recs-slider {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* Exactly three cards fill the visible width — width:calc() accounts for
+   the two gaps between them, so nothing peeks in partially at the edge.
+   Scroll reveals the next trio rather than the next single card. */
+.cd-recs-slider .cd-prod {
+  flex: 0 0 auto;
+  width: calc((100% - 20px) / 3);
+  scroll-snap-align: start;
 }
 
 .cd-prod {
   border: 1px solid var(--cd-line-strong);
   border-radius: var(--cd-radius-md);
-  padding: 10px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   background: var(--cd-surface);
 }
 
+
 .cd-prod-img {
-  height: 64px;
+  position: relative;
+  width: 100%;
   border-radius: var(--cd-radius-sm);
   overflow: hidden;
   background: repeating-linear-gradient(
@@ -489,6 +782,73 @@
     var(--cd-stripe-b) 6px,
     var(--cd-stripe-b) 12px
   );
+}
+
+/* Fixed 320x97 card, laid out as a row — image left, info right — since a
+   97px-tall card can't fit a full-width square image stacked above text. */
+.cd-prod--deal {
+  width: 320px;
+  height: 97px;
+  flex-direction: row;
+  align-items: center;
+  overflow: hidden;
+}
+
+.cd-prod--deal .cd-prod-img {
+  width: 81px;
+  height: 81px;
+  flex: none;
+}
+
+.cd-prod--deal .cd-prod-info {
+  justify-content: center;
+  min-width: 0;
+}
+
+/* Recommendation card: square image that fills the card width — fixed
+   142x142 doesn't fit three columns, so it scales with the column instead. */
+.cd-prod--rec .cd-prod-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  flex: none;
+}
+
+.cd-prod-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+}
+
+.cd-prod-add-full {
+  margin-top: auto;
+  width: 100%;
+  border: none;
+  border-radius: var(--cd-radius-sm);
+  background: var(--cd-accent);
+  color: #fff;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.cd-prod-add-full:hover { background: var(--cd-accent-dark); }
+.cd-prod-add-full[disabled] { opacity: 0.55; cursor: default; }
+
+.cd-prod-discount-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #3f6b2f;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .cd-prod-img img {
@@ -504,12 +864,11 @@
   font-size: 12px;
   line-height: 1.3;
   color: var(--cd-ink);
-  /* Keep cards aligned regardless of title length. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+  /* Single line + ellipsis so every card's price/button lands on the same
+     row regardless of title length — matches the reference layout. */
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cd-prod-foot {
@@ -531,6 +890,7 @@
   font-weight: 700;
   font-size: 12px;
   color: var(--cd-ink);
+  white-space: nowrap;
 }
 
 .cd-prod-compare {
@@ -538,6 +898,7 @@
   font-size: 11px;
   color: var(--cd-muted-light);
   text-decoration: line-through;
+  white-space: nowrap;
 }
 
 .cd-prod-add {
@@ -549,7 +910,7 @@
   background: none;
   border: 1px solid var(--cd-accent-soft);
   border-radius: var(--cd-radius-pill);
-  padding: 7px 12px;
+  padding: 6px 10px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s ease, color 0.15s ease;
@@ -563,6 +924,28 @@
 
 .cd-prod-add[disabled] { opacity: 0.55; cursor: default; }
 
+.cd-prod-add-round {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  color: #fff;
+  background: var(--cd-ink);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.cd-prod-add-round:hover { background: #000; }
+.cd-prod-add-round[disabled] { opacity: 0.55; cursor: default; }
+
 /* Featured upsell keeps the accent frame so it reads above recommendations. */
 .cd-upsell-section .cd-prod {
   border-color: var(--cd-accent-soft);
@@ -571,109 +954,285 @@
 /* ─── Summary ───────────────────────────────────────────────────── */
 
 .cd-footer {
+  position: relative;
   flex: none;
-  padding: 16px 20px 20px;
+  padding: 5px 16px 14px;
   /* Keep the checkout button clear of the iOS home indicator. */
-  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--cd-line);
   background: var(--cd-surface);
 }
 
-.cd-prepaid-banner {
-  margin: -4px 0 12px;
-  padding: 8px 12px;
-  border-radius: var(--cd-radius-sm);
-  background: var(--cd-green-bg);
-  color: var(--cd-green);
-  font-weight: 600;
-  font-size: 12px;
+/* The ribbon is position:absolute (out of flow) so the footer needs extra
+   top padding reserved for it, matching the overlap in the reference. */
+.cd-footer--has-ribbon {
+  padding-top: 14px;
+}
+
+/* Ribbon banner — pinned above the footer's top edge, bookmark-notched
+   ends via the two SVG wings, matching the reference exactly. */
+.cd-prepaid-ribbon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 0 55px;
+  position: absolute;
+  top: -11px;
+  left: 0;
+  cursor: default;
+  z-index: 2;
+}
+
+.cd-prepaid-ribbon-wing {
+  flex: none;
+  display: block;
+}
+
+.cd-prepaid-ribbon-center {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #ce021e;
+  color: #fff;
+  padding: 8px 16px;
+  margin: 0 -1px;
+  font-weight: 700;
+  font-size: 10px;
+  line-height: 3px;
   text-align: center;
 }
 
-.cd-summary-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-weight: 400;
-  font-size: 13px;
-  margin-bottom: 6px;
-  color: #5f594e;
+/* Savings strip above the price/checkout row — a small flat-cornered tag
+   flush against the content, not a stretched pill. */
+.cd-footer-savings {
+  display: inline-block;
+  margin: 0 0 2px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--cd-green);
+  color: #fff;
+  font-weight: 700;
+  line-height: 1.4;
+  font-size: 0.643em; /* 9px at the 14px base */
 }
 
-.cd-summary-row--disc {
-  color: var(--cd-green);
-  margin-bottom: 10px;
+/* Total price beside the checkout button, replacing the old stacked
+   Subtotal/Discount/Total rows. */
+.cd-footer-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* Current + compare-at price sit on one line, not stacked. */
+.cd-footer-price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cd-footer-price-current {
+  font-weight: 700;
+  font-size: 1.143em; /* 16px at the 14px base */
+  color: var(--cd-ink);
+}
+
+.cd-footer-price-compare {
+  font-weight: 400;
+  font-size: 0.786em; /* 11px at the 14px base */
+  color: var(--cd-muted-light);
+  text-decoration: line-through;
+}
+
+/* Compact, content-sized button — the price-summary panel's own checkout
+   button keeps its own width:auto override further down. */
+.cd-footer .cd-checkout-btn {
+  width: auto;
+  min-width: 245px;
+  height: 35px;
+  flex: none;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 0 26px;
+  font-size: 0.786em; /* 11px at the 14px base */
 }
 
 .cd-summary-details {
+  display: block;
   border: none;
   background: none;
   padding: 0;
+  margin: 1px 0 0;
   font: inherit;
+  font-size: 0.714em; /* 10px at the 14px base */
+  line-height: 1.3;
   color: var(--cd-muted);
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
 }
 
-.cd-total-row {
+.cd-summary-details:hover { color: var(--cd-ink); }
+
+.cd-breakdown-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  font-size: 0.929em; /* 13px at the 14px base */
+  color: #5f594e;
+  margin-bottom: 4px;
+}
+
+.cd-breakdown-row--disc { color: #c0392b; }
+
+.cd-breakdown-row--total {
   font-weight: 700;
-  font-size: 16px;
+  font-size: 1.143em; /* 16px at the 14px base */
   color: var(--cd-ink);
-  padding-top: 10px;
-  border-top: 1px solid var(--cd-line);
-  margin-bottom: 14px;
+}
+
+.cd-breakdown-row--total small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.7em;
+  color: var(--cd-muted);
+}
+
+.cd-breakdown-divider {
+  height: 1px;
+  background: var(--cd-line);
+  margin: 8px 0;
+}
+
+/* ─── Price Summary panel ───────────────────────────────────────── */
+/* Full-drawer overlay opened by "See Details" — slides up from the bottom,
+   covering everything including the header, matching the reference. */
+.cd-price-summary {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 360px;
+  max-height: 100%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--cd-surface);
+  border-radius: var(--cd-radius-md) var(--cd-radius-md) 0 0;
+  box-shadow: 0 -4px 16px rgba(28, 26, 23, 0.16);
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cd-price-summary.open { transform: translateY(0); }
+
+.cd-price-summary-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(138, 138, 138, 0.08);
+  border-bottom: 1px solid var(--cd-line);
+}
+
+.cd-price-summary-header h2 {
+  margin: 0;
+  font-family: var(--cd-font)!important;
+  font-weight: 700;
+  font-size: 1.143em; /* 16px at the 14px base */
+  color: var(--cd-ink);
+}
+
+.cd-price-summary-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.cd-price-summary-banner {
+  flex: none;
+  padding: 8px 14px;
+  background: #ce021e;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.929em; /* 13px at the 14px base */
+  text-align: center;
+}
+
+.cd-price-summary .cd-checkout-btn {
+  width: auto;
+  margin: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
 }
 
 .cd-checkout-btn {
   width: 100%;
   border: none;
-  background: var(--cd-ink);
+  background: var(--cd-btn-bg);
   color: #fff;
   border-radius: var(--cd-radius-md);
-  padding: 15px;
+  padding: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   font-family: inherit;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 1em;
   letter-spacing: 0.06em;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.cd-checkout-btn:hover { background: #000; }
-.cd-checkout-btn[disabled] { opacity: 0.6; cursor: default; }
 .cd-checkout-arrow { font-weight: 400; }
 
-.cd-pay-methods {
-  text-align: center;
-  margin-top: 10px;
-  font-weight: 400;
-  font-size: 11px;
-  color: var(--cd-muted-light);
+.cd-checkout-btn:hover {
+  background: var(--cd-btn-hover-bg);
+  color: var(--cd-btn-hover-text);
+}
+.cd-checkout-btn[disabled] { opacity: 0.6; cursor: default; }
+
+.cd-pay-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.cd-pay-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--cd-btn-bg);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 /* ─── Empty state ───────────────────────────────────────────────── */
 
 .cd-empty {
-  padding: 56px 24px;
+  padding: 40px 20px;
   text-align: center;
 }
 
 .cd-empty-icon {
   font-size: 40px;
   line-height: 1;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .cd-empty h3 {
-  margin: 0 0 6px;
+  margin: 0 0 5px;
+  font-family: var(--cd-font);
   font-weight: 700;
   font-size: 16px;
   color: var(--cd-ink);
@@ -711,8 +1270,6 @@
 @media (prefers-reduced-motion: reduce) {
   .cd-drawer,
   .cd-overlay,
-  .cd-progress-fill,
-  .cd-progress-dot,
   .cd-checkout-btn,
   .cd-prod-add {
     transition: none;
@@ -723,17 +1280,14 @@
 
 @media (max-width: 480px) {
   .cd-drawer { width: 100vw; }
-  .cd-header { padding: 16px 16px 12px; }
-  .cd-progress-section,
-  .cd-coupon { margin: 14px 16px; }
+  .cd-header { padding: 12px 14px 10px; }
+  .cd-progress-section { margin: 10px 14px 12px; }
+  .cd-coupon { margin: 10px 14px; }
   .cd-item,
   .cd-recs-section,
-  .cd-upsell-section { padding: 14px 16px; }
-  .cd-footer { padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
+  .cd-upsell-section { padding: 10px 14px; }
+  .cd-footer { padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
   .cd-coupon { flex-direction: column; align-items: stretch; }
   .cd-coupon-apply { width: 100%; }
 }
 
-@media (min-width: 481px) and (max-width: 767px) {
-  .cd-drawer { width: 400px; }
-}

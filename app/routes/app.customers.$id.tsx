@@ -11,6 +11,8 @@ import {
   DataTable,
   TextField,
   Select,
+  Checkbox,
+  InlineGrid,
   InlineStack,
   Divider,
   Banner,
@@ -22,6 +24,7 @@ import { Customer } from "../.server/models/customer.model";
 import { Transaction } from "../.server/models/transaction.model";
 import { Redemption } from "../.server/models/redemption.model";
 import { earnPoints, reversePoints } from "../.server/services/points.service";
+import { PLUGIN_LIST } from "../plugin-registry";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -62,6 +65,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       referredBy: customer.referredBy || "None",
       birthday: customer.birthday?.toISOString().split("T")[0] || "Not set",
       createdAt: customer.createdAt.toISOString(),
+      pluginAccess: customer.pluginAccess || {},
     },
     transactions: transactions.map((t) => ({
       type: t.type,
@@ -120,6 +124,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       description: reason,
       admin: admin as any,
     });
+  } else if (intent === "updateAccess") {
+    let pluginAccess: Record<string, boolean> = {};
+    try { pluginAccess = JSON.parse(String(formData.get("pluginAccess") || "{}")); } catch { pluginAccess = {}; }
+    customer.pluginAccess = pluginAccess;
+    await customer.save();
   }
 
   return json({ success: true });
@@ -135,6 +144,19 @@ export default function CustomerDetail() {
   const [adjustPoints, setAdjustPoints] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustType, setAdjustType] = useState("add");
+
+  const [access, setAccess] = useState<Record<string, boolean>>(customer.pluginAccess);
+
+  const toggleAccess = useCallback((pluginKey: string, checked: boolean) => {
+    setAccess((prev) => {
+      const next = { ...prev, [pluginKey]: checked };
+      const fd = new FormData();
+      fd.set("intent", "updateAccess");
+      fd.set("pluginAccess", JSON.stringify(next));
+      submit(fd, { method: "post" });
+      return next;
+    });
+  }, [submit]);
 
   const handleAdjust = useCallback(() => {
     if (!adjustPoints || Number(adjustPoints) <= 0) return;
@@ -270,6 +292,28 @@ export default function CustomerDetail() {
                 </button>
               </div>
             </InlineStack>
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingMd">
+              Plugin Access
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              Uncheck a plugin to block this customer from it on the storefront — they'll
+              see an "access needed" message instead. Checked plugins behave normally.
+            </Text>
+            <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="200">
+              {PLUGIN_LIST.map((plugin) => (
+                <Checkbox
+                  key={plugin.key}
+                  label={plugin.label}
+                  checked={access[plugin.key] !== false}
+                  onChange={(checked) => toggleAccess(plugin.key, checked)}
+                />
+              ))}
+            </InlineGrid>
           </BlockStack>
         </Card>
 

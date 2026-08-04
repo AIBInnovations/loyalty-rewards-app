@@ -36,9 +36,9 @@
 .sw-overlay.open { opacity: 1; visibility: visible; }
 
 .sw-modal {
-  width: 440px; max-width: 95vw;
-  background: #fff; border-radius: 16px;
-  padding: 24px;
+  width: 480px; max-width: 95vw;
+  background: #fff; border-radius: 20px;
+  padding: 28px 32px 32px;
   text-align: center; position: relative;
   box-shadow: 0 20px 60px rgba(0,0,0,0.25);
   transform: scale(0.9); transition: transform 0.35s cubic-bezier(0.22,1,0.36,1);
@@ -46,56 +46,88 @@
 .sw-overlay.open .sw-modal { transform: scale(1); }
 
 .sw-close {
-  position: absolute; top: 10px; right: 10px;
+  position: absolute; top: 16px; right: 16px;
   background: none; border: none; cursor: pointer;
-  font-size: 18px; color: #999; width: 28px; height: 28px;
+  font-size: 20px; color: #999; width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
 }
 .sw-close:hover { background: #f0f0f0; }
 
-.sw-headline { font-size: 22px; font-weight: 800; margin: 0 0 4px; color: #333; }
-.sw-subtext { font-size: 13px; color: #666; margin: 0 0 16px; }
+/* !important guards against theme heading selectors (e.g. "h1,h2,h3{font-family:...}")
+   that otherwise out-specificity our class and pull in the store's serif font. */
+.sw-headline {
+  font-size: 26px; font-weight: 800; margin: 0 0 6px; color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+.sw-subtext {
+  font-size: 15px; color: #777; margin: 0 0 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+.sw-header-divider { border: none; border-top: 1px solid #eee; margin: 0 -32px 20px; }
 
 /* Wheel Container */
 .sw-wheel-wrap {
   position: relative;
-  width: 260px; height: 260px;
-  margin: 0 auto 16px;
+  width: 300px; height: 300px;
+  margin: 0 auto 24px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Thick ring around the wheel, colour driven by the merchant's Outer Border
+   Color setting. The glow reuses the same colour so no extra config is
+   needed for it to look intentional rather than arbitrary. */
+.sw-wheel-ring {
+  position: relative;
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  border-style: solid;
+  border-width: 14px;
+  box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 4px #5C6AC4, 0 8px 30px rgba(0,0,0,0.25);
 }
 
 .sw-wheel-canvas {
-  width: 260px; height: 260px;
+  width: 100%; height: 100%;
+  border-radius: 50%;
   transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
-}
-
-.sw-pointer {
-  position: absolute;
-  top: -8px; left: 50%;
-  transform: translateX(-50%);
-  width: 0; height: 0;
-  border-left: 12px solid transparent;
-  border-right: 12px solid transparent;
-  border-top: 20px solid #333;
-  z-index: 2;
-  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));
 }
 
 .sw-center-dot {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 20px; height: 20px;
-  background: #333; border-radius: 50%;
-  z-index: 2;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; font-weight: 800; letter-spacing: 0.3px;
+  cursor: pointer; z-index: 2;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+
+/* Pointer tick, tied directly to the hub's own box (top:-14px is relative
+   to the hub, not the wheel) so it can never drift or hide behind it. */
+.sw-center-dot::before {
+  content: "";
+  position: absolute;
+  top: -14px; left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 16px solid #fff;
+  filter:
+    drop-shadow(0 0 1px rgba(0,0,0,0.9))
+    drop-shadow(0 2px 3px rgba(0,0,0,0.35));
 }
 
 /* Spin Button (Step 1) */
 .sw-step-spin { text-align: center; margin-top: 4px; }
 .sw-spin-btn {
-  padding: 12px 32px; border: none; border-radius: 8px;
-  font-size: 15px; font-weight: 700; cursor: pointer;
+  width: 100%; padding: 15px 32px; border: none; border-radius: 999px;
+  font-size: 16px; font-weight: 700; cursor: pointer;
   color: #fff; white-space: nowrap;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   transition: transform 0.15s, box-shadow 0.15s;
@@ -103,6 +135,12 @@
 .sw-spin-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
 .sw-spin-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .sw-error { font-size: 12px; color: #dc3545; margin: 6px 0 0; }
+.sw-access-denied {
+  font-size: 13px;
+  color: #dc3545;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
 
 /* Claim Form (Step 2) */
 .sw-step-claim { margin-top: 8px; }
@@ -143,10 +181,10 @@
 .sw-result-nope { font-size: 14px; color: #999; margin: 8px 0 0; }
 
 @media (max-width: 480px) {
-  .sw-modal { padding: 16px; }
-  .sw-wheel-wrap { width: 220px; height: 220px; }
-  .sw-wheel-canvas { width: 220px; height: 220px; }
-  .sw-headline { font-size: 18px; }
+  .sw-modal { padding: 20px 16px 24px; }
+  .sw-header-divider { margin: 0 -16px 16px; }
+  .sw-wheel-wrap { width: 230px; height: 230px; }
+  .sw-headline { font-size: 20px; }
   .sw-form { flex-direction: column; }
   .sw-trigger { font-size: 11px; padding: 8px 14px; }
 }

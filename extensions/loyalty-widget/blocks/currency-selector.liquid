@@ -4,7 +4,7 @@
 <div id="loy-cs-root"
      data-base="{{ base_currency }}"
      data-fmt="{{ money_format | escape }}"
-     style="position:fixed !important;bottom:162px !important;right:20px !important;z-index:9999999 !important;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif !important;">
+     style="position:fixed !important;bottom:162px !important;right:20px !important;z-index:9999999 !important;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif !important;transition:top .15s ease,bottom .15s ease,left .15s ease,right .15s ease;">
   <button id="loy-cs-fab" type="button"
           style="display:inline-flex !important;align-items:center !important;gap:6px !important;padding:8px 14px !important;background:#fff !important;border:1.5px solid #ddd !important;border-radius:24px !important;box-shadow:0 2px 10px rgba(0,0,0,.14) !important;cursor:pointer !important;white-space:nowrap !important;font-size:13px !important;font-weight:700 !important;color:#333 !important;outline:none !important;font-family:inherit !important;">
     <span id="loy-cs-label" style="font-size:13px !important;font-weight:700 !important;color:#333 !important;letter-spacing:.4px !important;line-height:1 !important;">{{ base_currency }}</span>
@@ -51,6 +51,34 @@
     if (dd && dd.style.display === "block" && !dd.contains(e.target) && !fab.contains(e.target)) closeDD();
   });
 
+  /* ── Badge position — desktop and mobile are configured independently
+     in admin, so re-apply whenever the viewport crosses the breakpoint. ── */
+  var MOBILE_BREAKPOINT = 749; // matches the common Dawn-theme breakpoint
+  var posConfig = { desktop: "bottom-right", mobile: "bottom-right" };
+
+  function applyPosition() {
+    var isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+    var pos = (isMobile ? posConfig.mobile : posConfig.desktop) || "bottom-right";
+    var vertical = pos.indexOf("top") === 0 ? "top" : "bottom";
+    var horizontal = pos.indexOf("left") !== -1 ? "left" : "right";
+
+    root.style.top = "auto";
+    root.style.bottom = "auto";
+    root.style.left = "auto";
+    root.style.right = "auto";
+    // "bottom" keeps the existing 162px clearance so it doesn't collide with
+    // the loyalty rewards launcher badge that already sits bottom-right;
+    // "top" has no such neighbor, so a small fixed offset is enough.
+    root.style.setProperty(vertical, vertical === "bottom" ? "162px" : "20px", "important");
+    root.style.setProperty(horizontal, "20px", "important");
+  }
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(applyPosition, 150);
+  });
+
   /* ── Build dropdown immediately with fallback so button is always usable ── */
   buildDropdown(FALLBACK);
 
@@ -64,12 +92,25 @@
     })
     .then(function (data) {
       if (!data) return;
+      if (data.accessDenied) {
+        // Customer blocked from this plugin → hide FAB/dropdown, show a small notice
+        fab.style.setProperty("display", "none", "important");
+        if (dd && dd.parentNode) dd.parentNode.removeChild(dd);
+        var notice = document.createElement("div");
+        notice.textContent = "Access needed for Currency Selector. Contact the store for access.";
+        notice.style.cssText = "display:inline-block !important;max-width:220px !important;padding:8px 12px !important;border-radius:10px !important;background:#fdf1f0 !important;color:#c0392b !important;font-size:13px !important;font-weight:500 !important;line-height:1.4 !important;box-shadow:0 2px 10px rgba(0,0,0,.14) !important;font-family:inherit !important;";
+        root.appendChild(notice);
+        return;
+      }
       if (data.enabled === false) {
         // Admin disabled the selector → hide FAB and remove dropdown
         fab.style.setProperty("display", "none", "important");
         if (dd && dd.parentNode) dd.parentNode.removeChild(dd);
         return;
       }
+      posConfig.desktop = data.positionDesktop || "bottom-right";
+      posConfig.mobile = data.positionMobile || "bottom-right";
+      applyPosition();
       var currencies = Array.isArray(data.currencies) ? data.currencies : [];
       if (!currencies.length) return; // keep fallback
       // Replace fallback dropdown with admin-configured one

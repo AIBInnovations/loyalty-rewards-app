@@ -68,6 +68,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return json({
     currencySelectorEnabled: settings.currencySelectorEnabled ?? true,
+    currencySelectorPositionDesktop: settings.currencySelectorPositionDesktop || "bottom-right",
+    currencySelectorPositionMobile: settings.currencySelectorPositionMobile || "bottom-right",
     currencies: JSON.parse(JSON.stringify(settings.currencies || [])) as ICurrencyOption[],
   });
 };
@@ -118,6 +120,52 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ success: true });
   }
 
+  if (intent === "savePosition") {
+    const positionDesktop = String(formData.get("currencySelectorPositionDesktop") || "bottom-right");
+    const positionMobile = String(formData.get("currencySelectorPositionMobile") || "bottom-right");
+
+    await Settings.findOneAndUpdate(
+      { shopId: session.shop },
+      {
+        $set: {
+          currencySelectorPositionDesktop: positionDesktop,
+          currencySelectorPositionMobile: positionMobile,
+        },
+      },
+      { upsert: true },
+    );
+
+    await admin.graphql(
+      `#graphql
+      mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          userErrors { field message }
+        }
+      }`,
+      {
+        variables: {
+          metafields: [
+            {
+              ownerId: shopGid,
+              namespace: "loyalty_widget",
+              key: "currency_selector_position_desktop",
+              value: positionDesktop,
+              type: "single_line_text_field",
+            },
+            {
+              ownerId: shopGid,
+              namespace: "loyalty_widget",
+              key: "currency_selector_position_mobile",
+              value: positionMobile,
+              type: "single_line_text_field",
+            },
+          ],
+        },
+      },
+    );
+    return json({ success: true });
+  }
+
   if (intent === "saveCurrencies") {
     const raw = formData.get("currencies") as string;
     let currencies: ICurrencyOption[] = [];
@@ -159,16 +207,43 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 // ─── Component ────────────────────────────────────────────────
 export default function CurrencySettings() {
-  const { currencySelectorEnabled, currencies: initialCurrencies } =
-    useLoaderData<typeof loader>();
+  const {
+    currencySelectorEnabled,
+    currencySelectorPositionDesktop,
+    currencySelectorPositionMobile,
+    currencies: initialCurrencies,
+  } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
   const isSaving = navigation.state === "submitting";
 
   const [enabled, setEnabled] = useState(currencySelectorEnabled);
+  const [positionDesktop, setPositionDesktop] = useState(currencySelectorPositionDesktop);
+  const [positionMobile, setPositionMobile] = useState(currencySelectorPositionMobile);
   const [currencies, setCurrencies] = useState<ICurrencyOption[]>(initialCurrencies);
   const [selectedToAdd, setSelectedToAdd] = useState("");
   const [saved, setSaved] = useState(false);
+
+  const POSITION_OPTIONS = [
+    { label: "Bottom Right", value: "bottom-right" },
+    { label: "Bottom Left", value: "bottom-left" },
+    { label: "Top Right", value: "top-right" },
+    { label: "Top Left", value: "top-left" },
+  ];
+
+  const handleSavePosition = useCallback(
+    (nextDesktop: string, nextMobile: string) => {
+      submit(
+        {
+          _intent: "savePosition",
+          currencySelectorPositionDesktop: nextDesktop,
+          currencySelectorPositionMobile: nextMobile,
+        },
+        { method: "POST" },
+      );
+    },
+    [submit],
+  );
 
   // Currencies not yet added
   const availableToAdd = ALL_CURRENCIES.filter(
@@ -243,6 +318,45 @@ export default function CurrencySettings() {
                 </Button>
               </InlineStack>
             </InlineStack>
+          </Card>
+        </Layout.Section>
+
+        {/* Badge position */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="400">
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">Badge Position</Text>
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  Where the currency switcher button sits on the screen. Desktop and mobile can be
+                  positioned independently.
+                </Text>
+              </BlockStack>
+              <InlineStack gap="400">
+                <Box minWidth="200px">
+                  <Select
+                    label="Desktop position"
+                    options={POSITION_OPTIONS}
+                    value={positionDesktop}
+                    onChange={(next) => {
+                      setPositionDesktop(next as typeof positionDesktop);
+                      handleSavePosition(next, positionMobile);
+                    }}
+                  />
+                </Box>
+                <Box minWidth="200px">
+                  <Select
+                    label="Mobile position"
+                    options={POSITION_OPTIONS}
+                    value={positionMobile}
+                    onChange={(next) => {
+                      setPositionMobile(next as typeof positionMobile);
+                      handleSavePosition(positionDesktop, next);
+                    }}
+                  />
+                </Box>
+              </InlineStack>
+            </BlockStack>
           </Card>
         </Layout.Section>
 

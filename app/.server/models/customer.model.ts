@@ -14,6 +14,9 @@ export interface ICustomer extends Document {
   referredBy?: string;
   birthday?: Date;
   birthdayBonusLastAwarded?: Date;
+  // Per-plugin access override. Missing key or `true` = allowed (default).
+  // `false` = explicitly blocked — storefront shows an "access needed" message.
+  pluginAccess?: Record<string, boolean>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +36,7 @@ const customerSchema = new Schema<ICustomer>(
     referredBy: { type: String },
     birthday: { type: Date },
     birthdayBonusLastAwarded: { type: Date },
+    pluginAccess: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true },
 );

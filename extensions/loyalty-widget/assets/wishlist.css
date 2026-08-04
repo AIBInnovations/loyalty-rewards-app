@@ -51,6 +51,13 @@
   font-size: 14px;
   margin: 0;
 }
+.wl-access-denied {
+  color: #b42318;
+  font-size: 13px;
+  margin: 0;
+  padding: 12px 0;
+  text-align: center;
+}
 .wl-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

@@ -49,6 +49,11 @@
       })
       .then(function (data) {
         console.log("[CT] settings from API:", JSON.stringify(data));
+        if (data.accessDenied) {
+          container.innerHTML =
+            '<div class="ct-access-denied">Access needed for Countdown Timer. Contact the store for access.</div>';
+          return;
+        }
         settings = data;
         init();
       })

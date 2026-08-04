@@ -153,7 +153,14 @@
 
     embed.style.display = "";
 
-    if (data && data.enabled && data.badges && data.badges.length) {
+    if (data && data.accessDenied) {
+      staticEl.style.display = "none";
+      dynamicEl.style.display = "none";
+      var notice = document.createElement("div");
+      notice.className = "tb-access-denied";
+      notice.textContent = "Access needed for Trust Badges. Contact the store for access.";
+      embed.appendChild(notice);
+    } else if (data && data.enabled && data.badges && data.badges.length) {
       dynamicEl.className = "tb-grid tb-layout-" + (data.layout || "inline");
       dynamicEl.textContent = "";
       dynamicEl.appendChild(buildBadgeNodes(data.badges));
@@ -178,6 +185,10 @@
   fetch("/apps/loyalty/trust-badges")
     .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
     .then(function(data) {
+      if (data.accessDenied) {
+        injectBadges(data);
+        return;
+      }
       if (data.enabled === false) return;
       injectBadges(data);
     })

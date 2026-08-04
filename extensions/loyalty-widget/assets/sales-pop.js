@@ -67,6 +67,11 @@
       return r.json();
     })
     .then(function (data) {
+      if (data && data.accessDenied) {
+        showAccessDenied();
+        return;
+      }
+
       if (!data || !data.enabled) return;
 
       if (!data.showOnMobile && isMobile()) return;
@@ -82,6 +87,15 @@
 
   function isMobile() {
     return window.matchMedia && window.matchMedia("(max-width: 768px)").matches;
+  }
+
+  function showAccessDenied() {
+    container.textContent = "";
+    var notice = document.createElement("div");
+    notice.className = "sp-access-denied";
+    notice.textContent = "Access needed for Sales Pop. Contact the store for access.";
+    container.appendChild(notice);
+    container.style.display = "block";
   }
 
   function pageMatchesTargeting(cfg, tpl) {

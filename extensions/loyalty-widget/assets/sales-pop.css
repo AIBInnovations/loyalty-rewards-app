@@ -98,6 +98,15 @@
 }
 .sp-close:hover { color: #333; }
 
+.sp-access-denied {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdf1f0;
+  color: #c0392b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 @media (max-width: 480px) {
   .sp-toast {
     max-width: calc(100vw - 24px);

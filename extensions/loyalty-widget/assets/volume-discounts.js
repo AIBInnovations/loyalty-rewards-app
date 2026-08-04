@@ -86,6 +86,11 @@
     return "Buy " + tier.minQuantity + "+, save " + formatValue(tier);
   }
 
+  function renderAccessDenied(root) {
+    root.innerHTML =
+      '<div class="vd-access-denied">Access needed for Volume Discounts. Contact the store for access.</div>';
+  }
+
   function fetchCampaigns(proxyUrl, productId) {
     var url = proxyUrl + "/volume-discounts";
     if (productId) url += "?productId=" + encodeURIComponent(productId);
@@ -417,11 +422,13 @@
     if (template.indexOf("product") === 0) {
       if (!productId) return;
       fetchCampaigns(proxyUrl, productId).then(function (res) {
+        if (res.accessDenied) return renderAccessDenied(root);
         if (!res.campaigns || !res.campaigns.length) return;
         mountProduct(root, res.campaigns);
       });
     } else if (template.indexOf("cart") === 0) {
       fetchCampaigns(proxyUrl, "").then(function (res) {
+        if (res.accessDenied) return renderAccessDenied(root);
         if (!res.campaigns || !res.campaigns.length) return;
         mountCart(root, res.campaigns);
       });

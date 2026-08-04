@@ -37,6 +37,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         triggerButtonColor: data.triggerButtonColor || "#e91e63",
         prizes,
         bgColor: data.bgColor || "#ffffff",
+        centerPointerColor: data.centerPointerColor || "#5C6AC4",
+        outerBorderColor: data.outerBorderColor || "#000000",
       },
     },
     { upsert: true },
@@ -60,6 +62,8 @@ export default function WheelSettingsPage() {
   const [triggerText, setTriggerText] = useState(settings.triggerButtonText);
   const [triggerColor, setTriggerColor] = useState(settings.triggerButtonColor);
   const [bgColor, setBgColor] = useState(settings.bgColor);
+  const [centerPointerColor, setCenterPointerColor] = useState(settings.centerPointerColor);
+  const [outerBorderColor, setOuterBorderColor] = useState(settings.outerBorderColor);
   const [prizes, setPrizes] = useState<IWheelPrize[]>(settings.prizes || []);
 
   const addPrize = useCallback(() => setPrizes((p) => [...p, { ...DEFAULT_PRIZE }]), []);
@@ -77,9 +81,11 @@ export default function WheelSettingsPage() {
     fd.set("triggerButtonText", triggerText);
     fd.set("triggerButtonColor", triggerColor);
     fd.set("bgColor", bgColor);
+    fd.set("centerPointerColor", centerPointerColor);
+    fd.set("outerBorderColor", outerBorderColor);
     fd.set("prizes", JSON.stringify(prizes));
     submit(fd, { method: "post" });
-  }, [enabled, headline, subtext, buttonText, triggerText, triggerColor, bgColor, prizes, submit]);
+  }, [enabled, headline, subtext, buttonText, triggerText, triggerColor, bgColor, centerPointerColor, outerBorderColor, prizes, submit]);
 
   return (
     <Page title="Spin the Wheel" primaryAction={{ content: "Save", onAction: save, loading: nav.state === "submitting" }} backAction={{ content: "Dashboard", url: "/app" }}>
@@ -101,6 +107,10 @@ export default function WheelSettingsPage() {
                   <TextField label="Trigger Color" value={triggerColor} onChange={setTriggerColor} autoComplete="off" />
                 </InlineGrid>
                 <TextField label="Background Color" value={bgColor} onChange={setBgColor} autoComplete="off" />
+                <InlineGrid columns={2} gap="300">
+                  <TextField label="Center Pointer Color" value={centerPointerColor} onChange={setCenterPointerColor} autoComplete="off" helpText="Center hub and pointer arrow" />
+                  <TextField label="Outer Border Color" value={outerBorderColor} onChange={setOuterBorderColor} autoComplete="off" helpText="Thick ring around the wheel" />
+                </InlineGrid>
               </BlockStack>
             </Card>
           </Layout.AnnotatedSection>

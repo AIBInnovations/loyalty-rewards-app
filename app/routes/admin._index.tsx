@@ -298,7 +298,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Restrict the shop list to what this admin may see. `allowedShops` was
   // previously stored and displayed but never enforced, so any authenticated
   // admin could read any merchant's data by changing ?shop=.
-  const allShops = await Settings.distinct("shopId");
+  //
+  // This used to list only Settings.distinct("shopId") (the loyalty plugin's
+  // own settings collection). A shop that installed the app but never opened
+  // the loyalty/Rewards settings page had no Settings doc, so it never
+  // appeared here at all — an admin could not select it to toggle any plugin,
+  // even though the store was live. PlatformShop is written on every OAuth
+  // install (see afterAuth in shopify.server.ts) and is the authoritative
+  // list of installed shops, so it's unioned in here.
+  const [settingsShops, platformShopIds] = await Promise.all([
+    Settings.distinct("shopId"),
+    PlatformShop.distinct("shopId"),
+  ]);
+  const allShops = Array.from(new Set([...settingsShops, ...platformShopIds]));
   const shops = allShops.filter((shop: string) =>
     canAccessShop(adminSession, shop),
   );
@@ -1961,6 +1973,59 @@ export default function AdminPanel() {
             margin: 0;
           }
 
+          .admin-plugin-toggle {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+          }
+
+          .admin-plugin-toggle input {
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+          }
+
+          .admin-plugin-toggle-track {
+            width: 42px;
+            height: 24px;
+            border-radius: 999px;
+            background: #d1d5db;
+            transition: background 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            padding: 3px;
+            box-sizing: border-box;
+          }
+
+          .admin-plugin-toggle input:checked + .admin-plugin-toggle-track {
+            background: #16a34a;
+          }
+
+          .admin-plugin-toggle input:focus-visible + .admin-plugin-toggle-track {
+            outline: 2px solid #0f62fe;
+            outline-offset: 2px;
+          }
+
+          .admin-plugin-toggle input:disabled + .admin-plugin-toggle-track {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
+
+          .admin-plugin-toggle-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: #ffffff;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+            transition: transform 0.15s ease;
+          }
+
+          .admin-plugin-toggle input:checked + .admin-plugin-toggle-track .admin-plugin-toggle-thumb {
+            transform: translateX(18px);
+          }
+
           @media (max-width: 900px) {
             .admin-shell {
               grid-template-columns: 1fr;
@@ -2361,18 +2426,35 @@ export default function AdminPanel() {
                                         name="enabled"
                                         value={String(!plugin.enabled)}
                                       />
-                                      <Button
-                                        submit
-                                        variant={plugin.enabled ? "secondary" : "primary"}
-                                        tone={plugin.enabled ? "critical" : undefined}
-                                        loading={
-                                          navigation.state === "submitting" &&
-                                          navigation.formData?.get("pluginKey") === plugin.key &&
-                                          navigation.formData?.get("intent") === "toggle-plugin"
+                                      <label
+                                        className="admin-plugin-toggle"
+                                        title={
+                                          plugin.enabled
+                                            ? "Visible in this store — click to hide"
+                                            : "Hidden in this store — click to show"
                                         }
                                       >
-                                        {plugin.enabled ? "Disable" : "Enable"}
-                                      </Button>
+                                        <input
+                                          type="checkbox"
+                                          checked={plugin.enabled}
+                                          disabled={
+                                            navigation.state === "submitting" &&
+                                            navigation.formData?.get("pluginKey") === plugin.key &&
+                                            navigation.formData?.get("intent") === "toggle-plugin"
+                                          }
+                                          onChange={(event) =>
+                                            event.currentTarget.form?.requestSubmit()
+                                          }
+                                          aria-label={
+                                            plugin.enabled
+                                              ? `Hide ${plugin.name} on this store`
+                                              : `Show ${plugin.name} on this store`
+                                          }
+                                        />
+                                        <span className="admin-plugin-toggle-track">
+                                          <span className="admin-plugin-toggle-thumb" />
+                                        </span>
+                                      </label>
                                     </Form>
                                   </InlineStack>
                                 )}

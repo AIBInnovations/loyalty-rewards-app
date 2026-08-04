@@ -163,3 +163,13 @@
 .vd-cart strong {
   color: var(--vd-color, #5C6AC4);
 }
+
+.vd-access-denied {
+  margin: 16px 0;
+  padding: 10px 14px;
+  border: 1px solid #f5c6cb;
+  border-radius: 8px;
+  background: #fdf2f2;
+  color: #c0392b;
+  font-size: 13px;
+}

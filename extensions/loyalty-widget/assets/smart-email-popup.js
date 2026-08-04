@@ -56,6 +56,11 @@
         return r.json();
       })
       .then(function (data) {
+        if (data.accessDenied) {
+          root.innerHTML =
+            '<div class="sep-access-denied">Access needed for Smart Email Popup. Contact the store for access.</div>';
+          return;
+        }
         if (!data.enabled || !data.campaign) return;
         state.campaign = data.campaign;
         if (isSuppressed(state.campaign)) return;

@@ -25,6 +25,11 @@
       return r.json();
     })
     .then(function (data) {
+      if (data.accessDenied) {
+        container.innerHTML =
+          '<div class="sw-access-denied">Access needed for Spin the Wheel. Contact the store for access.</div>';
+        return;
+      }
       if (!data.enabled || !data.prizes || !data.prizes.length) return;
       settings = data;
       createTrigger();
@@ -53,20 +58,25 @@
 
   function renderModal() {
     var btnColor = esc(settings.triggerButtonColor || "#e91e63");
+    var centerColor = esc(settings.centerPointerColor || "#5C6AC4");
+    var borderColor = esc(settings.outerBorderColor || "#000000");
     return (
       '<div class="sw-modal">' +
         '<button class="sw-close" data-action="sw-close">✕</button>' +
         '<h2 class="sw-headline">' + esc(settings.headline) + '</h2>' +
         '<p class="sw-subtext">' + esc(settings.subtext) + '</p>' +
+        '<hr class="sw-header-divider" />' +
         '<div class="sw-wheel-wrap">' +
-          '<div class="sw-pointer"></div>' +
-          '<canvas class="sw-wheel-canvas" width="260" height="260"></canvas>' +
-          '<div class="sw-center-dot"></div>' +
+          '<div class="sw-wheel-ring" style="border-color:' + borderColor +
+            ';box-shadow:0 0 0 4px ' + centerColor + ',0 8px 30px rgba(0,0,0,0.25)">' +
+            '<canvas class="sw-wheel-canvas" width="280" height="280"></canvas>' +
+          '</div>' +
+          '<div class="sw-center-dot" data-action="sw-spin-hub" style="background:' + centerColor + '">Spin</div>' +
         '</div>' +
         // Step 1: Spin button (no email)
         '<div class="sw-step sw-step-spin">' +
           '<button class="sw-spin-btn" data-action="sw-spin" style="background:' + btnColor + '">' +
-            '🎯 ' + esc(settings.buttonText || "Try My Luck") +
+            esc(settings.buttonText || "Spin the Wheel") +
           '</button>' +
           '<p class="sw-error" style="display:none;"></p>' +
         '</div>' +
@@ -92,7 +102,7 @@
     var prizes = settings.prizes;
     var numSlices = prizes.length;
     var sliceAngle = (2 * Math.PI) / numSlices;
-    var cx = 130, cy = 130, radius = 125;
+    var cx = 140, cy = 140, radius = 136;
 
     for (var i = 0; i < numSlices; i++) {
       var startAngle = i * sliceAngle - Math.PI / 2;
@@ -127,7 +137,10 @@
 
     // Step 1: Spin
     var spinBtn = overlayEl.querySelector('[data-action="sw-spin"]');
+    var spinHub = overlayEl.querySelector('[data-action="sw-spin-hub"]');
     var errorEl = overlayEl.querySelector(".sw-error");
+
+    if (spinHub) spinHub.addEventListener("click", function () { spinBtn.click(); });
 
     spinBtn.addEventListener("click", function () {
       spinBtn.disabled = true;
