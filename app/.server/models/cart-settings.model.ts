@@ -29,6 +29,8 @@ export interface ICartDrawerSettings extends Document {
   shopId: string;
   enabled: boolean;
   tiers: ICartTier[];
+  /** Hides the whole tiered progress bar/card in the cart drawer. */
+  showProgressBar: boolean;
   showRecommendations: boolean;
   recommendationsTitle: string;
   recommendationsCount: number;
@@ -108,6 +110,7 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
   {
     shopId: { type: String, required: true, unique: true },
     enabled: { type: Boolean, default: false },
+    showProgressBar: { type: Boolean, default: true },
     tiers: {
       type: [cartTierSchema],
       default: [

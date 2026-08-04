@@ -885,6 +885,7 @@ async function handleGetCartSettings(shop: string) {
 
   return json({
     enabled: true,
+    showProgressBar: settings.showProgressBar ?? true,
     tiers: settings.tiers,
     showRecommendations: settings.showRecommendations,
     recommendationsTitle: settings.recommendationsTitle,
