@@ -5,6 +5,7 @@ import {
   verifyAppProxySignature,
   getCustomerIdFromProxy,
 } from "../.server/utils/proxy-auth";
+import { hasPluginAccess } from "../.server/plugin-access.server";
 import { parseMultipartImage } from "../.server/utils/multipart";
 import {
   searchByImage,
@@ -30,6 +31,7 @@ import { Subscriber } from "../.server/models/subscriber.model";
 import { createRedemptionDiscount, createSpinWheelDiscount } from "../.server/services/discount.service";
 import { generateDiscountCode } from "../.server/utils/codes";
 import { PincodeSettings } from "../.server/models/pincode-settings.model";
+import { getZoneForPincode } from "../pincode-zones";
 import { sendWheelPrizeEmail } from "../.server/utils/email";
 import { UpsellSettings } from "../.server/models/upsell-settings.model";
 import { UGCSettings } from "../.server/models/ugc-settings.model";
@@ -130,6 +132,17 @@ const rateLimited = () =>
 
 // ─── GET: Balance, rewards, history ──────────────────────────────
 
+// Returns a blocked-access response if this customer has been explicitly
+// denied `pluginKey`, or null if they may proceed. Guests always pass.
+async function accessGate(pluginKey: string, shop: string, shopifyCustomerId: string | null) {
+  const allowed = await hasPluginAccess(shop, shopifyCustomerId, pluginKey);
+  if (allowed) return null;
+  return json(
+    { enabled: false, accessDenied: true, pluginKey },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 export const loader = async ({ request, params: routeParams }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const params = url.searchParams;
@@ -154,35 +167,35 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
     if (!checkRateLimit(`cart-settings:${shop}`, 60)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleGetCartSettings(shop);
+    return (await accessGate("cartDrawer", shop, shopifyCustomerId)) || handleGetCartSettings(shop);
   }
 
   if (path === "trust-badges") {
     if (!checkRateLimit(`trust-badges:${shop}`, 60)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleGetTrustBadges(shop);
+    return (await accessGate("trustBadges", shop, shopifyCustomerId)) || handleGetTrustBadges(shop);
   }
 
   if (path === "volume-discounts") {
     if (!checkRateLimit(`volume-discounts:${shop}`, 120)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleGetVolumeDiscounts(params, shop);
+    return (await accessGate("volumeDiscounts", shop, shopifyCustomerId)) || handleGetVolumeDiscounts(params, shop);
   }
 
   if (path === "currency-settings") {
     if (!checkRateLimit(`currency-settings:${shop}`, 60)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleGetCurrencySettings(shop);
+    return (await accessGate("currency", shop, shopifyCustomerId)) || handleGetCurrencySettings(shop);
   }
 
   if (path === "timer-settings") {
     if (!checkRateLimit(`timer-settings:${shop}`, 60)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleGetTimerSettings(shop);
+    return (await accessGate("timer", shop, shopifyCustomerId)) || handleGetTimerSettings(shop);
   }
 
   if (path === "timer-css") {
@@ -190,7 +203,7 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
   }
 
   if (path === "popup-settings") {
-    return handleGetPopupSettings(shop);
+    return (await accessGate("exitPopup", shop, shopifyCustomerId)) || handleGetPopupSettings(shop);
   }
 
   if (path === "popup-submit" || action === "popup-submit") {
@@ -205,7 +218,7 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
     if (!checkRateLimit(`smart-popup-config:${shop}`, 120)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleSmartPopupConfig(params, shop);
+    return (await accessGate("smartPopup", shop, shopifyCustomerId)) || handleSmartPopupConfig(params, shop);
   }
 
   if (path === "smart-popup/submit" || action === "smart-popup-submit") {
@@ -220,7 +233,7 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
   }
 
   if (path === "wheel-settings") {
-    return handleGetWheelSettings(shop);
+    return (await accessGate("spinWheel", shop, shopifyCustomerId)) || handleGetWheelSettings(shop);
   }
 
   if (path === "wheel-spin" || action === "wheel-spin") {
@@ -253,58 +266,58 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
   }
 
   if (path === "pincode") {
-    return handlePincodeCheck(params, shop);
+    return (await accessGate("pincode", shop, shopifyCustomerId)) || handlePincodeCheck(params, shop);
   }
 
   if (path === "upsell-settings") {
-    return handleGetUpsellSettings(shop);
+    return (await accessGate("postPurchaseUpsell", shop, shopifyCustomerId)) || handleGetUpsellSettings(shop);
   }
 
   if (path === "ugc-settings") {
-    return handleGetUGCSettings(shop);
+    return (await accessGate("ugc", shop, shopifyCustomerId)) || handleGetUGCSettings(shop);
   }
 
   if (path === "reviews") {
-    return handleGetReviews(params, shop);
+    return (await accessGate("reviews", shop, shopifyCustomerId)) || handleGetReviews(params, shop);
   }
 
   if (path === "reviews/questions") {
-    return handleGetQuestions(params, shop);
+    return (await accessGate("reviews", shop, shopifyCustomerId)) || handleGetQuestions(params, shop);
   }
 
   if (path === "image-search/config") {
     if (!checkRateLimit(`image-search-config:${shop}`, 60)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleGetImageSearchConfig(shop);
+    return (await accessGate("imageSearch", shop, shopifyCustomerId)) || handleGetImageSearchConfig(shop);
   }
 
   if (path === "wishlist-settings") {
     if (!checkRateLimit(`wishlist-settings:${shop}`, 60)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleGetWishlistSettings(shop);
+    return (await accessGate("wishlist", shop, shopifyCustomerId)) || handleGetWishlistSettings(shop);
   }
 
   if (path === "size-guide-settings") {
     if (!checkRateLimit(`size-guide-settings:${shop}`, 60)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleGetSizeGuideSettings(shop);
+    return (await accessGate("sizeGuide", shop, shopifyCustomerId)) || handleGetSizeGuideSettings(shop);
   }
 
   if (path === "faq-settings") {
     if (!checkRateLimit(`faq-settings:${shop}`, 60)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleGetFaqSettings(shop);
+    return (await accessGate("faq", shop, shopifyCustomerId)) || handleGetFaqSettings(shop);
   }
 
   if (path === "sales-pop-settings") {
     if (!checkRateLimit(`sales-pop-settings:${shop}`, 60)) {
       return json({ error: "Rate limited" }, { status: 429 });
     }
-    return handleGetSalesPopSettings(shop);
+    return (await accessGate("salesPop", shop, shopifyCustomerId)) || handleGetSalesPopSettings(shop);
   }
 
   if (path === "sales-pop-events") {
@@ -365,7 +378,7 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
     return handleWishlistRemoveGet(params, shop, shopifyCustomerId, "saved");
   }
 
-  return handleGetBalance(shop, shopifyCustomerId);
+  return (await accessGate("loyalty", shop, shopifyCustomerId)) || handleGetBalance(shop, shopifyCustomerId);
 };
 
 // ─── Cart Settings (public, no customer auth) ───────────────────
@@ -529,6 +542,7 @@ async function handleGetWheelSettings(shop: string) {
     buttonText: s.buttonText, triggerButtonText: s.triggerButtonText,
     triggerButtonColor: s.triggerButtonColor,
     prizes: s.prizes, bgColor: s.bgColor,
+    centerPointerColor: s.centerPointerColor, outerBorderColor: s.outerBorderColor,
   }, { headers: { "Cache-Control": "no-store" } });
 }
 
@@ -866,7 +880,7 @@ async function handleGetCartSettings(shop: string) {
     .lean();
 
   if (!settings?.enabled) {
-    return json({ enabled: false, tiers: [] });
+    return json({ enabled: false, tiers: [] }, { headers: { "Cache-Control": "no-store" } });
   }
 
   return json({
@@ -876,12 +890,18 @@ async function handleGetCartSettings(shop: string) {
     recommendationsTitle: settings.recommendationsTitle,
     recommendationsCount: settings.recommendationsCount,
     recommendationMode: settings.recommendationMode || "auto",
+    recommendationsSlider: Boolean(settings.recommendationsSlider),
     manualProducts: settings.manualProducts || [],
     showSavings: settings.showSavings,
     checkoutButtonText: settings.checkoutButtonText,
     prepaidBannerText: settings.prepaidBannerText,
     showPrepaidBanner: settings.showPrepaidBanner,
     shippingBannerText: settings.shippingBannerText || "",
+    announcementTexts: settings.announcementTexts || [],
+    announcementDelay: settings.announcementDelay || 0,
+    announcementTextColor: settings.announcementTextColor || "",
+    announcementBgColor: settings.announcementBgColor || "",
+    progressBannerText: settings.progressBannerText || "",
     paymentMethodsText: settings.paymentMethodsText || "",
     couponEnabled: Boolean(settings.couponEnabled),
     couponCode: settings.couponCode || "",
@@ -893,7 +913,21 @@ async function handleGetCartSettings(shop: string) {
     upsellHeadline: settings.upsellHeadline,
     upsellDiscount: settings.upsellDiscount,
     upsellProduct: settings.upsellProduct || null,
-  });
+    fontFamily: settings.fontFamily || "",
+    fontSize: settings.fontSize || 0,
+    progressBarColor: settings.progressBarColor || "",
+    offerLineBg: settings.offerLineBg || "",
+    offerLineTextColor: settings.offerLineTextColor || "",
+    buttonColor: settings.buttonColor || "",
+    buttonHoverColor: settings.buttonHoverColor || "",
+    buttonHoverTextColor: settings.buttonHoverTextColor || "",
+    headerCountSize: settings.headerCountSize || 0,
+    drawerWidth: settings.drawerWidth || 0,
+    pillColor: settings.pillColor || "",
+    pillTextColor: settings.pillTextColor || "",
+    nodeColor: settings.nodeColor || "",
+    nodeTextColor: settings.nodeTextColor || "",
+  }, { headers: { "Cache-Control": "no-store" } });
 }
 
 async function handleGetTrustBadges(shop: string) {
@@ -973,6 +1007,8 @@ async function handleGetCurrencySettings(shop: string) {
   return json({
     enabled: true,
     currencies: (settings && settings.currencies) || [],
+    positionDesktop: (settings && settings.currencySelectorPositionDesktop) || "bottom-right",
+    positionMobile: (settings && settings.currencySelectorPositionMobile) || "bottom-right",
   }, { headers: { "Cache-Control": "no-store" } });
 }
 
@@ -1396,26 +1432,33 @@ async function handlePincodeCheck(params: URLSearchParams, shop: string) {
     return json({ error: "Invalid pincode" }, { status: 400 });
   }
 
+  const noStore = { headers: { "Cache-Control": "no-store" } };
   const settings = await PincodeSettings.findOne({ shopId: shop }).lean();
   if (!settings?.enabled) {
     // Default: all deliverable, COD available, 3-7 days
-    return json({ deliverable: true, cod: true, minDays: 3, maxDays: 7 });
+    return json({ deliverable: true, cod: true, minDays: 3, maxDays: 7 }, noStore);
   }
 
   if (settings.nonServiceablePincodes.includes(code)) {
-    return json({ deliverable: false, cod: false, minDays: 0, maxDays: 0 });
+    return json({ deliverable: false, cod: false, minDays: 0, maxDays: 0 }, noStore);
   }
 
   const cod = settings.noCodPincodes.includes(code)
     ? false
     : settings.codPincodes.length === 0 || settings.codPincodes.includes(code);
 
+  const zone = getZoneForPincode(code);
+  const zoneOverride = zone
+    ? (settings.stateDeliveryDays || []).find((o) => o.zoneKey === zone.key)
+    : undefined;
+
   return json({
     deliverable: true,
     cod,
-    minDays: settings.defaultMinDays,
-    maxDays: settings.defaultMaxDays,
-  });
+    minDays: zoneOverride ? zoneOverride.minDays : settings.defaultMinDays,
+    maxDays: zoneOverride ? zoneOverride.maxDays : settings.defaultMaxDays,
+    state: zone?.label || "",
+  }, noStore);
 }
 
 // ─── Upsell Settings ─────────────────────────────────────────────

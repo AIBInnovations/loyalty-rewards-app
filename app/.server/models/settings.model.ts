@@ -41,6 +41,8 @@ export interface ISettings extends Document {
   // General
   currencySymbol: string;
   currencySelectorEnabled: boolean;
+  currencySelectorPositionDesktop: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+  currencySelectorPositionMobile: "bottom-right" | "bottom-left" | "top-right" | "top-left";
   currencies: ICurrencyOption[];
   isActive: boolean;
   createdAt: Date;
@@ -82,6 +84,16 @@ const settingsSchema = new Schema<ISettings>(
     },
     currencySymbol: { type: String, default: "₹" },
     currencySelectorEnabled: { type: Boolean, default: true },
+    currencySelectorPositionDesktop: {
+      type: String,
+      enum: ["bottom-right", "bottom-left", "top-right", "top-left"],
+      default: "bottom-right",
+    },
+    currencySelectorPositionMobile: {
+      type: String,
+      enum: ["bottom-right", "bottom-left", "top-right", "top-left"],
+      default: "bottom-right",
+    },
     currencies: {
       type: [
         {

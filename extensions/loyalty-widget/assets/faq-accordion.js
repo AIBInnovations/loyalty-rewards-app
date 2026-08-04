@@ -227,12 +227,23 @@
       .catch(function () { return null; });
   }
 
+  function buildAccessDeniedNotice() {
+    var notice = document.createElement("div");
+    notice.className = "faq-access-denied";
+    notice.textContent = "Access needed for FAQ Accordion. Contact the store for access.";
+    return notice;
+  }
+
   function init() {
     var root = getBootstrap();
     if (!root || root.dataset.faqInit === "1") return;
     root.dataset.faqInit = "1";
 
     fetchConfig(root).then(function (cfg) {
+      if (cfg && cfg.accessDenied) {
+        place(buildAccessDeniedNotice(), (cfg && cfg.placement) || "before-footer");
+        return;
+      }
       if (!cfg || !cfg.enabled) return;
       if (cfg.restrictToProduct && currentTemplate(root) !== "product") return;
       if (!cfg.items || !cfg.items.length) return;

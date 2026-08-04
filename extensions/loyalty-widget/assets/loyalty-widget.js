@@ -105,6 +105,11 @@
       }
       const data = await res.json();
 
+      if (data.accessDenied) {
+        renderAccessDenied();
+        return;
+      }
+
       state.balance = data.balance;
       state.tier = data.tier;
       state.lifetimeEarned = data.lifetimeEarned;
@@ -216,6 +221,15 @@
   };
 
   // ─── Render ───────────────────────────────────────────────────
+
+  function renderAccessDenied() {
+    container.innerHTML = "";
+    container.style.display = "block";
+    const notice = document.createElement("div");
+    notice.className = "loyalty-access-denied";
+    notice.textContent = "Access needed for Loyalty Points. Contact the store for access.";
+    container.appendChild(notice);
+  }
 
   function render() {
     container.innerHTML = "";

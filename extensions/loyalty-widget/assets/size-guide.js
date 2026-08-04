@@ -286,6 +286,10 @@
     })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
       .then(function (cfg) {
+        if (cfg && cfg.accessDenied) {
+          container.innerHTML = '<p class="sg-access-denied">Access needed for Size Guide. Contact the store for access.</p>';
+          return;
+        }
         if (!cfg || cfg.enabled === false) return;
         applyConfig(cfg);
       })

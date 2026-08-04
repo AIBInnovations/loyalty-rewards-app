@@ -18,6 +18,8 @@ export interface IWheelSettings extends Document {
   triggerButtonColor: string;
   prizes: IWheelPrize[];
   bgColor: string;
+  centerPointerColor: string;
+  outerBorderColor: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,6 +60,8 @@ const wheelSettingsSchema = new Schema<IWheelSettings>(
       ],
     },
     bgColor: { type: String, default: "#ffffff" },
+    centerPointerColor: { type: String, default: "#5C6AC4" },
+    outerBorderColor: { type: String, default: "#000000" },
   },
   { timestamps: true },
 );

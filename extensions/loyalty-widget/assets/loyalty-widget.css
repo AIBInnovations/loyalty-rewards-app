@@ -816,6 +816,17 @@
   border: 1px solid rgba(255,255,255,0.15);
 }
 
+/* ─── Access Denied ─────────────────────────────────────────────── */
+
+.loyalty-access-denied {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdf1f0;
+  color: #c0392b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 /* ─── Loading ───────────────────────────────────────────────────── */
 
 .loyalty-loading {

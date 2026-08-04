@@ -66,7 +66,9 @@
 }
 .pe-result.pe-show { display: block; }
 .pe-delivery { color: #1a7a3c; font-weight: 600; }
+.pe-days { color: #333; font-weight: 500; }
 .pe-cod-yes { color: #1a7a3c; font-weight: 600; }
 .pe-cod-no  { color: #c0392b; font-weight: 600; }
 .pe-unavailable { color: #c0392b; font-weight: 600; }
 .pe-error { color: #c0392b; font-size: 12px; margin-top: 6px; }
+.pe-access-denied { color: #c0392b; font-size: 13px; margin-top: 6px; }

@@ -32,14 +32,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({ error: "handle is required" }, { status: 400 });
   }
 
-  const response = await admin.graphql(GET_PRODUCT_BY_HANDLE, {
-    variables: { handle },
-  });
-  const result = await response.json();
+  let result: any;
+  try {
+    const response = await admin.graphql(GET_PRODUCT_BY_HANDLE, {
+      variables: { handle },
+    });
+    result = await response.json();
+  } catch (err) {
+    return json(
+      { error: err instanceof Error ? err.message : "Shopify product lookup failed" },
+      { status: 502 },
+    );
+  }
+
+  if (result.errors?.length) {
+    return json({ error: result.errors[0].message || "Shopify product lookup failed" }, { status: 502 });
+  }
 
   const product = (result.data as any)?.productByHandle;
   if (!product) {
-    return json({ error: "Product not found" }, { status: 404 });
+    return json({ error: `No product found with handle "${handle}"` }, { status: 404 });
   }
 
   const variant = product.variants?.nodes?.[0];

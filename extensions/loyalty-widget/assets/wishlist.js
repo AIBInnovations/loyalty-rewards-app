@@ -165,6 +165,19 @@
     });
   }
 
+  function applyAccessDeniedUI() {
+    // This customer has been blocked from the Wishlist plugin — hide the
+    // entry points but show a small message wherever the full wishlist
+    // page normally renders (instead of silently hiding like applyDisabledUI).
+    document.querySelectorAll("[data-wl-button]").forEach(function (b) {
+      b.style.display = "none";
+    });
+    document.querySelectorAll("[data-wl-page]").forEach(function (p) {
+      var inner = p.querySelector(".wl-page-inner") || p;
+      inner.innerHTML = '<p class="wl-access-denied">Access needed for Wishlist. Contact the store for access.</p>';
+    });
+  }
+
   function init() {
     var local = readLocal();
 
@@ -909,6 +922,12 @@
   function boot() {
     bindPageActions();
     loadSettings().then(function () {
+      if (settings.accessDenied) {
+        applyAccessDeniedUI();
+        ready = true;
+        emit("ready", state);
+        return;
+      }
       if (!settings.enabled) {
         applyDisabledUI();
         ready = true;

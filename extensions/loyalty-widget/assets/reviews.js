@@ -369,6 +369,16 @@
     fetch("/apps/loyalty/reviews?productId=" + productId).then(function (r) { return r.json(); }).catch(function () { return { reviews: [] }; }),
     fetch("/apps/loyalty/reviews/questions?productId=" + productId).then(function (r) { return r.json(); }).catch(function () { return { questions: [] }; }),
   ]).then(function (results) {
+    if (results[0] && results[0].accessDenied) {
+      var section = document.getElementById("product-reviews-section");
+      if (!section) {
+        section = document.createElement("div");
+        section.id = "product-reviews-section";
+        root.parentNode.insertBefore(section, root.nextSibling);
+      }
+      section.innerHTML = '<p class="rv-access-denied">Access needed for Reviews. Contact the store for access.</p>';
+      return;
+    }
     state.reviews   = results[0].reviews || [];
     state.questions = results[1].questions || [];
     render();

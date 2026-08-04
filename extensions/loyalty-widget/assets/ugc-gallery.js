@@ -16,6 +16,11 @@
       return r.json();
     })
     .then(function (data) {
+      if (data.accessDenied) {
+        root.style.display = "block";
+        root.innerHTML = '<p class="ugc-access-denied">Access needed for UGC Gallery. Contact the store for access.</p>';
+        return;
+      }
       if (!data.enabled || !data.photos || data.photos.length === 0) return;
       renderGallery(data);
     })

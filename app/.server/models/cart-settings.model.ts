@@ -33,13 +33,24 @@ export interface ICartDrawerSettings extends Document {
   recommendationsTitle: string;
   recommendationsCount: number;
   recommendationMode: RecommendationMode;
+  recommendationsSlider: boolean;
   manualProducts: IManualProduct[];
   showSavings: boolean;
   checkoutButtonText: string;
   prepaidBannerText: string;
   showPrepaidBanner: boolean;
-  /** Green banner under the header. Hidden when empty. */
+  /** Green banner under the header. Hidden when empty. Legacy single-text
+      fallback — superseded by announcementTexts when that's set. */
   shippingBannerText: string;
+  /** Announcement bar under the header — multiple messages that slide/rotate.
+      Falls back to shippingBannerText (as a single slide) when empty. */
+  announcementTexts: string[];
+  /** Seconds between slides. 0/unset = built-in default (4s). */
+  announcementDelay: number;
+  announcementTextColor: string;
+  announcementBgColor: string;
+  /** Disclaimer line shown above the reward progress message. Hidden when empty. */
+  progressBannerText: string;
   /** Small print under the checkout button, e.g. accepted payment methods. */
   paymentMethodsText: string;
   /** Dashed coupon card. Hidden unless enabled AND a code is set. */
@@ -53,6 +64,25 @@ export interface ICartDrawerSettings extends Document {
   upsellHeadline: string;
   upsellDiscount: number;
   upsellProduct: IManualProduct | null;
+  /** Appearance overrides. Empty string = use the built-in default. */
+  fontFamily: string;
+  fontSize: number;
+  progressBarColor: string;
+  offerLineBg: string;
+  offerLineTextColor: string;
+  buttonColor: string;
+  buttonHoverColor: string;
+  buttonHoverTextColor: string;
+  /** Diameter (px) of the item-count circle next to "Your Cart" in the header. */
+  headerCountSize: number;
+  /** Drawer panel width (px) on desktop/tablet. 0 = use the built-in default (420px). */
+  drawerWidth: number;
+  /** Reached milestone pill (tier label badge) colors. */
+  pillColor: string;
+  pillTextColor: string;
+  /** Reached milestone node (checkmark circle) colors. */
+  nodeColor: string;
+  nodeTextColor: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -114,6 +144,7 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     recommendationsTitle: { type: String, default: "People Also Bought" },
     recommendationsCount: { type: Number, default: 4, min: 2, max: 8 },
     recommendationMode: { type: String, enum: ["auto", "manual"], default: "auto" },
+    recommendationsSlider: { type: Boolean, default: false },
     manualProducts: {
       type: [{
         shopifyProductId: { type: String, required: true },
@@ -134,6 +165,11 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     // Empty by default: the drawer hides these sections entirely rather than
     // making a shipping or discount promise the merchant hasn't opted into.
     shippingBannerText: { type: String, default: "", maxlength: 80 },
+    announcementTexts: { type: [String], default: [] },
+    announcementDelay: { type: Number, default: 0, min: 0, max: 30 },
+    announcementTextColor: { type: String, default: "" },
+    announcementBgColor: { type: String, default: "" },
+    progressBannerText: { type: String, default: "", maxlength: 100 },
     paymentMethodsText: { type: String, default: "", maxlength: 120 },
     couponEnabled: { type: Boolean, default: false },
     couponCode: { type: String, default: "", maxlength: 40 },
@@ -156,6 +192,20 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
       },
       default: null,
     },
+    fontFamily: { type: String, default: "" },
+    fontSize: { type: Number, default: 0, min: 0, max: 24 },
+    progressBarColor: { type: String, default: "" },
+    offerLineBg: { type: String, default: "" },
+    offerLineTextColor: { type: String, default: "" },
+    buttonColor: { type: String, default: "" },
+    buttonHoverColor: { type: String, default: "" },
+    buttonHoverTextColor: { type: String, default: "" },
+    headerCountSize: { type: Number, default: 0, min: 0, max: 60 },
+    drawerWidth: { type: Number, default: 0, min: 0, max: 640 },
+    pillColor: { type: String, default: "" },
+    pillTextColor: { type: String, default: "" },
+    nodeColor: { type: String, default: "" },
+    nodeTextColor: { type: String, default: "" },
   },
   { timestamps: true },
 );

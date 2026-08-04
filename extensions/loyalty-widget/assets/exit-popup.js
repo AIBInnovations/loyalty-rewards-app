@@ -22,6 +22,11 @@
       return r.json();
     })
     .then(function (data) {
+      if (data.accessDenied) {
+        container.innerHTML =
+          '<div class="ep-access-denied">Access needed for Exit Popup. Contact the store for access.</div>';
+        return;
+      }
       if (!data.enabled) return;
       settings = data;
       ready = true;

@@ -234,6 +234,13 @@
   line-height: 1.5;
 }
 
+.sg-access-denied {
+  font-size: 13px;
+  color: #b42318;
+  padding: 8px 0;
+  text-align: center;
+}
+
 /* ─── Body scroll lock ───────────────────────────────────────────── */
 body.sg-lock { overflow: hidden; }
 

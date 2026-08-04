@@ -21,6 +21,10 @@
       return r.json();
     })
     .then(function (settings) {
+      if (settings.accessDenied) {
+        root.innerHTML = '<p class="ppu-access-denied">Access needed for Post-Purchase Upsell. Contact the store for access.</p>';
+        return;
+      }
       if (!settings.enabled || !settings.productHandle) return;
       return fetch("/products/" + settings.productHandle + ".js")
         .then(function (r) { return r.json(); })

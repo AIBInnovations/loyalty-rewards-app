@@ -1,5 +1,11 @@
 import mongoose, { type Document, type Model, Schema } from "mongoose";
 
+export interface IStateDeliveryDays {
+  zoneKey: string; // PIN code prefix range key, e.g. "45-49" — see app/pincode-zones.ts
+  minDays: number;
+  maxDays: number;
+}
+
 export interface IPincodeSettings extends Document {
   shopId: string;
   enabled: boolean;
@@ -9,6 +15,11 @@ export interface IPincodeSettings extends Document {
   codPincodes: string[];         // COD available pincodes (empty = all)
   noCodPincodes: string[];       // Pincodes where COD is NOT available
   nonServiceablePincodes: string[]; // Undeliverable pincodes
+  // State-wise (PIN code prefix range) delivery day overrides — takes
+  // priority over defaultMinDays/defaultMaxDays for any zone listed here,
+  // so a merchant can quote a different delivery window per state instead
+  // of one blanket estimate for every deliverable pincode.
+  stateDeliveryDays: IStateDeliveryDays[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -22,6 +33,17 @@ const pincodeSettingsSchema = new Schema<IPincodeSettings>(
     codPincodes:              { type: [String], default: [] },
     noCodPincodes:            { type: [String], default: [] },
     nonServiceablePincodes:   { type: [String], default: [] },
+    stateDeliveryDays: {
+      type: [
+        {
+          _id: false,
+          zoneKey: { type: String, required: true },
+          minDays: { type: Number, required: true },
+          maxDays: { type: Number, required: true },
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true },
 );

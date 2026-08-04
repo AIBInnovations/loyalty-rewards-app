@@ -31,6 +31,10 @@
   fetch(proxyBase + "/image-search/config")
     .then(function (r) { return r.json(); })
     .then(function (cfg) {
+      if (cfg && cfg.accessDenied) {
+        root.innerHTML = '<p class="is-access-denied">Access needed for Image Search. Contact the store for access.</p>';
+        return;
+      }
       if (!cfg || !cfg.enabled) return;
       state.config = cfg;
       renderFAB();

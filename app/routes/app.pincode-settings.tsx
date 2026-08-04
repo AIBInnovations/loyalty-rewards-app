@@ -8,6 +8,7 @@ import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { PincodeSettings, getOrCreatePincodeSettings } from "../.server/models/pincode-settings.model";
+import { PINCODE_ZONES } from "../pincode-zones";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -30,6 +31,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         codPincodes:            String(fd.get("codPincodes") || "").split("\n").map((p) => p.trim()).filter(Boolean),
         noCodPincodes:          String(fd.get("noCodPincodes") || "").split("\n").map((p) => p.trim()).filter(Boolean),
         nonServiceablePincodes: String(fd.get("nonServiceablePincodes") || "").split("\n").map((p) => p.trim()).filter(Boolean),
+        stateDeliveryDays: (() => {
+          let parsed: { zoneKey?: string; minDays: number; maxDays: number }[] = [];
+          try { parsed = JSON.parse(String(fd.get("stateDeliveryDays") || "[]")); } catch { parsed = []; }
+          const validKeys = new Set(PINCODE_ZONES.map((z) => z.key));
+          return parsed.filter(
+            (o) =>
+              o.zoneKey && validKeys.has(o.zoneKey) &&
+              Number.isFinite(o.minDays) && Number.isFinite(o.maxDays) &&
+              o.minDays >= 0 && o.maxDays >= o.minDays,
+          );
+        })(),
       },
     },
     { upsert: true },
@@ -50,6 +62,26 @@ export default function PincodeSettingsPage() {
   const [noCod, setNoCod]       = useState((s.noCodPincodes || []).join("\n"));
   const [noService, setNoService] = useState((s.nonServiceablePincodes || []).join("\n"));
 
+  // One row per fixed PIN-code zone (state group). The zone's pincode
+  // range is fixed by India Post prefixes — merchant only sets the days.
+  const initialZoneDays: Record<string, { min: string; max: string }> = {};
+  for (const o of s.stateDeliveryDays || []) {
+    initialZoneDays[o.zoneKey] = { min: String(o.minDays), max: String(o.maxDays) };
+  }
+  const [zoneDays, setZoneDays] = useState(initialZoneDays);
+
+  const updateZoneDay = useCallback((zoneKey: string, field: "min" | "max", value: string) => {
+    setZoneDays((prev) => ({ ...prev, [zoneKey]: { ...prev[zoneKey], [field]: value } }));
+  }, []);
+
+  const buildStateDeliveryDays = useCallback(
+    (source = zoneDays) =>
+      Object.entries(source)
+        .map(([zoneKey, v]) => ({ zoneKey, minDays: parseInt(v.min, 10), maxDays: parseInt(v.max, 10) }))
+        .filter((o) => Number.isFinite(o.minDays) && Number.isFinite(o.maxDays) && o.minDays >= 0 && o.maxDays >= o.minDays),
+    [zoneDays],
+  );
+
   const save = useCallback(() => {
     const fd = new FormData();
     fd.set("enabled",                String(enabled));
@@ -58,8 +90,9 @@ export default function PincodeSettingsPage() {
     fd.set("codPincodes",            cod);
     fd.set("noCodPincodes",          noCod);
     fd.set("nonServiceablePincodes", noService);
+    fd.set("stateDeliveryDays", JSON.stringify(buildStateDeliveryDays()));
     submit(fd, { method: "POST" });
-  }, [enabled, minDays, maxDays, cod, noCod, noService, submit]);
+  }, [enabled, minDays, maxDays, cod, noCod, noService, buildStateDeliveryDays, submit]);
 
   return (
     <Page title="Pincode Delivery Estimator" backAction={{ url: "/app" }}>
@@ -83,8 +116,8 @@ export default function PincodeSettingsPage() {
               <BlockStack gap="400">
                 <Text variant="headingMd" as="h2">Default Delivery Days</Text>
                 <InlineStack gap="300">
-                  <TextField label="Min Days" type="number" value={minDays} onChange={setMinDays} autoComplete="off" min="1" />
-                  <TextField label="Max Days" type="number" value={maxDays} onChange={setMaxDays} autoComplete="off" min="1" />
+                  <TextField label="Min Days" type="number" value={minDays} onChange={setMinDays} onBlur={save} autoComplete="off" min="1" />
+                  <TextField label="Max Days" type="number" value={maxDays} onChange={setMaxDays} onBlur={save} autoComplete="off" min="1" />
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
                   These apply to all pincodes not in the lists below.
@@ -123,6 +156,48 @@ export default function PincodeSettingsPage() {
                   autoComplete="off"
                   placeholder={"799999\n799998"}
                 />
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="400">
+                <Text variant="headingMd" as="h2">Delivery Days by State</Text>
+                <Text variant="bodySm" as="p" tone="subdued">
+                  Each row is a fixed PIN code range covering the listed states. When a customer
+                  enters a pincode, we match it to its range and show these days. Leave a row
+                  blank to use the default Min/Max Days above for that range.
+                </Text>
+
+                <BlockStack gap="300">
+                  {PINCODE_ZONES.map((zone, i) => (
+                    <BlockStack key={zone.key} gap="150">
+                      {i > 0 && <Divider />}
+                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                        {zone.key} — {zone.label}
+                      </Text>
+                      <InlineStack gap="300" blockAlign="end">
+                        <TextField
+                          label="Min Days"
+                          type="number"
+                          value={zoneDays[zone.key]?.min || ""}
+                          onChange={(v) => updateZoneDay(zone.key, "min", v)}
+                          onBlur={save}
+                          autoComplete="off"
+                          min="0"
+                        />
+                        <TextField
+                          label="Max Days"
+                          type="number"
+                          value={zoneDays[zone.key]?.max || ""}
+                          onChange={(v) => updateZoneDay(zone.key, "max", v)}
+                          onBlur={save}
+                          autoComplete="off"
+                          min="0"
+                        />
+                      </InlineStack>
+                    </BlockStack>
+                  ))}
+                </BlockStack>
               </BlockStack>
             </Card>
 

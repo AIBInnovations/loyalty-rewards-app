@@ -56,12 +56,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           recommendationsTitle: data.recommendationsTitle || "People Also Bought",
           recommendationsCount: Number(data.recommendationsCount) || 4,
           recommendationMode: data.recommendationMode || "auto",
+          recommendationsSlider: data.recommendationsSlider === "true",
           manualProducts,
           showSavings: data.showSavings === "true",
           checkoutButtonText: data.checkoutButtonText || "CHECKOUT",
           prepaidBannerText: data.prepaidBannerText || "",
           showPrepaidBanner: data.showPrepaidBanner === "true",
           shippingBannerText: String(data.shippingBannerText || "").slice(0, 80),
+          announcementTexts: String(data.announcementTexts || "")
+            .split("\n")
+            .map((t) => t.trim())
+            .filter(Boolean)
+            .slice(0, 10),
+          announcementDelay: Math.min(30, Math.max(0, Number(data.announcementDelay) || 0)),
+          announcementTextColor: String(data.announcementTextColor || "").slice(0, 20),
+          announcementBgColor: String(data.announcementBgColor || "").slice(0, 20),
+          progressBannerText: String(data.progressBannerText || "").slice(0, 100),
           paymentMethodsText: String(data.paymentMethodsText || "").slice(0, 120),
           couponEnabled: data.couponEnabled === "true",
           couponCode: String(data.couponCode || "").trim().slice(0, 40),
@@ -76,6 +86,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           upsellHeadline: data.upsellHeadline || "Special Offer Just For You!",
           upsellDiscount: Math.min(70, Math.max(0, Number(data.upsellDiscount) || 10)),
           upsellProduct,
+          fontFamily: String(data.fontFamily || "").slice(0, 120),
+          fontSize: Math.min(24, Math.max(0, Number(data.fontSize) || 0)),
+          progressBarColor: String(data.progressBarColor || "").slice(0, 20),
+          offerLineBg: String(data.offerLineBg || "").slice(0, 20),
+          offerLineTextColor: String(data.offerLineTextColor || "").slice(0, 20),
+          buttonColor: String(data.buttonColor || "").slice(0, 20),
+          buttonHoverColor: String(data.buttonHoverColor || "").slice(0, 20),
+          buttonHoverTextColor: String(data.buttonHoverTextColor || "").slice(0, 20),
+          headerCountSize: Math.min(60, Math.max(0, Number(data.headerCountSize) || 0)),
+          drawerWidth: Math.min(640, Math.max(0, Number(data.drawerWidth) || 0)),
+          pillColor: String(data.pillColor || "").slice(0, 20),
+          pillTextColor: String(data.pillTextColor || "").slice(0, 20),
+          nodeColor: String(data.nodeColor || "").slice(0, 20),
+          nodeTextColor: String(data.nodeTextColor || "").slice(0, 20),
         },
       },
       { upsert: true },
@@ -122,11 +146,15 @@ export default function CartSettingsPage() {
   const [recommendationMode, setRecommendationMode] = useState(
     settings.recommendationMode || "auto",
   );
+  const [recommendationsSlider, setRecommendationsSlider] = useState(
+    settings.recommendationsSlider || false,
+  );
   const [manualProducts, setManualProducts] = useState<IManualProduct[]>(
     settings.manualProducts || [],
   );
   const [newProductUrl, setNewProductUrl] = useState("");
   const [addingProduct, setAddingProduct] = useState(false);
+  const [addProductError, setAddProductError] = useState("");
   const [showSavings, setShowSavings] = useState(settings.showSavings);
   const [checkoutButtonText, setCheckoutButtonText] = useState(
     settings.checkoutButtonText,
@@ -139,6 +167,21 @@ export default function CartSettingsPage() {
   );
   const [shippingBannerText, setShippingBannerText] = useState(
     settings.shippingBannerText || "",
+  );
+  const [announcementTexts, setAnnouncementTexts] = useState(
+    (settings.announcementTexts || []).join("\n"),
+  );
+  const [announcementDelay, setAnnouncementDelay] = useState(
+    String(settings.announcementDelay || ""),
+  );
+  const [announcementTextColor, setAnnouncementTextColor] = useState(
+    settings.announcementTextColor || "",
+  );
+  const [announcementBgColor, setAnnouncementBgColor] = useState(
+    settings.announcementBgColor || "",
+  );
+  const [progressBannerText, setProgressBannerText] = useState(
+    settings.progressBannerText || "",
   );
   const [paymentMethodsText, setPaymentMethodsText] = useState(
     settings.paymentMethodsText || "",
@@ -160,7 +203,23 @@ export default function CartSettingsPage() {
   const [upsellDiscount, setUpsellDiscount] = useState(String(settings.upsellDiscount ?? 10));
   const [upsellProduct, setUpsellProduct] = useState<IManualProduct | null>(settings.upsellProduct || null);
   const [upsellProductUrl, setUpsellProductUrl] = useState("");
+  const [addUpsellProductError, setAddUpsellProductError] = useState("");
   const [addingUpsellProduct, setAddingUpsellProduct] = useState(false);
+
+  const [fontFamily, setFontFamily] = useState(settings.fontFamily || "");
+  const [fontSize, setFontSize] = useState(String(settings.fontSize || ""));
+  const [progressBarColor, setProgressBarColor] = useState(settings.progressBarColor || "");
+  const [offerLineBg, setOfferLineBg] = useState(settings.offerLineBg || "");
+  const [offerLineTextColor, setOfferLineTextColor] = useState(settings.offerLineTextColor || "");
+  const [buttonColor, setButtonColor] = useState(settings.buttonColor || "");
+  const [buttonHoverColor, setButtonHoverColor] = useState(settings.buttonHoverColor || "");
+  const [buttonHoverTextColor, setButtonHoverTextColor] = useState(settings.buttonHoverTextColor || "");
+  const [headerCountSize, setHeaderCountSize] = useState(String(settings.headerCountSize || ""));
+  const [drawerWidth, setDrawerWidth] = useState(String(settings.drawerWidth || ""));
+  const [pillColor, setPillColor] = useState(settings.pillColor || "");
+  const [pillTextColor, setPillTextColor] = useState(settings.pillTextColor || "");
+  const [nodeColor, setNodeColor] = useState(settings.nodeColor || "");
+  const [nodeTextColor, setNodeTextColor] = useState(settings.nodeTextColor || "");
 
   const addTier = useCallback(() => {
     setTiers((prev) => [
@@ -192,12 +251,18 @@ export default function CartSettingsPage() {
     formData.set("recommendationsTitle", recommendationsTitle);
     formData.set("recommendationsCount", recommendationsCount);
     formData.set("recommendationMode", recommendationMode);
+    formData.set("recommendationsSlider", String(recommendationsSlider));
     formData.set("manualProducts", JSON.stringify(manualProducts));
     formData.set("showSavings", String(showSavings));
     formData.set("checkoutButtonText", checkoutButtonText);
     formData.set("prepaidBannerText", prepaidBannerText);
     formData.set("showPrepaidBanner", String(showPrepaidBanner));
     formData.set("shippingBannerText", shippingBannerText);
+    formData.set("announcementTexts", announcementTexts);
+    formData.set("announcementDelay", announcementDelay);
+    formData.set("announcementTextColor", announcementTextColor);
+    formData.set("announcementBgColor", announcementBgColor);
+    formData.set("progressBannerText", progressBannerText);
     formData.set("paymentMethodsText", paymentMethodsText);
     formData.set("couponEnabled", String(couponEnabled));
     formData.set("couponCode", couponCode);
@@ -209,14 +274,32 @@ export default function CartSettingsPage() {
     formData.set("upsellHeadline", upsellHeadline);
     formData.set("upsellDiscount", upsellDiscount);
     formData.set("upsellProduct", upsellProduct ? JSON.stringify(upsellProduct) : "");
+    formData.set("fontFamily", fontFamily);
+    formData.set("fontSize", fontSize);
+    formData.set("progressBarColor", progressBarColor);
+    formData.set("offerLineBg", offerLineBg);
+    formData.set("offerLineTextColor", offerLineTextColor);
+    formData.set("buttonColor", buttonColor);
+    formData.set("buttonHoverColor", buttonHoverColor);
+    formData.set("buttonHoverTextColor", buttonHoverTextColor);
+    formData.set("headerCountSize", headerCountSize);
+    formData.set("drawerWidth", drawerWidth);
+    formData.set("pillColor", pillColor);
+    formData.set("pillTextColor", pillTextColor);
+    formData.set("nodeColor", nodeColor);
+    formData.set("nodeTextColor", nodeTextColor);
     submit(formData, { method: "post" });
   }, [
     enabled, interceptAddToCart, showRecommendations, recommendationsTitle,
-    recommendationsCount, recommendationMode, manualProducts, showSavings,
+    recommendationsCount, recommendationMode, recommendationsSlider, manualProducts, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor,
     tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct,
-    shippingBannerText, paymentMethodsText, couponEnabled, couponCode,
-    couponDescription, couponOffersUrl, submit,
+    shippingBannerText, announcementTexts, announcementDelay, announcementTextColor, announcementBgColor,
+    progressBannerText, paymentMethodsText, couponEnabled, couponCode,
+    couponDescription, couponOffersUrl,
+    fontFamily, fontSize, progressBarColor, offerLineBg, offerLineTextColor,
+    buttonColor, buttonHoverColor, buttonHoverTextColor, headerCountSize, drawerWidth,
+    pillColor, pillTextColor, nodeColor, nodeTextColor, submit,
   ]);
 
   const removeManualProduct = useCallback((index: number) => {
@@ -226,6 +309,7 @@ export default function CartSettingsPage() {
   const handleAddProduct = useCallback(async () => {
     if (!newProductUrl.trim()) return;
     setAddingProduct(true);
+    setAddProductError("");
 
     try {
       // Extract handle from URL: /products/handle or full URL
@@ -239,11 +323,15 @@ export default function CartSettingsPage() {
       const res = await fetch(
         `/api/product-lookup?handle=${encodeURIComponent(handle)}`,
       );
-      if (!res.ok) throw new Error("Product not found");
-      const product = await res.json();
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body || body.error) {
+        throw new Error(body?.error || `Product lookup failed (${res.status})`);
+      }
+      const product = body;
 
       // Check if already added
       if (manualProducts.some((p) => p.shopifyProductId === product.id)) {
+        setAddProductError("That product is already in the list.");
         setAddingProduct(false);
         return;
       }
@@ -262,7 +350,9 @@ export default function CartSettingsPage() {
       ]);
       setNewProductUrl("");
     } catch (err) {
-      alert("Could not find product. Please enter a valid product handle or URL.");
+      setAddProductError(
+        err instanceof Error ? err.message : "Could not find that product. Check the handle or URL and try again.",
+      );
     }
     setAddingProduct(false);
   }, [newProductUrl, manualProducts]);
@@ -270,14 +360,18 @@ export default function CartSettingsPage() {
   const handleAddUpsellProduct = useCallback(async () => {
     if (!upsellProductUrl.trim()) return;
     setAddingUpsellProduct(true);
+    setAddUpsellProductError("");
     try {
       let handle = upsellProductUrl.trim();
       const match = handle.match(/\/products\/([a-zA-Z0-9\-_]+)/);
       if (match) handle = match[1];
       handle = handle.split("?")[0].split("#")[0];
       const res = await fetch(`/api/product-lookup?handle=${encodeURIComponent(handle)}`);
-      if (!res.ok) throw new Error("Product not found");
-      const product = await res.json();
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body || body.error) {
+        throw new Error(body?.error || `Product lookup failed (${res.status})`);
+      }
+      const product = body;
       setUpsellProduct({
         shopifyProductId: product.id,
         title: product.title,
@@ -288,8 +382,10 @@ export default function CartSettingsPage() {
         variantId: product.variantId,
       });
       setUpsellProductUrl("");
-    } catch {
-      alert("Could not find product. Please enter a valid product handle or URL.");
+    } catch (err) {
+      setAddUpsellProductError(
+        err instanceof Error ? err.message : "Could not find that product. Check the handle or URL and try again.",
+      );
     }
     setAddingUpsellProduct(false);
   }, [upsellProductUrl]);
@@ -333,6 +429,14 @@ export default function CartSettingsPage() {
           >
             <Card>
               <BlockStack gap="400">
+                <TextField
+                  label="Banner Text (optional)"
+                  value={progressBannerText}
+                  onChange={setProgressBannerText}
+                  helpText="Shown as a colored strip above the progress message, e.g. a disclaimer. Hidden when empty."
+                  autoComplete="off"
+                  maxLength={100}
+                />
                 {tiers.map((tier, index) => (
                   <div key={index}>
                     {index > 0 && <Divider />}
@@ -443,6 +547,12 @@ export default function CartSettingsPage() {
                       onChange={setRecommendationsTitle}
                       autoComplete="off"
                     />
+                    <Checkbox
+                      label="Show as horizontal slider"
+                      helpText="Products scroll side-to-side in one row instead of wrapping in a grid."
+                      checked={recommendationsSlider}
+                      onChange={setRecommendationsSlider}
+                    />
                     <Select
                       label="Recommendation Mode"
                       options={[
@@ -529,12 +639,17 @@ export default function CartSettingsPage() {
                           "my-product" or
                           "https://your-store.myshopify.com/products/my-product"
                         </Text>
+                        {addProductError && (
+                          <Banner tone="critical" onDismiss={() => setAddProductError("")}>
+                            {addProductError}
+                          </Banner>
+                        )}
                         <InlineStack gap="200" blockAlign="end">
                           <div style={{ flex: 1 }}>
                             <TextField
                               label="Product Handle or URL"
                               value={newProductUrl}
-                              onChange={setNewProductUrl}
+                              onChange={(v) => { setNewProductUrl(v); setAddProductError(""); }}
                               placeholder="e.g., my-awesome-product"
                               autoComplete="off"
                               labelHidden
@@ -556,23 +671,23 @@ export default function CartSettingsPage() {
           </Layout.AnnotatedSection>
 
           <Layout.AnnotatedSection
-            title="In-Cart Upsell"
+            title="Steal Deals"
             description="Show a single featured product with a special discount inside the cart drawer to boost AOV. Different from recommendations — this is a highlighted deal card."
           >
             <Card>
               <BlockStack gap="400">
                 <Checkbox
-                  label="Show upsell in cart drawer"
+                  label="Show Steal Deals section in cart drawer"
                   checked={showUpsell}
                   onChange={setShowUpsell}
                 />
                 {showUpsell && (
                   <>
                     <TextField
-                      label="Upsell Headline"
+                      label="Steal Deals Headline"
                       value={upsellHeadline}
                       onChange={setUpsellHeadline}
-                      placeholder="Special Offer Just For You!"
+                      placeholder="Steal Deals"
                       autoComplete="off"
                     />
                     <TextField
@@ -623,12 +738,17 @@ export default function CartSettingsPage() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       Enter a product handle or URL to set the upsell product.
                     </Text>
+                    {addUpsellProductError && (
+                      <Banner tone="critical" onDismiss={() => setAddUpsellProductError("")}>
+                        {addUpsellProductError}
+                      </Banner>
+                    )}
                     <InlineStack gap="200" blockAlign="end">
                       <div style={{ flex: 1 }}>
                         <TextField
                           label="Product Handle or URL"
                           value={upsellProductUrl}
-                          onChange={setUpsellProductUrl}
+                          onChange={(v) => { setUpsellProductUrl(v); setAddUpsellProductError(""); }}
                           placeholder="e.g., my-awesome-product"
                           autoComplete="off"
                           labelHidden
@@ -665,15 +785,44 @@ export default function CartSettingsPage() {
                   maxLength={120}
                   autoComplete="off"
                 />
+                <Divider />
+                <Text as="h3" variant="headingSm">Announcement Bar</Text>
                 <TextField
-                  label="Shipping banner"
-                  helpText="Green banner under the cart header. Leave blank to hide."
-                  placeholder="Free shipping on all orders"
-                  value={shippingBannerText}
-                  onChange={setShippingBannerText}
-                  maxLength={80}
+                  label="Messages"
+                  helpText="One per line. With more than one, they slide/rotate automatically. Leave blank to hide the bar entirely."
+                  placeholder={"Free shipping on all orders\n10% off your first order\nCOD available"}
+                  value={announcementTexts}
+                  onChange={setAnnouncementTexts}
+                  multiline={3}
                   autoComplete="off"
                 />
+                <InlineGrid columns={3} gap="300">
+                  <TextField
+                    label="Slide delay (seconds)"
+                    type="number"
+                    value={announcementDelay}
+                    onChange={setAnnouncementDelay}
+                    placeholder="4"
+                    min={1}
+                    max={30}
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Text color"
+                    value={announcementTextColor}
+                    onChange={setAnnouncementTextColor}
+                    placeholder="#3f6b4a"
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Background color"
+                    value={announcementBgColor}
+                    onChange={setAnnouncementBgColor}
+                    placeholder="#e9f0e6"
+                    autoComplete="off"
+                  />
+                </InlineGrid>
+                <Divider />
                 <Checkbox
                   label="Show savings amount"
                   helpText="Displays how much the customer is saving (compare_at_price vs price)"
@@ -747,6 +896,152 @@ export default function CartSettingsPage() {
                   helpText="Hex color code for progress bar and buttons"
                   autoComplete="off"
                 />
+              </BlockStack>
+            </Card>
+          </Layout.AnnotatedSection>
+
+          <Layout.AnnotatedSection
+            title="Appearance"
+            description="Fonts and colors for the cart drawer — progress bar, offer banner, and checkout button. Leave a color blank to use the default."
+          >
+            <Card>
+              <BlockStack gap="400">
+                <InlineGrid columns={2} gap="300">
+                  <TextField
+                    label="Font family"
+                    value={fontFamily}
+                    onChange={setFontFamily}
+                    placeholder="Karla, sans-serif"
+                    helpText="Enter a Google Fonts name (e.g. 'Poppins') as the first name — it's loaded automatically. Leave blank for the default."
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Font size (px)"
+                    type="number"
+                    value={fontSize}
+                    onChange={setFontSize}
+                    placeholder="14"
+                    min={0}
+                    max={24}
+                    helpText="Base size for cart text. Leave blank for the default (14px)."
+                    autoComplete="off"
+                  />
+                </InlineGrid>
+                <InlineGrid columns={2} gap="300">
+                  <TextField
+                    label="Header count badge size (px)"
+                    type="number"
+                    value={headerCountSize}
+                    onChange={setHeaderCountSize}
+                    placeholder="20"
+                    min={0}
+                    max={60}
+                    helpText="Diameter of the item-count circle next to “Your Cart”. Leave blank for the default (20px)."
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Drawer width (px)"
+                    type="number"
+                    value={drawerWidth}
+                    onChange={setDrawerWidth}
+                    placeholder="420"
+                    min={0}
+                    max={640}
+                    helpText="Panel width on desktop/tablet. Leave blank for the default (420px)."
+                    autoComplete="off"
+                  />
+                </InlineGrid>
+                <Divider />
+                <Text as="h3" variant="headingSm">Progress bar</Text>
+                <TextField
+                  label="Progress bar accent color"
+                  value={progressBarColor}
+                  onChange={setProgressBarColor}
+                  placeholder="#b3543f"
+                  helpText="Color of the filled line, the current-position dot, and the highlighted word in the message (e.g. '1 item' away)."
+                  autoComplete="off"
+                />
+                <InlineGrid columns={2} gap="300">
+                  <TextField
+                    label="Card background color"
+                    value={offerLineBg}
+                    onChange={setOfferLineBg}
+                    placeholder="#fdfbf7"
+                    helpText="Background of the whole progress-bar card, including the heading text."
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Heading text color"
+                    value={offerLineTextColor}
+                    onChange={setOfferLineTextColor}
+                    placeholder="#1c1a17"
+                    autoComplete="off"
+                  />
+                </InlineGrid>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  The milestone pill colors below don't apply to this layout — the
+                  progress bar now shows plain dots instead of pill badges. The
+                  milestone node colors (the dots) are still active.
+                </Text>
+                <InlineGrid columns={2} gap="300">
+                  <TextField
+                    label="Milestone pill background"
+                    value={pillColor}
+                    onChange={setPillColor}
+                    placeholder="#ffffff"
+                    helpText="Background of a reached tier's pill badge (e.g. 'FLAT 10% OFF')."
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Milestone pill text color"
+                    value={pillTextColor}
+                    onChange={setPillTextColor}
+                    placeholder="#454f2f"
+                    autoComplete="off"
+                  />
+                </InlineGrid>
+                <InlineGrid columns={2} gap="300">
+                  <TextField
+                    label="Milestone node background"
+                    value={nodeColor}
+                    onChange={setNodeColor}
+                    placeholder="#ffffff"
+                    helpText="Background of a reached tier's checkmark circle."
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Milestone node text color"
+                    value={nodeTextColor}
+                    onChange={setNodeTextColor}
+                    placeholder="#454f2f"
+                    autoComplete="off"
+                  />
+                </InlineGrid>
+                <Divider />
+                <Text as="h3" variant="headingSm">Checkout button</Text>
+                <InlineGrid columns={3} gap="300">
+                  <TextField
+                    label="Button color"
+                    value={buttonColor}
+                    onChange={setButtonColor}
+                    placeholder="#1c1a17"
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Hover color"
+                    value={buttonHoverColor}
+                    onChange={setButtonHoverColor}
+                    placeholder="#000000"
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Hover text color"
+                    value={buttonHoverTextColor}
+                    onChange={setButtonHoverTextColor}
+                    placeholder="#ffffff"
+                    autoComplete="off"
+                  />
+                </InlineGrid>
               </BlockStack>
             </Card>
           </Layout.AnnotatedSection>

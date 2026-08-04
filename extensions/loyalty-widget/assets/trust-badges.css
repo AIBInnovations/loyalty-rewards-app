@@ -66,6 +66,15 @@
   line-height: 1.2;
 }
 
+.tb-access-denied {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdf1f0;
+  color: #c0392b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 @media (max-width: 480px) {
   .tb-layout-grid {
     grid-template-columns: 1fr 1fr;
