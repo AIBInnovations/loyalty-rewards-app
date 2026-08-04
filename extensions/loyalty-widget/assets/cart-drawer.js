@@ -25,6 +25,7 @@
     // default is true, but a per-shop settings_data.json missing this key
     // renders an empty string here. Only an explicit "false" disables it.
     interceptAtc: container.dataset.interceptAtc !== "false",
+    shiprocketCheckout: container.dataset.shiprocketCheckout === "true",
     shopDomain: container.dataset.shopDomain || "",
     currency: container.dataset.currency || "INR",
     moneyFormat: container.dataset.moneyFormat || "₹{{amount}}",
@@ -571,6 +572,8 @@
       ? '<div class="cd-sticky-top">' + shippingBannerHtml + (hasProgress ? renderProgressBar(cart) : "") + '</div>'
       : "";
 
+    reclaimShiprocketCheckout();
+
     drawer.innerHTML =
       renderHeader(itemCount) +
       '<div class="cd-body">' +
@@ -587,6 +590,7 @@
       (itemCount > 0 ? renderPriceSummary(cart) : "");
 
     attachEvents();
+    mountShiprocketCheckout();
     revealNewMilestones();
   }
 
@@ -1183,11 +1187,13 @@
         '<span class="cd-footer-price-current">' + formatMoney(totalPrice) + '</span>' +
         (hasSavings ? '<span class="cd-footer-price-compare">' + formatMoney(originalTotal) + '</span>' : '') +
       '</div>' +
-      '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
-        '<span>' + esc(checkoutText) + '</span>' +
-        renderPayBadges(payMethods) +
-        '<span class="cd-checkout-arrow" aria-hidden="true">&rarr;</span>' +
-      '</button>' +
+      (config.shiprocketCheckout
+        ? '<div class="cd-checkout-btn-slot" id="cd-checkout-slot-footer"></div>'
+        : '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
+            '<span>' + esc(checkoutText) + '</span>' +
+            renderPayBadges(payMethods) +
+            '<span class="cd-checkout-arrow" aria-hidden="true">&rarr;</span>' +
+          '</button>') +
     '</div>';
 
     html += '<button type="button" class="cd-summary-details" data-action="open-summary">See Details</button>';
@@ -1231,13 +1237,21 @@
       (hasSavings
         ? '<div class="cd-price-summary-banner">You saved ' + formatMoney(savings) + ' on your order</div>'
         : '') +
-      '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
-        '<span>' + esc(checkoutText) + '</span>' +
-        renderPayBadges(payMethods) +
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-          '<polyline points="9 6 15 12 9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
-        '</svg>' +
-      '</button>' +
+      (config.shiprocketCheckout
+        ? '<button type="button" class="cd-checkout-btn" data-action="shiprocket-checkout-proxy">' +
+            '<span>' + esc(checkoutText) + '</span>' +
+            renderPayBadges(payMethods) +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+              '<polyline points="9 6 15 12 9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '</svg>' +
+          '</button>'
+        : '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
+            '<span>' + esc(checkoutText) + '</span>' +
+            renderPayBadges(payMethods) +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+              '<polyline points="9 6 15 12 9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '</svg>' +
+          '</button>') +
     '</div>';
   }
 
@@ -1343,6 +1357,47 @@
         window.location.href = url;
       });
     });
+
+    // Price-summary checkout button in ShipRocket mode isn't the real
+    // ShipRocket element (that's mounted once, in the footer slot) — it
+    // just forwards the click to it.
+    drawer.querySelectorAll('[data-action="shiprocket-checkout-proxy"]').forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var slot = document.getElementById("cd-checkout-slot-footer");
+        var real = slot && slot.firstElementChild;
+        if (real) {
+          real.click();
+        } else {
+          // ShipRocket's snippet never mounted anything (not installed on
+          // this theme) — fall back to native checkout rather than a dead
+          // button.
+          window.location.href = "/checkout";
+        }
+      });
+    });
+  }
+
+  // ─── ShipRocket checkout mount ─────────────────────────────────
+  // ShipRocket's checkout button is a real, page-level DOM node rendered
+  // once by Liquid at load (its own script attaches listeners directly to
+  // it) — every render() call below wipes drawer.innerHTML, which would
+  // destroy that node and its listeners if it were left inside the drawer.
+  // So it's moved in after each rebuild, and moved back to its hidden home
+  // before the next one, instead of being cloned.
+  function reclaimShiprocketCheckout() {
+    if (!config.shiprocketCheckout || !drawer) return;
+    var source = document.getElementById("cd-shiprocket-checkout");
+    var slot = drawer.querySelector("#cd-checkout-slot-footer");
+    if (!source || !slot) return;
+    while (slot.firstChild) source.appendChild(slot.firstChild);
+  }
+
+  function mountShiprocketCheckout() {
+    if (!config.shiprocketCheckout) return;
+    var source = document.getElementById("cd-shiprocket-checkout");
+    var slot = drawer.querySelector("#cd-checkout-slot-footer");
+    if (!source || !slot) return;
+    while (source.firstChild) slot.appendChild(source.firstChild);
   }
 
   // ─── Intercept Add-to-Cart ────────────────────────────────────
