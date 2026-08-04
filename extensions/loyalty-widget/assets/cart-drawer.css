@@ -1061,17 +1061,6 @@
   font-size: 0.786em; /* 11px at the 14px base */
 }
 
-/* Placeholder for the ShipRocket checkout node (moved in via JS, not
-   rendered as HTML here) — reserves the same footprint as the button above
-   so nothing jumps once it mounts. */
-.cd-checkout-btn-slot {
-  display: inline-flex;
-  align-items: center;
-  min-width: 245px;
-  min-height: 35px;
-  margin-top: 6px;
-}
-
 .cd-summary-details {
   display: block;
   border: none;

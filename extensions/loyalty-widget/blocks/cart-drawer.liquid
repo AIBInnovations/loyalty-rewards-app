@@ -20,23 +20,8 @@
   data-recommendations-title="{{ block.settings.recommendations_title | escape }}"
   data-show-progress="{{ block.settings.show_progress_bar }}"
   data-intercept-atc="{{ block.settings.intercept_add_to_cart }}"
-  data-shiprocket-checkout="{{ block.settings.use_shiprocket_checkout }}"
   style="display: none;"
 ></div>
-
-{% comment %}
-  ShipRocket's checkout button/logic is a theme snippet (installed separately
-  by ShipRocket's own setup, not by this app) — Liquid `render` runs
-  server-side at page load, so it has to be emitted here rather than from
-  cart-drawer.js. Only rendered when the merchant opts in below, since
-  `render`ing a snippet that doesn't exist in the theme throws a Liquid
-  error visible on the storefront.
-{% endcomment %}
-{% if block.settings.use_shiprocket_checkout %}
-  <div id="cd-shiprocket-checkout" style="display: none;">
-    {% render 'sr-checkout' %}
-  </div>
-{% endif %}
 
 {{ 'cart-drawer.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'cart-drawer.js' | asset_url }}" defer></script>
@@ -75,13 +60,6 @@
       "id": "intercept_add_to_cart",
       "label": "Open drawer on Add to Cart",
       "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "use_shiprocket_checkout",
-      "label": "Use ShipRocket checkout button",
-      "default": false,
-      "info": "Only enable if ShipRocket Checkout is already set up on this theme (it installs a 'sr-checkout' snippet). Replaces this drawer's own Checkout button with ShipRocket's. Enabling this without ShipRocket installed will show a theme error."
     }
   ]
 }
