@@ -198,6 +198,32 @@
     }
   }
 
+  // ─── Payment gateway checkout script ───────────────────────────
+  // Merchant-pasted <script src>/<link href> tags (e.g. ShipRocket's Fastrr
+  // Boost) from the app's own settings page. Unlike the earlier attempt at
+  // this, these are plain external resource tags — no Liquid `render`
+  // involved, so no extension-sandbox issue. innerHTML won't execute
+  // <script> tags, so each one is rebuilt via createElement.
+  var checkoutScriptsInjected = false;
+  function injectCheckoutScripts(raw) {
+    if (checkoutScriptsInjected || !raw) return;
+    checkoutScriptsInjected = true;
+    var temp = document.createElement("div");
+    temp.innerHTML = raw;
+    temp.querySelectorAll("script[src]").forEach(function (node) {
+      var el = document.createElement("script");
+      el.src = node.getAttribute("src");
+      el.defer = true;
+      document.head.appendChild(el);
+    });
+    temp.querySelectorAll("link[href]").forEach(function (node) {
+      var el = document.createElement("link");
+      el.rel = "stylesheet";
+      el.href = node.getAttribute("href");
+      document.head.appendChild(el);
+    });
+  }
+
   // ─── Fetch Settings from App Proxy ────────────────────────────
   function fetchSettings() {
     fetch("/apps/loyalty/cart-settings?t=" + Date.now())
@@ -217,6 +243,7 @@
         });
         state.settingsLoaded = true;
         if (data.primaryColor) document.documentElement.style.setProperty("--cd-primary", data.primaryColor);
+        injectCheckoutScripts(data.checkoutScriptTags);
         applyAppearance();
         startAnnouncementRotation();
         if (state.isOpen) render();

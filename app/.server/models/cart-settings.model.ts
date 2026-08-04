@@ -55,6 +55,10 @@ export interface ICartDrawerSettings extends Document {
   progressBannerText: string;
   /** Small print under the checkout button, e.g. accepted payment methods. */
   paymentMethodsText: string;
+  /** Raw <script>/<link> tags for a payment/checkout SDK (e.g. ShipRocket's
+      Fastrr Boost). Only script and link tags are extracted and injected —
+      anything else in the pasted snippet is ignored. */
+  checkoutScriptTags: string;
   /** Dashed coupon card. Hidden unless enabled AND a code is set. */
   couponEnabled: boolean;
   couponCode: string;
@@ -174,6 +178,7 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     announcementBgColor: { type: String, default: "" },
     progressBannerText: { type: String, default: "", maxlength: 100 },
     paymentMethodsText: { type: String, default: "", maxlength: 120 },
+    checkoutScriptTags: { type: String, default: "", maxlength: 4000 },
     couponEnabled: { type: Boolean, default: false },
     couponCode: { type: String, default: "", maxlength: 40 },
     couponDescription: { type: String, default: "", maxlength: 80 },
