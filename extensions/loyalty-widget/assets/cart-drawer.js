@@ -559,7 +559,8 @@
     var itemCount = cart ? cart.item_count : 0;
 
     // Nothing to show progress toward, or suggest alongside, an empty cart.
-    var hasProgress = itemCount > 0 && config.showProgress && state.tiers.length > 0;
+    var backendShowProgress = !state.settings || state.settings.showProgressBar !== false;
+    var hasProgress = itemCount > 0 && config.showProgress && backendShowProgress && state.tiers.length > 0;
     var hasUpsell = shouldShowUpsell();
     var hasRecs = itemCount > 0 && config.showRecommendations && state.recommendations.length > 0;
 

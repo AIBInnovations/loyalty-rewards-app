@@ -52,6 +52,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       {
         $set: {
           enabled: data.enabled === "true",
+          showProgressBar: data.showProgressBar === "true",
           tiers,
           showRecommendations: data.showRecommendations === "true",
           recommendationsTitle: data.recommendationsTitle || "People Also Bought",
@@ -197,6 +198,9 @@ export default function CartSettingsPage() {
     settings.couponOffersUrl || "",
   );
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
+  const [showProgressBar, setShowProgressBar] = useState(
+    settings.showProgressBar ?? true,
+  );
   const [tiers, setTiers] = useState<ICartTier[]>(settings.tiers || []);
   const [showUpsell, setShowUpsell] = useState(settings.showUpsell || false);
   const [upsellHeadline, setUpsellHeadline] = useState(settings.upsellHeadline || "Special Offer Just For You!");
@@ -269,6 +273,7 @@ export default function CartSettingsPage() {
     formData.set("couponDescription", couponDescription);
     formData.set("couponOffersUrl", couponOffersUrl);
     formData.set("primaryColor", primaryColor);
+    formData.set("showProgressBar", String(showProgressBar));
     formData.set("tiers", JSON.stringify(tiers));
     formData.set("showUpsell", String(showUpsell));
     formData.set("upsellHeadline", upsellHeadline);
@@ -292,7 +297,7 @@ export default function CartSettingsPage() {
   }, [
     enabled, interceptAddToCart, showRecommendations, recommendationsTitle,
     recommendationsCount, recommendationMode, recommendationsSlider, manualProducts, showSavings,
-    checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor,
+    checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor, showProgressBar,
     tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct,
     shippingBannerText, announcementTexts, announcementDelay, announcementTextColor, announcementBgColor,
     progressBannerText, paymentMethodsText, couponEnabled, couponCode,
@@ -421,6 +426,12 @@ export default function CartSettingsPage() {
           >
             <Card>
               <BlockStack gap="400">
+                <Checkbox
+                  label="Show progress bar"
+                  helpText="Turn off to hide the tiered progress bar/card entirely, even with tiers configured below."
+                  checked={showProgressBar}
+                  onChange={setShowProgressBar}
+                />
                 <TextField
                   label="Banner Text (optional)"
                   value={progressBannerText}
@@ -428,8 +439,14 @@ export default function CartSettingsPage() {
                   helpText="Shown as a colored strip above the progress message, e.g. a disclaimer. Hidden when empty."
                   autoComplete="off"
                   maxLength={100}
+                  disabled={!showProgressBar}
                 />
-                {tiers.map((tier, index) => (
+                {!showProgressBar && (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Progress bar is hidden on the storefront. Turn it on above to manage tiers.
+                  </Text>
+                )}
+                {showProgressBar && tiers.map((tier, index) => (
                   <div key={index}>
                     {index > 0 && <Divider />}
                     <BlockStack gap="300">
@@ -515,7 +532,7 @@ export default function CartSettingsPage() {
                     </BlockStack>
                   </div>
                 ))}
-                <Button onClick={addTier}>+ Add Tier</Button>
+                {showProgressBar && <Button onClick={addTier}>+ Add Tier</Button>}
               </BlockStack>
             </Card>
           </Layout.AnnotatedSection>
