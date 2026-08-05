@@ -1064,6 +1064,14 @@
   font-size: 0.786em; /* 11px at the 14px base */
 }
 
+/* The two-row ShipRocket variant needs its own height — the fixed 35px
+   above is sized for a single line of text. */
+.cd-footer .cd-checkout-btn--sr {
+  height: auto;
+  min-height: 44px;
+  padding: 6px 20px 5px;
+}
+
 .cd-summary-details {
   display: block;
   border: none;
@@ -1193,6 +1201,41 @@
 }
 
 .cd-checkout-arrow { font-weight: 400; }
+
+/* Two-row layout when ShipRocket's script is active: payment icons next
+   to the button label, "Powered by ShipRocket" underneath — matches how
+   ShipRocket renders its own Buy Now button. */
+.cd-checkout-btn--sr {
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 8px;
+  padding-bottom: 6px;
+}
+
+.cd-sr-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.cd-sr-icons {
+  height: 18px;
+  width: auto;
+}
+
+.cd-sr-powered-by {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cd-sr-powered-by img {
+  height: 13px;
+  width: auto;
+  opacity: 0.9;
+}
 
 .cd-checkout-btn:hover {
   background: var(--cd-btn-hover-bg);

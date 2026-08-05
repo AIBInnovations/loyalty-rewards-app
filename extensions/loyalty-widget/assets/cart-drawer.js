@@ -1148,17 +1148,17 @@
     return typeof window.shiprocketCheckoutBuyCartHandler === "function";
   }
 
-  function renderShiprocketBadges() {
+  function renderShiprocketIcons() {
     if (!hasShiprocketCheckout()) return "";
-    return (
-      '<span class="cd-sr-badges">' +
-        '<img src="https://fastrr-boost-ui.pickrr.com/assets/images/boost_button/upi_options.svg" ' +
-          'alt="Google Pay | Phone Pay | UPI" class="sr-pl-15 sr-checkout-visible sr-payment-icons">' +
-        '<span class="sr-powered-by">' +
-          '<img src="https://fastrr-boost-ui.pickrr.com/assets/images/boost_button/powered_by.svg" alt="">' +
-        '</span>' +
-      '</span>'
-    );
+    return '<img src="https://fastrr-boost-ui.pickrr.com/assets/images/boost_button/upi_options.svg" ' +
+      'alt="Google Pay | Phone Pay | UPI" class="sr-pl-15 sr-checkout-visible sr-payment-icons cd-sr-icons">';
+  }
+
+  function renderShiprocketPoweredBy() {
+    if (!hasShiprocketCheckout()) return "";
+    return '<span class="sr-powered-by cd-sr-powered-by">' +
+      '<img src="https://fastrr-boost-ui.pickrr.com/assets/images/boost_button/powered_by.svg" alt="Powered by ShipRocket">' +
+    '</span>';
   }
 
   // ─── Render Footer ────────────────────────────────────────────
@@ -1204,12 +1204,20 @@
         '<span class="cd-footer-price-current">' + formatMoney(totalPrice) + '</span>' +
         (hasSavings ? '<span class="cd-footer-price-compare">' + formatMoney(originalTotal) + '</span>' : '') +
       '</div>' +
-      '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
-        '<span>' + esc(checkoutText) + '</span>' +
-        renderShiprocketBadges() +
-        renderPayBadges(payMethods) +
-        '<span class="cd-checkout-arrow" aria-hidden="true">&rarr;</span>' +
-      '</button>' +
+      (hasShiprocketCheckout()
+        ? '<button type="button" class="cd-checkout-btn cd-checkout-btn--sr" data-action="checkout">' +
+            '<span class="cd-sr-row-main">' +
+              '<span>' + esc(checkoutText) + '</span>' +
+              renderShiprocketIcons() +
+              '<span class="cd-checkout-arrow" aria-hidden="true">&rarr;</span>' +
+            '</span>' +
+            renderShiprocketPoweredBy() +
+          '</button>'
+        : '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
+            '<span>' + esc(checkoutText) + '</span>' +
+            renderPayBadges(payMethods) +
+            '<span class="cd-checkout-arrow" aria-hidden="true">&rarr;</span>' +
+          '</button>') +
     '</div>';
 
     html += '<button type="button" class="cd-summary-details" data-action="open-summary">See Details</button>';
@@ -1253,14 +1261,24 @@
       (hasSavings
         ? '<div class="cd-price-summary-banner">You saved ' + formatMoney(savings) + ' on your order</div>'
         : '') +
-      '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
-        '<span>' + esc(checkoutText) + '</span>' +
-        renderShiprocketBadges() +
-        renderPayBadges(payMethods) +
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-          '<polyline points="9 6 15 12 9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
-        '</svg>' +
-      '</button>' +
+      (hasShiprocketCheckout()
+        ? '<button type="button" class="cd-checkout-btn cd-checkout-btn--sr" data-action="checkout">' +
+            '<span class="cd-sr-row-main">' +
+              '<span>' + esc(checkoutText) + '</span>' +
+              renderShiprocketIcons() +
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                '<polyline points="9 6 15 12 9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+              '</svg>' +
+            '</span>' +
+            renderShiprocketPoweredBy() +
+          '</button>'
+        : '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
+            '<span>' + esc(checkoutText) + '</span>' +
+            renderPayBadges(payMethods) +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+              '<polyline points="9 6 15 12 9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '</svg>' +
+          '</button>') +
     '</div>';
   }
 
