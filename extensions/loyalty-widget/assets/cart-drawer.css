@@ -221,11 +221,14 @@
   background: var(--cd-cream);
 }
 
-/* Flat, borderless strip — no card chrome, just the plain page color. */
+/* Flat, borderless strip — no card chrome, just the plain page color.
+   background was hardcoded to the default cream (#fdfbf7) instead of
+   reading --cd-offer-bg, so the "Card background color" setting had no
+   effect on the actual card. */
 .cd-progress-section {
   position: relative;
   margin: 6px 16px 8px;
-  background: #fdfbf7;
+  background: var(--cd-offer-bg);
   overflow: hidden;
 }
 
