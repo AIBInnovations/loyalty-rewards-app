@@ -1068,8 +1068,8 @@
    above is sized for a single line of text. */
 .cd-footer .cd-checkout-btn--sr {
   height: auto;
-  min-height: 44px;
-  padding: 6px 20px 5px;
+  min-height: 40px;
+  padding: 5px 18px 4px;
 }
 
 .cd-summary-details {
@@ -1207,21 +1207,22 @@
    ShipRocket renders its own Buy Now button. */
 .cd-checkout-btn--sr {
   flex-direction: column;
-  gap: 2px;
-  padding-top: 8px;
-  padding-bottom: 6px;
+  gap: 1px;
+  padding-top: 7px;
+  padding-bottom: 4px;
+  text-transform: uppercase;
 }
 
 .cd-sr-row-main {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
 }
 
 .cd-sr-icons {
-  height: 18px;
+  height: 15px;
   width: auto;
 }
 
@@ -1239,7 +1240,7 @@
 .cd-sr-powered-by img {
   position: static !important;
   inset: auto !important;
-  height: 13px;
+  height: 11px;
   width: auto;
   opacity: 0.9;
 }
