@@ -968,9 +968,10 @@ export default function CartSettingsPage() {
                   />
                 </InlineGrid>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  The milestone pill colors below don't apply to this layout — the
-                  progress bar now shows plain dots instead of pill badges. The
-                  milestone node colors (the dots) are still active.
+                  The milestone pill and node colors below don't apply to this
+                  layout — the progress bar now shows plain dots instead of
+                  pill badges, and a reached dot always matches the progress
+                  bar accent color above rather than a separate color.
                 </Text>
                 <InlineGrid columns={2} gap="300">
                   <TextField
