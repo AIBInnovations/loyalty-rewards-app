@@ -1156,7 +1156,11 @@
 
   function renderShiprocketPoweredBy() {
     if (!hasShiprocketCheckout()) return "";
-    return '<span class="sr-powered-by cd-sr-powered-by">' +
+    // Deliberately not reusing ShipRocket's own "sr-powered-by" class here —
+    // their sr-checkout.css positions it for their own button's markup
+    // (absolute-positioned, landing outside ours), so only our own class
+    // controls layout.
+    return '<span class="cd-sr-powered-by">' +
       '<img src="https://fastrr-boost-ui.pickrr.com/assets/images/boost_button/powered_by.svg" alt="Powered by ShipRocket">' +
     '</span>';
   }

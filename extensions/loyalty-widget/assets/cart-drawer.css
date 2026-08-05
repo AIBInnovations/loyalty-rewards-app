@@ -1226,12 +1226,19 @@
 }
 
 .cd-sr-powered-by {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
 }
 
+/* Explicit position/inset override — defensive in case ShipRocket's own
+   sr-checkout.css reaches this image by tag/attribute rather than by the
+   "sr-powered-by" class we deliberately avoided reusing above. */
 .cd-sr-powered-by img {
+  position: static !important;
+  inset: auto !important;
   height: 13px;
   width: auto;
   opacity: 0.9;
