@@ -1140,6 +1140,27 @@
     return html;
   }
 
+  // ShipRocket's own UPI-options and "Powered by" badges — only shown when
+  // their script is actually active on the page (same detection the
+  // checkout click handler uses), so a store without ShipRocket, or one on
+  // a different gateway, never shows ShipRocket branding on its button.
+  function hasShiprocketCheckout() {
+    return typeof window.shiprocketCheckoutBuyCartHandler === "function";
+  }
+
+  function renderShiprocketBadges() {
+    if (!hasShiprocketCheckout()) return "";
+    return (
+      '<span class="cd-sr-badges">' +
+        '<img src="https://fastrr-boost-ui.pickrr.com/assets/images/boost_button/upi_options.svg" ' +
+          'alt="Google Pay | Phone Pay | UPI" class="sr-pl-15 sr-checkout-visible sr-payment-icons">' +
+        '<span class="sr-powered-by">' +
+          '<img src="https://fastrr-boost-ui.pickrr.com/assets/images/boost_button/powered_by.svg" alt="">' +
+        '</span>' +
+      '</span>'
+    );
+  }
+
   // ─── Render Footer ────────────────────────────────────────────
   function renderFooter(cart) {
     if (!cart) return "";
@@ -1185,6 +1206,7 @@
       '</div>' +
       '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
         '<span>' + esc(checkoutText) + '</span>' +
+        renderShiprocketBadges() +
         renderPayBadges(payMethods) +
         '<span class="cd-checkout-arrow" aria-hidden="true">&rarr;</span>' +
       '</button>' +
@@ -1233,6 +1255,7 @@
         : '') +
       '<button type="button" class="cd-checkout-btn" data-action="checkout">' +
         '<span>' + esc(checkoutText) + '</span>' +
+        renderShiprocketBadges() +
         renderPayBadges(payMethods) +
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
           '<polyline points="9 6 15 12 9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
@@ -1493,6 +1516,22 @@
   injectNativeCartHideCSS(); // Hide native cart drawer permanently
   fetchSettings();
   interceptAddToCart();
+
+  // ShipRocket's script tags are `defer`red, so shiprocketCheckoutBuyCartHandler
+  // may not exist yet on the very first render() — poll briefly and re-render
+  // once it appears, so the badges above don't just depend on load-order luck.
+  (function watchForShiprocket() {
+    var attempts = 0;
+    var timer = setInterval(function () {
+      attempts++;
+      if (hasShiprocketCheckout()) {
+        clearInterval(timer);
+        if (state.isOpen) render();
+      } else if (attempts >= 20) {
+        clearInterval(timer); // ~10s — not installed/active on this page.
+      }
+    }, 500);
+  })();
 
   // Expose openDrawer globally for theme integration
   window.openCartDrawer = openDrawer;

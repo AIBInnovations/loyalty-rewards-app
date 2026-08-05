@@ -1220,6 +1220,24 @@
   letter-spacing: 0;
 }
 
+/* ShipRocket's UPI-options + "Powered by" badges, shown on the checkout
+   button only when their own script is active on the page (see
+   hasShiprocketCheckout() in JS). Their own sr-checkout.css stylesheet
+   normally styles the .sr-* classes on these images inside their own
+   button — this is a fallback so they still sit sanely sized and aligned
+   inside ours if that stylesheet doesn't reach this context. */
+.cd-sr-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cd-sr-badges img {
+  max-height: 18px;
+  width: auto;
+  vertical-align: middle;
+}
+
 /* ─── Empty state ───────────────────────────────────────────────── */
 
 .cd-empty {
