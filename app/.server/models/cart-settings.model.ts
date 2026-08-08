@@ -13,7 +13,7 @@ export interface ICartTier {
   reachedMessage: string;
 }
 
-export type RecommendationMode = "auto" | "manual";
+export type RecommendationMode = "auto" | "manual" | "collection";
 
 export interface IManualProduct {
   shopifyProductId: string;
@@ -23,6 +23,9 @@ export interface IManualProduct {
   price: number;
   compareAtPrice?: number;
   variantId: string;
+  /** Manual-mode only — each product gets its own badge, unlike collection
+      mode where recommendationsCollectionBadgeText applies to all of them. */
+  badgeText?: string;
 }
 
 export interface ICartDrawerSettings extends Document {
@@ -39,6 +42,13 @@ export interface ICartDrawerSettings extends Document {
   /** "Add to Cart" button on recommendation cards. Empty = use the default accent color. */
   recommendationsAddToCartBg: string;
   recommendationsAddToCartText: string;
+  /** Collection mode: every product in this collection is shown, with the
+      same badge text on all of them (contrast manual mode's per-product
+      badgeText on IManualProduct). */
+  recommendationsCollectionId: string;
+  recommendationsCollectionHandle: string;
+  recommendationsCollectionTitle: string;
+  recommendationsCollectionBadgeText: string;
   manualProducts: IManualProduct[];
   showSavings: boolean;
   checkoutButtonText: string;
@@ -149,10 +159,14 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     showRecommendations: { type: Boolean, default: true },
     recommendationsTitle: { type: String, default: "People Also Bought" },
     recommendationsCount: { type: Number, default: 4, min: 2, max: 8 },
-    recommendationMode: { type: String, enum: ["auto", "manual"], default: "auto" },
+    recommendationMode: { type: String, enum: ["auto", "manual", "collection"], default: "auto" },
     recommendationsSlider: { type: Boolean, default: false },
     recommendationsAddToCartBg: { type: String, default: "" },
     recommendationsAddToCartText: { type: String, default: "" },
+    recommendationsCollectionId: { type: String, default: "" },
+    recommendationsCollectionHandle: { type: String, default: "" },
+    recommendationsCollectionTitle: { type: String, default: "" },
+    recommendationsCollectionBadgeText: { type: String, default: "", maxlength: 30 },
     manualProducts: {
       type: [{
         shopifyProductId: { type: String, required: true },
@@ -162,6 +176,7 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
         price: { type: Number },
         compareAtPrice: { type: Number },
         variantId: { type: String },
+        badgeText: { type: String, default: "", maxlength: 30 },
       }],
       default: [],
     },
