@@ -178,6 +178,8 @@
       "--cd-btn-hover-text": s.buttonHoverTextColor,
       "--cd-announcement-bg": s.announcementBgColor,
       "--cd-announcement-text": s.announcementTextColor,
+      "--cd-rec-add-bg": s.recommendationsAddToCartBg,
+      "--cd-rec-add-text": s.recommendationsAddToCartText,
       "--cd-font-size": s.fontSize ? s.fontSize + "px" : "",
       "--cd-header-count-size": s.headerCountSize ? s.headerCountSize + "px" : "",
       "--cd-drawer-width": s.drawerWidth ? s.drawerWidth + "px" : "",

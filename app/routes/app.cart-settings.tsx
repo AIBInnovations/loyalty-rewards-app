@@ -59,6 +59,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           recommendationsCount: Number(data.recommendationsCount) || 4,
           recommendationMode: data.recommendationMode || "auto",
           recommendationsSlider: data.recommendationsSlider === "true",
+          recommendationsAddToCartBg: String(data.recommendationsAddToCartBg || "").slice(0, 20),
+          recommendationsAddToCartText: String(data.recommendationsAddToCartText || "").slice(0, 20),
           manualProducts,
           showSavings: data.showSavings === "true",
           checkoutButtonText: data.checkoutButtonText || "CHECKOUT",
@@ -151,6 +153,12 @@ export default function CartSettingsPage() {
   );
   const [recommendationsSlider, setRecommendationsSlider] = useState(
     settings.recommendationsSlider || false,
+  );
+  const [recommendationsAddToCartBg, setRecommendationsAddToCartBg] = useState(
+    settings.recommendationsAddToCartBg || "",
+  );
+  const [recommendationsAddToCartText, setRecommendationsAddToCartText] = useState(
+    settings.recommendationsAddToCartText || "",
   );
   const [manualProducts, setManualProducts] = useState<IManualProduct[]>(
     settings.manualProducts || [],
@@ -256,6 +264,8 @@ export default function CartSettingsPage() {
     formData.set("recommendationsCount", recommendationsCount);
     formData.set("recommendationMode", recommendationMode);
     formData.set("recommendationsSlider", String(recommendationsSlider));
+    formData.set("recommendationsAddToCartBg", recommendationsAddToCartBg);
+    formData.set("recommendationsAddToCartText", recommendationsAddToCartText);
     formData.set("manualProducts", JSON.stringify(manualProducts));
     formData.set("showSavings", String(showSavings));
     formData.set("checkoutButtonText", checkoutButtonText);
@@ -296,7 +306,8 @@ export default function CartSettingsPage() {
     submit(formData, { method: "post" });
   }, [
     enabled, interceptAddToCart, showRecommendations, recommendationsTitle,
-    recommendationsCount, recommendationMode, recommendationsSlider, manualProducts, showSavings,
+    recommendationsCount, recommendationMode, recommendationsSlider,
+    recommendationsAddToCartBg, recommendationsAddToCartText, manualProducts, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor, showProgressBar,
     tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct,
     shippingBannerText, announcementTexts, announcementDelay, announcementTextColor, announcementBgColor,
@@ -562,6 +573,23 @@ export default function CartSettingsPage() {
                       checked={recommendationsSlider}
                       onChange={setRecommendationsSlider}
                     />
+                    <InlineGrid columns={2} gap="300">
+                      <TextField
+                        label="Add to Cart button background"
+                        value={recommendationsAddToCartBg}
+                        onChange={setRecommendationsAddToCartBg}
+                        placeholder="#5C6AC4"
+                        helpText="Leave blank for the default accent color."
+                        autoComplete="off"
+                      />
+                      <TextField
+                        label="Add to Cart button text color"
+                        value={recommendationsAddToCartText}
+                        onChange={setRecommendationsAddToCartText}
+                        placeholder="#ffffff"
+                        autoComplete="off"
+                      />
+                    </InlineGrid>
                     <Select
                       label="Recommendation Mode"
                       options={[

@@ -829,8 +829,8 @@
   width: 100%;
   border: none;
   border-radius: var(--cd-radius-sm);
-  background: var(--cd-accent);
-  color: #fff;
+  background: var(--cd-rec-add-bg, var(--cd-accent));
+  color: var(--cd-rec-add-text, #fff);
   font-family: inherit;
   font-weight: 700;
   font-size: 12px;
@@ -839,7 +839,7 @@
   transition: background 0.15s ease;
 }
 
-.cd-prod-add-full:hover { background: var(--cd-accent-dark); }
+.cd-prod-add-full:hover { background: var(--cd-rec-add-bg, var(--cd-accent-dark)); filter: brightness(0.92); }
 .cd-prod-add-full[disabled] { opacity: 0.55; cursor: default; }
 
 .cd-prod-discount-badge {

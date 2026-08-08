@@ -36,6 +36,9 @@ export interface ICartDrawerSettings extends Document {
   recommendationsCount: number;
   recommendationMode: RecommendationMode;
   recommendationsSlider: boolean;
+  /** "Add to Cart" button on recommendation cards. Empty = use the default accent color. */
+  recommendationsAddToCartBg: string;
+  recommendationsAddToCartText: string;
   manualProducts: IManualProduct[];
   showSavings: boolean;
   checkoutButtonText: string;
@@ -148,6 +151,8 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     recommendationsCount: { type: Number, default: 4, min: 2, max: 8 },
     recommendationMode: { type: String, enum: ["auto", "manual"], default: "auto" },
     recommendationsSlider: { type: Boolean, default: false },
+    recommendationsAddToCartBg: { type: String, default: "" },
+    recommendationsAddToCartText: { type: String, default: "" },
     manualProducts: {
       type: [{
         shopifyProductId: { type: String, required: true },
