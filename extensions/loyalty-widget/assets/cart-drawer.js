@@ -1104,10 +1104,16 @@
     var title = (state.settings && state.settings.recommendationsTitle) || config.recommendationsTitle;
     // The grid caps at 4 to keep the summary reachable without a long
     // vertical scroll; the slider scrolls sideways instead, so it can show
-    // as many as the merchant configured (recommendationsCount, up to 8).
+    // more. recommendationsCount only applies to auto/collection mode — its
+    // settings field is hidden (and its DB value stuck at the default 4) in
+    // manual mode, so applying it there silently truncated every manually
+    // picked list down to 4 regardless of how many the merchant chose.
     var isSlider = Boolean(state.settings && state.settings.recommendationsSlider);
+    var isManual = Boolean(state.settings && state.settings.recommendationMode === "manual");
     var limit = isSlider
-      ? (state.settings && state.settings.recommendationsCount) || MAX_RECS
+      ? (isManual
+          ? state.recommendations.length
+          : (state.settings && state.settings.recommendationsCount) || MAX_RECS)
       : MAX_RECS;
 
     var html = '<section class="cd-recs-section">' +
