@@ -104,6 +104,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     salesPop: salesPop?.enabled ?? false,
     faq: faq?.enabled ?? false,
     voiceAgent: voiceAgent?.enabled ?? false,
+    customers: settings?.customersPageEnabled ?? true,
   };
 
   return json(
@@ -120,7 +121,7 @@ export default function App() {
       <NavMenu>
         <Link to="/app" rel="home">Dashboard</Link>
         {enabled.loyalty && <Link to="/app/rewards">Rewards</Link>}
-        <Link to="/app/customers">Customers</Link>
+        {enabled.customers && <Link to="/app/customers">Customers</Link>}
         <Link to="/app/transactions">Transactions</Link>
         <Link to="/app/referrals">Referrals</Link>
         {enabled.imageSearch && <Link to="/app/image-search-settings">Image Search</Link>}
