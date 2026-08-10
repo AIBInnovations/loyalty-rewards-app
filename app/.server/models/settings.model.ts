@@ -45,6 +45,9 @@ export interface ISettings extends Document {
   currencySelectorPositionMobile: "bottom-right" | "bottom-left" | "top-right" | "top-left";
   currencies: ICurrencyOption[];
   isActive: boolean;
+  /** Toggled per shop from the super-admin panel — hides the Customers nav
+      link/page in that shop's embedded app. */
+  customersPageEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -107,6 +110,7 @@ const settingsSchema = new Schema<ISettings>(
       default: [{ currencyCode: "INR", countryCode: "IN", label: "India", symbol: "₹", flag: "🇮🇳" }],
     },
     isActive: { type: Boolean, default: true },
+    customersPageEnabled: { type: Boolean, default: true },
   },
   { timestamps: true },
 );

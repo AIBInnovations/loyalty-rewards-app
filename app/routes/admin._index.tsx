@@ -82,6 +82,7 @@ type PluginCategory =
 
 const pluginDefinitions = [
   ["loyalty", "Loyalty & Rewards", "Loyalty", "/app/settings", "Points, referrals, tiers, redemptions, and rewards widget."],
+  ["customers", "Customers", "Loyalty", "/app/customers", "Customer directory with points balance, tier, and referral code."],
   ["cartDrawer", "Cart Drawer", "Conversion", "/app/cart-settings", "Slide-out cart with progress tiers, recommendations, and upsell."],
   ["wishlist", "Wishlist", "Merchandising", "/app/wishlist", "Wishlist and save-for-later tools for shoppers."],
   ["reviews", "Reviews & Q&A", "Content", "/app/reviews-settings", "Collect reviews, questions, photos, videos, and review rewards."],
@@ -503,6 +504,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const statusMap: Record<string, boolean> = {
     loyalty: settings?.isActive ?? true,
+    customers: settings?.customersPageEnabled ?? true,
     wishlist: wishlist?.enabled ?? false,
     cartDrawer: cartDrawer?.enabled ?? false,
     volumeDiscounts:
@@ -801,6 +803,13 @@ async function setPluginStatus(
       await Settings.findOneAndUpdate(
         { shopId },
         { $set: { isActive: enabled } },
+        options,
+      );
+      break;
+    case "customers":
+      await Settings.findOneAndUpdate(
+        { shopId },
+        { $set: { customersPageEnabled: enabled } },
         options,
       );
       break;
