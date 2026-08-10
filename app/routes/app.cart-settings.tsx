@@ -61,6 +61,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           recommendationsSlider: data.recommendationsSlider === "true",
           recommendationsAddToCartBg: String(data.recommendationsAddToCartBg || "").slice(0, 20),
           recommendationsAddToCartText: String(data.recommendationsAddToCartText || "").slice(0, 20),
+          recommendationsBadgeBg: String(data.recommendationsBadgeBg || "").slice(0, 20),
+          recommendationsBadgeTextColor: String(data.recommendationsBadgeTextColor || "").slice(0, 20),
+          recommendationsBadgeAlign: data.recommendationsBadgeAlign === "left" ? "left" : "right",
           manualProducts,
           recommendationsCollectionId: String(data.recommendationsCollectionId || ""),
           recommendationsCollectionHandle: String(data.recommendationsCollectionHandle || ""),
@@ -163,6 +166,15 @@ export default function CartSettingsPage() {
   );
   const [recommendationsAddToCartText, setRecommendationsAddToCartText] = useState(
     settings.recommendationsAddToCartText || "",
+  );
+  const [recommendationsBadgeBg, setRecommendationsBadgeBg] = useState(
+    settings.recommendationsBadgeBg || "",
+  );
+  const [recommendationsBadgeTextColor, setRecommendationsBadgeTextColor] = useState(
+    settings.recommendationsBadgeTextColor || "",
+  );
+  const [recommendationsBadgeAlign, setRecommendationsBadgeAlign] = useState(
+    settings.recommendationsBadgeAlign || "right",
   );
   const [manualProducts, setManualProducts] = useState<IManualProduct[]>(
     settings.manualProducts || [],
@@ -282,6 +294,9 @@ export default function CartSettingsPage() {
     formData.set("recommendationsSlider", String(recommendationsSlider));
     formData.set("recommendationsAddToCartBg", recommendationsAddToCartBg);
     formData.set("recommendationsAddToCartText", recommendationsAddToCartText);
+    formData.set("recommendationsBadgeBg", recommendationsBadgeBg);
+    formData.set("recommendationsBadgeTextColor", recommendationsBadgeTextColor);
+    formData.set("recommendationsBadgeAlign", recommendationsBadgeAlign);
     formData.set("manualProducts", JSON.stringify(manualProducts));
     formData.set("recommendationsCollectionId", recommendationsCollectionId);
     formData.set("recommendationsCollectionHandle", recommendationsCollectionHandle);
@@ -327,7 +342,8 @@ export default function CartSettingsPage() {
   }, [
     enabled, interceptAddToCart, showRecommendations, recommendationsTitle,
     recommendationsCount, recommendationMode, recommendationsSlider,
-    recommendationsAddToCartBg, recommendationsAddToCartText, manualProducts,
+    recommendationsAddToCartBg, recommendationsAddToCartText,
+    recommendationsBadgeBg, recommendationsBadgeTextColor, recommendationsBadgeAlign, manualProducts,
     recommendationsCollectionId, recommendationsCollectionHandle,
     recommendationsCollectionTitle, recommendationsCollectionBadgeText, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor, showProgressBar,
@@ -636,6 +652,32 @@ export default function CartSettingsPage() {
                         onChange={setRecommendationsAddToCartText}
                         placeholder="#ffffff"
                         autoComplete="off"
+                      />
+                    </InlineGrid>
+                    <InlineGrid columns={3} gap="300">
+                      <TextField
+                        label="Badge background"
+                        value={recommendationsBadgeBg}
+                        onChange={setRecommendationsBadgeBg}
+                        placeholder="#5C6AC4"
+                        helpText="Leave blank for the default accent color."
+                        autoComplete="off"
+                      />
+                      <TextField
+                        label="Badge text color"
+                        value={recommendationsBadgeTextColor}
+                        onChange={setRecommendationsBadgeTextColor}
+                        placeholder="#ffffff"
+                        autoComplete="off"
+                      />
+                      <Select
+                        label="Badge position"
+                        options={[
+                          { label: "Left", value: "left" },
+                          { label: "Right", value: "right" },
+                        ]}
+                        value={recommendationsBadgeAlign}
+                        onChange={setRecommendationsBadgeAlign}
                       />
                     </InlineGrid>
                     <Select

@@ -863,10 +863,15 @@
   right: 4px;
   padding: 2px 6px;
   border-radius: 4px;
-  background: var(--cd-accent);
-  color: #fff;
+  background: var(--cd-rec-badge-bg, var(--cd-accent));
+  color: var(--cd-rec-badge-text, #fff);
   font-size: 9px;
   font-weight: 700;
+}
+
+.cd-prod-custom-badge--left {
+  left: 4px;
+  right: auto;
 }
 
 .cd-prod-img img {

@@ -180,6 +180,8 @@
       "--cd-announcement-text": s.announcementTextColor,
       "--cd-rec-add-bg": s.recommendationsAddToCartBg,
       "--cd-rec-add-text": s.recommendationsAddToCartText,
+      "--cd-rec-badge-bg": s.recommendationsBadgeBg,
+      "--cd-rec-badge-text": s.recommendationsBadgeTextColor,
       "--cd-font-size": s.fontSize ? s.fontSize + "px" : "",
       "--cd-header-count-size": s.headerCountSize ? s.headerCountSize + "px" : "",
       "--cd-drawer-width": s.drawerWidth ? s.drawerWidth + "px" : "",
@@ -1055,7 +1057,9 @@
         ? '<span class="cd-prod-discount-badge">-' + discountPct + '% OFF</span>'
         : '') +
       (opts.badgeText
-        ? '<span class="cd-prod-custom-badge">' + esc(opts.badgeText) + '</span>'
+        ? '<span class="cd-prod-custom-badge' +
+            (state.settings && state.settings.recommendationsBadgeAlign === "left" ? " cd-prod-custom-badge--left" : "") +
+            '">' + esc(opts.badgeText) + '</span>'
         : '') +
     '</div>';
 
