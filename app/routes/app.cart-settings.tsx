@@ -409,6 +409,14 @@ export default function CartSettingsPage() {
     );
   }, []);
 
+  const updateManualProductPriceDisplay = useCallback((index: number, priceDisplay: string) => {
+    setManualProducts((prev) =>
+      prev.map((p, i) =>
+        i === index ? { ...p, priceDisplay: priceDisplay === "free" ? "free" : "price" } : p,
+      ),
+    );
+  }, []);
+
   const handleBrowseCollection = useCallback(async () => {
     setAddProductError("");
     try {
@@ -757,7 +765,7 @@ export default function CartSettingsPage() {
                                   : ""}
                               </Text>
                             </div>
-                            <div style={{ width: "160px" }}>
+                            <div style={{ width: "140px" }}>
                               <TextField
                                 label="Badge"
                                 labelHidden
@@ -766,6 +774,18 @@ export default function CartSettingsPage() {
                                 onChange={(v) => updateManualProductBadge(index, v)}
                                 maxLength={30}
                                 autoComplete="off"
+                              />
+                            </div>
+                            <div style={{ width: "130px" }}>
+                              <Select
+                                label="Price display"
+                                labelHidden
+                                options={[
+                                  { label: "Show Price", value: "price" },
+                                  { label: "Show Free", value: "free" },
+                                ]}
+                                value={product.priceDisplay || "price"}
+                                onChange={(v) => updateManualProductPriceDisplay(index, v)}
                               />
                             </div>
                             <Button
