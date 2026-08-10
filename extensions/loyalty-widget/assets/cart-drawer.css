@@ -854,6 +854,21 @@
   font-weight: 700;
 }
 
+/* Merchant-authored badge (manual mode: per-product; collection mode: one
+   shared text) — opposite corner from the auto discount badge so both can
+   show at once without overlapping. */
+.cd-prod-custom-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--cd-accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+}
+
 .cd-prod-img img {
   width: 100%;
   height: 100%;

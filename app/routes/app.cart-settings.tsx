@@ -62,6 +62,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           recommendationsAddToCartBg: String(data.recommendationsAddToCartBg || "").slice(0, 20),
           recommendationsAddToCartText: String(data.recommendationsAddToCartText || "").slice(0, 20),
           manualProducts,
+          recommendationsCollectionId: String(data.recommendationsCollectionId || ""),
+          recommendationsCollectionHandle: String(data.recommendationsCollectionHandle || ""),
+          recommendationsCollectionTitle: String(data.recommendationsCollectionTitle || ""),
+          recommendationsCollectionBadgeText: String(data.recommendationsCollectionBadgeText || "").slice(0, 30),
           showSavings: data.showSavings === "true",
           checkoutButtonText: data.checkoutButtonText || "CHECKOUT",
           prepaidBannerText: data.prepaidBannerText || "",
@@ -162,6 +166,18 @@ export default function CartSettingsPage() {
   );
   const [manualProducts, setManualProducts] = useState<IManualProduct[]>(
     settings.manualProducts || [],
+  );
+  const [recommendationsCollectionId, setRecommendationsCollectionId] = useState(
+    settings.recommendationsCollectionId || "",
+  );
+  const [recommendationsCollectionHandle, setRecommendationsCollectionHandle] = useState(
+    settings.recommendationsCollectionHandle || "",
+  );
+  const [recommendationsCollectionTitle, setRecommendationsCollectionTitle] = useState(
+    settings.recommendationsCollectionTitle || "",
+  );
+  const [recommendationsCollectionBadgeText, setRecommendationsCollectionBadgeText] = useState(
+    settings.recommendationsCollectionBadgeText || "",
   );
   const [addProductError, setAddProductError] = useState("");
   const [showSavings, setShowSavings] = useState(settings.showSavings);
@@ -267,6 +283,10 @@ export default function CartSettingsPage() {
     formData.set("recommendationsAddToCartBg", recommendationsAddToCartBg);
     formData.set("recommendationsAddToCartText", recommendationsAddToCartText);
     formData.set("manualProducts", JSON.stringify(manualProducts));
+    formData.set("recommendationsCollectionId", recommendationsCollectionId);
+    formData.set("recommendationsCollectionHandle", recommendationsCollectionHandle);
+    formData.set("recommendationsCollectionTitle", recommendationsCollectionTitle);
+    formData.set("recommendationsCollectionBadgeText", recommendationsCollectionBadgeText);
     formData.set("showSavings", String(showSavings));
     formData.set("checkoutButtonText", checkoutButtonText);
     formData.set("prepaidBannerText", prepaidBannerText);
@@ -307,7 +327,9 @@ export default function CartSettingsPage() {
   }, [
     enabled, interceptAddToCart, showRecommendations, recommendationsTitle,
     recommendationsCount, recommendationMode, recommendationsSlider,
-    recommendationsAddToCartBg, recommendationsAddToCartText, manualProducts, showSavings,
+    recommendationsAddToCartBg, recommendationsAddToCartText, manualProducts,
+    recommendationsCollectionId, recommendationsCollectionHandle,
+    recommendationsCollectionTitle, recommendationsCollectionBadgeText, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor, showProgressBar,
     tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct,
     shippingBannerText, announcementTexts, announcementDelay, announcementTextColor, announcementBgColor,
@@ -364,6 +386,32 @@ export default function CartSettingsPage() {
       }
     }
   }, [shopify, manualProducts]);
+
+  const updateManualProductBadge = useCallback((index: number, badgeText: string) => {
+    setManualProducts((prev) =>
+      prev.map((p, i) => (i === index ? { ...p, badgeText } : p)),
+    );
+  }, []);
+
+  const handleBrowseCollection = useCallback(async () => {
+    setAddProductError("");
+    try {
+      const selected = await shopify.resourcePicker({
+        type: "collection",
+        multiple: false,
+        action: "select",
+      });
+      const collection = (selected as any[])?.[0];
+      if (!collection) return;
+      setRecommendationsCollectionId(collection.id);
+      setRecommendationsCollectionHandle(collection.handle);
+      setRecommendationsCollectionTitle(collection.title);
+    } catch (err) {
+      if (err instanceof Error && err.message) {
+        setAddProductError(err.message);
+      }
+    }
+  }, [shopify]);
 
   const handleAddUpsellProduct = useCallback(async () => {
     if (!upsellProductUrl.trim()) return;
@@ -601,13 +649,19 @@ export default function CartSettingsPage() {
                           label: "Manual (Pick products yourself)",
                           value: "manual",
                         },
+                        {
+                          label: "Collection (show all products from one collection)",
+                          value: "collection",
+                        },
                       ]}
                       value={recommendationMode}
                       onChange={setRecommendationMode}
                       helpText={
                         recommendationMode === "auto"
                           ? "Shopify automatically suggests products based on purchase history and product relationships."
-                          : "You choose exactly which products to show in the cart drawer."
+                          : recommendationMode === "manual"
+                            ? "You choose exactly which products to show in the cart drawer — each can have its own badge text."
+                            : "Every product in the collection shows in the slider, all sharing one badge text."
                       }
                     />
                     {recommendationMode === "auto" && (
@@ -661,6 +715,17 @@ export default function CartSettingsPage() {
                                   : ""}
                               </Text>
                             </div>
+                            <div style={{ width: "160px" }}>
+                              <TextField
+                                label="Badge"
+                                labelHidden
+                                placeholder="e.g. Bestseller"
+                                value={product.badgeText || ""}
+                                onChange={(v) => updateManualProductBadge(index, v)}
+                                maxLength={30}
+                                autoComplete="off"
+                              />
+                            </div>
                             <Button
                               size="slim"
                               tone="critical"
@@ -679,6 +744,60 @@ export default function CartSettingsPage() {
                         <Button onClick={handleBrowseProducts}>
                           Browse products
                         </Button>
+                      </BlockStack>
+                    )}
+                    {recommendationMode === "collection" && (
+                      <BlockStack gap="300">
+                        {addProductError && (
+                          <Banner tone="critical" onDismiss={() => setAddProductError("")}>
+                            {addProductError}
+                          </Banner>
+                        )}
+                        {recommendationsCollectionTitle ? (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "12px",
+                              padding: "8px",
+                              border: "1px solid #e0e0e0",
+                              borderRadius: "8px",
+                            }}
+                          >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                {recommendationsCollectionTitle}
+                              </Text>
+                            </div>
+                            <Button size="slim" onClick={handleBrowseCollection}>
+                              Change
+                            </Button>
+                            <Button
+                              size="slim"
+                              tone="critical"
+                              onClick={() => {
+                                setRecommendationsCollectionId("");
+                                setRecommendationsCollectionHandle("");
+                                setRecommendationsCollectionTitle("");
+                              }}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button onClick={handleBrowseCollection}>
+                            Browse collections
+                          </Button>
+                        )}
+                        <TextField
+                          label="Badge text"
+                          helpText="Applies to every product shown from this collection. Leave blank for no badge."
+                          placeholder="e.g. New Arrival"
+                          value={recommendationsCollectionBadgeText}
+                          onChange={setRecommendationsCollectionBadgeText}
+                          maxLength={30}
+                          autoComplete="off"
+                        />
                       </BlockStack>
                     )}
                   </>

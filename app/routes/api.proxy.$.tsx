@@ -894,6 +894,8 @@ async function handleGetCartSettings(shop: string) {
     recommendationsSlider: Boolean(settings.recommendationsSlider),
     recommendationsAddToCartBg: settings.recommendationsAddToCartBg || "",
     recommendationsAddToCartText: settings.recommendationsAddToCartText || "",
+    recommendationsCollectionHandle: settings.recommendationsCollectionHandle || "",
+    recommendationsCollectionBadgeText: settings.recommendationsCollectionBadgeText || "",
     manualProducts: settings.manualProducts || [],
     showSavings: settings.showSavings,
     checkoutButtonText: settings.checkoutButtonText,

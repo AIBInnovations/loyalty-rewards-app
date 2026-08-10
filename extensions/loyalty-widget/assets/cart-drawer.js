@@ -264,12 +264,58 @@
             compare_at_price: p.compareAtPrice || null,
             featured_image: p.imageUrl,
             variants: [{ id: p.variantId.replace("gid://shopify/ProductVariant/", ""), available: true }],
+            badge_text: p.badgeText || "",
           };
         });
 
       state.recommendations = manualRecs;
       state.recsLoading = false;
       if (state.isOpen) render();
+      return;
+    }
+
+    // Collection mode: every product in the chosen collection, all sharing
+    // the same merchant-set badge — contrast manual mode's per-product badge
+    // above. Uses Shopify's public per-collection products.json endpoint,
+    // same client-only pattern as the rest of this function.
+    if (state.settings && state.settings.recommendationMode === "collection" && state.settings.recommendationsCollectionHandle) {
+      var collCartIds = new Set();
+      state.cart.items.forEach(function (item) { collCartIds.add(item.product_id); });
+      var collLimit = (state.settings.recommendationsCount || MAX_RECS) + collCartIds.size;
+
+      fetch("/collections/" + state.settings.recommendationsCollectionHandle + "/products.json?limit=" + collLimit)
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var badge = state.settings.recommendationsCollectionBadgeText || "";
+          var recs = (d.products || [])
+            .filter(function (p) { return !collCartIds.has(p.id); })
+            // This endpoint returns a different shape than the recommendations
+            // API (price in decimal, images[] instead of featured_image) —
+            // same normalization fetchFallbackProducts does below.
+            .map(function (p) {
+              var variant = p.variants && p.variants[0];
+              return {
+                id: p.id,
+                title: p.title,
+                handle: p.handle,
+                url: "/products/" + p.handle,
+                price: variant ? Math.round(variant.price * 100) : 0,
+                compare_at_price: variant && variant.compare_at_price
+                  ? Math.round(variant.compare_at_price * 100) : null,
+                featured_image: p.images && p.images[0] ? p.images[0].src : "",
+                variants: p.variants || [],
+                badge_text: badge,
+              };
+            });
+          state.recommendations = recs;
+          state.recsLoading = false;
+          if (state.isOpen) render();
+        })
+        .catch(function () {
+          state.recommendations = [];
+          state.recsLoading = false;
+          if (state.isOpen) render();
+        });
       return;
     }
 
@@ -1008,6 +1054,9 @@
       (discountPct > 0
         ? '<span class="cd-prod-discount-badge">-' + discountPct + '% OFF</span>'
         : '') +
+      (opts.badgeText
+        ? '<span class="cd-prod-custom-badge">' + esc(opts.badgeText) + '</span>'
+        : '') +
     '</div>';
 
     // Steal Deals keeps its existing circular "+" button beside the price.
@@ -1071,6 +1120,7 @@
         comparePrice: hasCompare ? p.compare_at_price : 0,
         variantId: p.variants && p.variants.length ? p.variants[0].id : "",
         action: "add-rec",
+        badgeText: p.badge_text || "",
       });
     });
 
