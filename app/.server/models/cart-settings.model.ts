@@ -26,6 +26,9 @@ export interface IManualProduct {
   /** Manual-mode only — each product gets its own badge, unlike collection
       mode where recommendationsCollectionBadgeText applies to all of them. */
   badgeText?: string;
+  /** "free" replaces the price row with "FREE" on the storefront card,
+      without changing the stored price used at checkout. */
+  priceDisplay?: "price" | "free";
 }
 
 export interface ICartDrawerSettings extends Document {
@@ -185,6 +188,7 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
         compareAtPrice: { type: Number },
         variantId: { type: String },
         badgeText: { type: String, default: "", maxlength: 30 },
+        priceDisplay: { type: String, enum: ["price", "free"], default: "price" },
       }],
       default: [],
     },

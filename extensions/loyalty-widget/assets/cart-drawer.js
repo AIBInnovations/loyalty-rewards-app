@@ -267,6 +267,7 @@
             featured_image: p.imageUrl,
             variants: [{ id: p.variantId.replace("gid://shopify/ProductVariant/", ""), available: true }],
             badge_text: p.badgeText || "",
+            price_display: p.priceDisplay || "price",
           };
         });
 
@@ -1042,18 +1043,23 @@
       ? Math.round(((opts.comparePrice - opts.price) / opts.comparePrice) * 100)
       : 0;
 
+    // "Show Free" (manual mode, per product) swaps the price display only —
+    // the real price/variant is unchanged, so Add to Cart still adds it at
+    // its actual price.
     var priceRow = '<div class="cd-prod-prices">' +
-      '<span class="cd-prod-price">' + formatMoney(opts.price) + '</span>' +
-      (opts.comparePrice
-        ? '<span class="cd-prod-compare">' + formatMoney(opts.comparePrice) + '</span>'
-        : '') +
+      (opts.priceDisplay === "free"
+        ? '<span class="cd-prod-price">FREE</span>'
+        : '<span class="cd-prod-price">' + formatMoney(opts.price) + '</span>' +
+          (opts.comparePrice
+            ? '<span class="cd-prod-compare">' + formatMoney(opts.comparePrice) + '</span>'
+            : '')) +
     '</div>';
 
     var imgBlock = '<div class="cd-prod-img">' +
       (imgSrc
         ? '<img src="' + escAttr(imgSrc) + '" alt="' + escAttr(opts.title) + '" loading="lazy" onerror="this.style.display=\'none\'"/>'
         : '') +
-      (discountPct > 0
+      (discountPct > 0 && opts.priceDisplay !== "free"
         ? '<span class="cd-prod-discount-badge">-' + discountPct + '% OFF</span>'
         : '') +
       (opts.badgeText
@@ -1125,6 +1131,7 @@
         variantId: p.variants && p.variants.length ? p.variants[0].id : "",
         action: "add-rec",
         badgeText: p.badge_text || "",
+        priceDisplay: p.price_display || "price",
       });
     });
 
