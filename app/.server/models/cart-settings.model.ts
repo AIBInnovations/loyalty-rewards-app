@@ -42,6 +42,11 @@ export interface ICartDrawerSettings extends Document {
   /** "Add to Cart" button on recommendation cards. Empty = use the default accent color. */
   recommendationsAddToCartBg: string;
   recommendationsAddToCartText: string;
+  /** Product card badge (manual per-product / collection shared text).
+      Empty color = default accent. */
+  recommendationsBadgeBg: string;
+  recommendationsBadgeTextColor: string;
+  recommendationsBadgeAlign: "left" | "right";
   /** Collection mode: every product in this collection is shown, with the
       same badge text on all of them (contrast manual mode's per-product
       badgeText on IManualProduct). */
@@ -163,6 +168,9 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     recommendationsSlider: { type: Boolean, default: false },
     recommendationsAddToCartBg: { type: String, default: "" },
     recommendationsAddToCartText: { type: String, default: "" },
+    recommendationsBadgeBg: { type: String, default: "" },
+    recommendationsBadgeTextColor: { type: String, default: "" },
+    recommendationsBadgeAlign: { type: String, enum: ["left", "right"], default: "right" },
     recommendationsCollectionId: { type: String, default: "" },
     recommendationsCollectionHandle: { type: String, default: "" },
     recommendationsCollectionTitle: { type: String, default: "" },
