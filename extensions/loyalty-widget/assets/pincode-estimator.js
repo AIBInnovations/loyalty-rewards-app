@@ -7,6 +7,41 @@
   var shopDomain = root.dataset.shopDomain;
   var CACHE_KEY  = "pe_last_pincode";
 
+  // Appearance settings from the app's own settings page (not the theme
+  // editor) — fetched once before the widget first renders. Falls back to
+  // these defaults if the fetch fails or nothing's configured.
+  var appearance = {
+    headingText: "📦 Check Delivery & COD",
+    bgColor: "",
+    buttonColor: "",
+    buttonTextColor: "",
+    buttonSize: "medium",
+    sectionWidth: "",
+    sectionHeight: "",
+  };
+
+  function fetchAppearance() {
+    return fetch("/apps/loyalty/pincode-settings")
+      .then(function (r) {
+        var ct = r.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) throw new Error("not json");
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || data.accessDenied) return;
+        appearance = {
+          headingText: data.headingText || appearance.headingText,
+          bgColor: data.bgColor || "",
+          buttonColor: data.buttonColor || "",
+          buttonTextColor: data.buttonTextColor || "",
+          buttonSize: data.buttonSize || "medium",
+          sectionWidth: data.sectionWidth || "",
+          sectionHeight: data.sectionHeight || "",
+        };
+      })
+      .catch(function () {});
+  }
+
   function esc(str) {
     if (!str) return "";
     var d = document.createElement("div");
@@ -17,12 +52,18 @@
   function render() {
     var widget = document.createElement("div");
     widget.id = "pincode-estimator-widget";
-    widget.style.cssText = root.style.cssText;
+    var extraVars = "";
+    if (appearance.bgColor) extraVars += "--pe-bg:" + appearance.bgColor + ";";
+    if (appearance.buttonColor) extraVars += "--pe-btn-bg:" + appearance.buttonColor + ";";
+    if (appearance.buttonTextColor) extraVars += "--pe-btn-text:" + appearance.buttonTextColor + ";";
+    if (appearance.sectionWidth) extraVars += "--pe-width:" + appearance.sectionWidth + ";";
+    if (appearance.sectionHeight) extraVars += "--pe-height:" + appearance.sectionHeight + ";";
+    widget.style.cssText = root.style.cssText + extraVars;
     widget.innerHTML =
-      '<p class="pe-label">📦 Check Delivery &amp; COD</p>' +
+      '<p class="pe-label">' + esc(appearance.headingText) + '</p>' +
       '<div class="pe-row">' +
         '<input class="pe-input" id="pe-input" type="tel" maxlength="6" placeholder="Enter Pincode" inputmode="numeric">' +
-        '<button class="pe-btn" id="pe-check-btn">Check</button>' +
+        '<button class="pe-btn pe-btn--' + (appearance.buttonSize || "medium") + '" id="pe-check-btn">Check</button>' +
       '</div>' +
       '<div class="pe-result" id="pe-result"></div>';
 
@@ -133,5 +174,5 @@
     });
   }
 
-  render();
+  fetchAppearance().then(render);
 })();
