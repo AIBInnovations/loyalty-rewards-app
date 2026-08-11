@@ -2,7 +2,7 @@ import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-r
 import { useLoaderData, useNavigation, useSubmit } from "@remix-run/react";
 import {
   Page, Layout, Card, BlockStack, Text, TextField, Button,
-  InlineStack, Badge, Divider, Banner, Select, Checkbox,
+  InlineStack, Badge, Divider, Banner, Select, Checkbox, InlineGrid,
 } from "@shopify/polaris";
 import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
@@ -42,6 +42,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               o.minDays >= 0 && o.maxDays >= o.minDays,
           );
         })(),
+        headingText:     String(fd.get("headingText") || "").slice(0, 60) || "📦 Check Delivery & COD",
+        bgColor:         String(fd.get("bgColor") || "").slice(0, 20),
+        buttonColor:     String(fd.get("buttonColor") || "").slice(0, 20),
+        buttonTextColor: String(fd.get("buttonTextColor") || "").slice(0, 20),
+        buttonSize:      ["small", "medium", "large"].includes(String(fd.get("buttonSize"))) ? String(fd.get("buttonSize")) : "medium",
+        sectionWidth:    String(fd.get("sectionWidth") || "").slice(0, 20),
+        sectionHeight:   String(fd.get("sectionHeight") || "").slice(0, 20),
       },
     },
     { upsert: true },
@@ -61,6 +68,13 @@ export default function PincodeSettingsPage() {
   const [cod, setCod]           = useState((s.codPincodes || []).join("\n"));
   const [noCod, setNoCod]       = useState((s.noCodPincodes || []).join("\n"));
   const [noService, setNoService] = useState((s.nonServiceablePincodes || []).join("\n"));
+  const [headingText, setHeadingText] = useState(s.headingText || "📦 Check Delivery & COD");
+  const [bgColor, setBgColor] = useState(s.bgColor || "");
+  const [buttonColor, setButtonColor] = useState(s.buttonColor || "");
+  const [buttonTextColor, setButtonTextColor] = useState(s.buttonTextColor || "");
+  const [buttonSize, setButtonSize] = useState(s.buttonSize || "medium");
+  const [sectionWidth, setSectionWidth] = useState(s.sectionWidth || "");
+  const [sectionHeight, setSectionHeight] = useState(s.sectionHeight || "");
 
   // One row per fixed PIN-code zone (state group). The zone's pincode
   // range is fixed by India Post prefixes — merchant only sets the days.
@@ -91,8 +105,18 @@ export default function PincodeSettingsPage() {
     fd.set("noCodPincodes",          noCod);
     fd.set("nonServiceablePincodes", noService);
     fd.set("stateDeliveryDays", JSON.stringify(buildStateDeliveryDays()));
+    fd.set("headingText", headingText);
+    fd.set("bgColor", bgColor);
+    fd.set("buttonColor", buttonColor);
+    fd.set("buttonTextColor", buttonTextColor);
+    fd.set("buttonSize", buttonSize);
+    fd.set("sectionWidth", sectionWidth);
+    fd.set("sectionHeight", sectionHeight);
     submit(fd, { method: "POST" });
-  }, [enabled, minDays, maxDays, cod, noCod, noService, buildStateDeliveryDays, submit]);
+  }, [
+    enabled, minDays, maxDays, cod, noCod, noService, buildStateDeliveryDays, submit,
+    headingText, bgColor, buttonColor, buttonTextColor, buttonSize, sectionWidth, sectionHeight,
+  ]);
 
   return (
     <Page title="Pincode Delivery Estimator" backAction={{ url: "/app" }}>
@@ -109,6 +133,77 @@ export default function PincodeSettingsPage() {
                 <Banner tone="info">
                   Add this widget to your product pages via the Theme Editor. Customers enter their pincode to see estimated delivery dates and COD availability.
                 </Banner>
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="400">
+                <Text variant="headingMd" as="h2">Appearance</Text>
+                <TextField
+                  label="Heading text"
+                  value={headingText}
+                  onChange={setHeadingText}
+                  onBlur={save}
+                  autoComplete="off"
+                  maxLength={60}
+                  helpText="Shown above the pincode input, e.g. '📦 Check Delivery & COD'."
+                />
+                <InlineGrid columns={3} gap="300">
+                  <TextField
+                    label="Background color"
+                    value={bgColor}
+                    onChange={setBgColor}
+                    onBlur={save}
+                    placeholder="#ffffff"
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Button color"
+                    value={buttonColor}
+                    onChange={setButtonColor}
+                    onBlur={save}
+                    placeholder="#1a1a1a"
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Button text color"
+                    value={buttonTextColor}
+                    onChange={setButtonTextColor}
+                    onBlur={save}
+                    placeholder="#ffffff"
+                    autoComplete="off"
+                  />
+                </InlineGrid>
+                <InlineGrid columns={3} gap="300">
+                  <Select
+                    label="Button size"
+                    options={[
+                      { label: "Small", value: "small" },
+                      { label: "Medium", value: "medium" },
+                      { label: "Large", value: "large" },
+                    ]}
+                    value={buttonSize}
+                    onChange={(v) => { setButtonSize(v); save(); }}
+                  />
+                  <TextField
+                    label="Section width"
+                    value={sectionWidth}
+                    onChange={setSectionWidth}
+                    onBlur={save}
+                    placeholder="100%"
+                    helpText="e.g. 100%, 420px. Leave blank for default."
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Section height"
+                    value={sectionHeight}
+                    onChange={setSectionHeight}
+                    onBlur={save}
+                    placeholder="auto"
+                    helpText="e.g. auto, 160px. Leave blank for default."
+                    autoComplete="off"
+                  />
+                </InlineGrid>
               </BlockStack>
             </Card>
 

@@ -269,6 +269,10 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
     return (await accessGate("pincode", shop, shopifyCustomerId)) || handlePincodeCheck(params, shop);
   }
 
+  if (path === "pincode-settings") {
+    return (await accessGate("pincode", shop, shopifyCustomerId)) || handleGetPincodeSettings(shop);
+  }
+
   if (path === "upsell-settings") {
     return (await accessGate("postPurchaseUpsell", shop, shopifyCustomerId)) || handleGetUpsellSettings(shop);
   }
@@ -1467,6 +1471,19 @@ async function handlePincodeCheck(params: URLSearchParams, shop: string) {
     maxDays: zoneOverride ? zoneOverride.maxDays : settings.defaultMaxDays,
     state: zone?.label || "",
   }, noStore);
+}
+
+async function handleGetPincodeSettings(shop: string) {
+  const settings = await PincodeSettings.findOne({ shopId: shop }).lean();
+  return json({
+    headingText: settings?.headingText || "📦 Check Delivery & COD",
+    bgColor: settings?.bgColor || "",
+    buttonColor: settings?.buttonColor || "",
+    buttonTextColor: settings?.buttonTextColor || "",
+    buttonSize: settings?.buttonSize || "medium",
+    sectionWidth: settings?.sectionWidth || "",
+    sectionHeight: settings?.sectionHeight || "",
+  }, { headers: { "Cache-Control": "no-store" } });
 }
 
 // ─── Upsell Settings ─────────────────────────────────────────────

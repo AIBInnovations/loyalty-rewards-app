@@ -20,6 +20,15 @@ export interface IPincodeSettings extends Document {
   // so a merchant can quote a different delivery window per state instead
   // of one blanket estimate for every deliverable pincode.
   stateDeliveryDays: IStateDeliveryDays[];
+  // Widget appearance — set from the app's own settings page (not the theme
+  // editor), applied by pincode-estimator.js at runtime.
+  headingText: string;
+  bgColor: string;
+  buttonColor: string;
+  buttonTextColor: string;
+  buttonSize: "small" | "medium" | "large";
+  sectionWidth: string;
+  sectionHeight: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +53,13 @@ const pincodeSettingsSchema = new Schema<IPincodeSettings>(
       ],
       default: [],
     },
+    headingText:     { type: String, default: "📦 Check Delivery & COD", maxlength: 60 },
+    bgColor:         { type: String, default: "" },
+    buttonColor:     { type: String, default: "" },
+    buttonTextColor: { type: String, default: "" },
+    buttonSize:      { type: String, enum: ["small", "medium", "large"], default: "medium" },
+    sectionWidth:    { type: String, default: "", maxlength: 20 },
+    sectionHeight:   { type: String, default: "", maxlength: 20 },
   },
   { timestamps: true },
 );

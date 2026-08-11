@@ -6,7 +6,8 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   border: 1px solid #ececec;
   box-sizing: border-box;
-  width: 100%;
+  width: var(--pe-width, 100%);
+  height: var(--pe-height, auto);
 }
 .pe-label {
   font-size: 15px;
@@ -45,8 +46,8 @@
   box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
 }
 .pe-btn {
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--pe-btn-bg, #1a1a1a);
+  color: var(--pe-btn-text, #fff);
   border: none;
   border-radius: 10px;
   padding: 0 22px;
@@ -57,7 +58,11 @@
   transition: background 0.2s, opacity 0.2s;
   white-space: nowrap;
 }
-.pe-btn:hover { background: #000; }
+.pe-btn:hover { background: var(--pe-btn-bg, #1a1a1a); filter: brightness(0.85); }
+
+.pe-btn--small { padding: 0 14px; min-height: 34px; font-size: 12px; }
+.pe-btn--medium { padding: 0 22px; min-height: 44px; font-size: 14px; }
+.pe-btn--large { padding: 0 30px; min-height: 52px; font-size: 16px; }
 .pe-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .pe-result {
   margin-top: 12px;
