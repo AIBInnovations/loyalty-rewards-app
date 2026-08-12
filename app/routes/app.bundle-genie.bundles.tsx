@@ -1,5 +1,5 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
-import { Link, useLoaderData, useSubmit, useNavigation, useNavigate } from "@remix-run/react";
+import { Link, useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
 import {
   Page, Card, BlockStack, Text, IndexTable, Badge, Select, InlineStack, Button,
   EmptyState,
@@ -112,7 +112,6 @@ export default function BundleGenieList() {
   const { statusFilter, bundles } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
-  const navigate = useNavigate();
   const [status, setStatus] = useState(statusFilter);
 
   const applyStatus = useCallback((value: string) => {
@@ -134,10 +133,13 @@ export default function BundleGenieList() {
   return (
     <Page
       title="All Bundles"
-      primaryAction={{ content: "Create bundle", onAction: () => navigate("/app/bundle-genie/bundles/new") }}
+      primaryAction={{ content: "Create bundle", url: "/app/bundle-genie/bundles/new" }}
       backAction={{ url: "/app/bundle-genie" }}
     >
       <BlockStack gap="400">
+        <InlineStack gap="200">
+          <Link to="/app/bundle-genie/bundles/new">Create bundle →</Link>
+        </InlineStack>
         <Card>
           <div style={{ maxWidth: 240 }}>
             <Select
@@ -160,7 +162,7 @@ export default function BundleGenieList() {
           {bundles.length === 0 ? (
             <EmptyState
               heading="No bundles yet"
-              action={{ content: "Create bundle", onAction: () => navigate("/app/bundle-genie/bundles/new") }}
+              action={{ content: "Create bundle", url: "/app/bundle-genie/bundles/new" }}
               image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
             >
               <p>Bundles you create will show up here.</p>

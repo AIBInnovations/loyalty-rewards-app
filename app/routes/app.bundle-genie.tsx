@@ -1,5 +1,5 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
-import { Link, useLoaderData, useNavigate } from "@remix-run/react";
+import { Link, useLoaderData } from "@remix-run/react";
 import {
   Page, Layout, Card, BlockStack, Text, InlineGrid, Button,
   EmptyState, Badge, Banner, InlineStack,
@@ -47,17 +47,19 @@ const STATUS_TONE: Record<string, "success" | "info" | "attention" | "warning" |
 export default function BundleGenieOverview() {
   const { activeCount, draftCount, pausedCount, hasAnyBundles, recentBundles } =
     useLoaderData<typeof loader>();
-  const navigate = useNavigate();
 
   return (
     <Page
       title="Bundle Genie"
       subtitle="Product bundles — fixed sets, tiered offers, and mix-and-match."
-      primaryAction={{ content: "Create bundle", onAction: () => navigate("/app/bundle-genie/bundles/new") }}
-      secondaryActions={[{ content: "All bundles", onAction: () => navigate("/app/bundle-genie/bundles") }]}
+      primaryAction={{ content: "Create bundle", url: "/app/bundle-genie/bundles/new" }}
+      secondaryActions={[{ content: "All bundles", url: "/app/bundle-genie/bundles" }]}
       backAction={{ url: "/app" }}
     >
       <BlockStack gap="400">
+        <InlineStack gap="200">
+          <Link to="/app/bundle-genie/bundles/new">Create your first bundle →</Link>
+        </InlineStack>
         <Banner tone="info" title="Milestone 2 — storefront + customization">
           <p>
             Bundle creation, editing, publishing, per-bundle design
@@ -76,7 +78,7 @@ export default function BundleGenieOverview() {
           <Card>
             <EmptyState
               heading="Create your first bundle"
-              action={{ content: "Create bundle", onAction: () => navigate("/app/bundle-genie/bundles/new") }}
+              action={{ content: "Create bundle", url: "/app/bundle-genie/bundles/new" }}
               image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
             >
               <p>Group products together with a discount to increase average order value.</p>
