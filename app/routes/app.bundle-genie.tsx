@@ -1,5 +1,5 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
-import { Link, useLoaderData } from "@remix-run/react";
+import { Link, useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Page, Layout, Card, BlockStack, Text, InlineGrid, Button,
   EmptyState, Badge, Banner, InlineStack,
@@ -47,26 +47,28 @@ const STATUS_TONE: Record<string, "success" | "info" | "attention" | "warning" |
 export default function BundleGenieOverview() {
   const { activeCount, draftCount, pausedCount, hasAnyBundles, recentBundles } =
     useLoaderData<typeof loader>();
+  const navigate = useNavigate();
 
   return (
     <Page
       title="Bundle Genie"
       subtitle="Product bundles — fixed sets, tiered offers, and mix-and-match."
-      primaryAction={{ content: "Create bundle", url: "/app/bundle-genie/bundles/new" }}
-      secondaryActions={[{ content: "All bundles", url: "/app/bundle-genie/bundles" }]}
+      primaryAction={{ content: "Create bundle", onAction: () => navigate("/app/bundle-genie/bundles/new") }}
+      secondaryActions={[{ content: "All bundles", onAction: () => navigate("/app/bundle-genie/bundles") }]}
       backAction={{ url: "/app" }}
     >
       <BlockStack gap="400">
-        <Banner tone="info" title="Milestone 1 — foundation">
+        <Banner tone="info" title="Milestone 2 — storefront + customization">
           <p>
-            Bundle creation, editing, and publishing work end to end for the{" "}
-            <strong>Fixed Product Bundle</strong> type. The storefront widget
-            (Theme App Extension block), Shopify Functions pricing/checkout
-            enforcement, and order-attributed analytics haven't been built
-            yet — bundles publish and store correctly, but nothing renders
-            on the storefront or affects checkout until that ships. The
-            other 13 bundle types from the plan aren't implemented yet
-            either.
+            Bundle creation, editing, publishing, per-bundle design
+            (colors/layout), and a real product-page storefront widget all
+            work end to end for the <strong>Fixed Product Bundle</strong>{" "}
+            type. Price enforcement uses a Shopify automatic discount
+            (quantity-based — a customer buying N units of one bundle
+            product also qualifies; not a strict "one of each" rule). A
+            Cart Transform Function, a precise Discount Function, and
+            order-attributed analytics haven't been built yet. The other 13
+            bundle types from the plan aren't implemented yet either.
           </p>
         </Banner>
 
@@ -74,7 +76,7 @@ export default function BundleGenieOverview() {
           <Card>
             <EmptyState
               heading="Create your first bundle"
-              action={{ content: "Create bundle", url: "/app/bundle-genie/bundles/new" }}
+              action={{ content: "Create bundle", onAction: () => navigate("/app/bundle-genie/bundles/new") }}
               image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
             >
               <p>Group products together with a discount to increase average order value.</p>
@@ -123,8 +125,12 @@ export default function BundleGenieOverview() {
           <BlockStack gap="200">
             <Text as="h2" variant="headingMd">Setup status</Text>
             <InlineStack gap="200">
-              <Badge tone="critical">Not built yet</Badge>
-              <Text as="span">Storefront extension (Theme App Extension block)</Text>
+              <Badge tone="success">Live</Badge>
+              <Text as="span">Storefront extension (product page widget) — enable the "Bundle Genie" app embed in your theme editor if it isn't showing</Text>
+            </InlineStack>
+            <InlineStack gap="200">
+              <Badge tone="success">Live</Badge>
+              <Text as="span">Per-bundle design/customization (colors, corner radius, layout)</Text>
             </InlineStack>
             <InlineStack gap="200">
               <Badge tone="critical">Not built yet</Badge>
@@ -132,11 +138,7 @@ export default function BundleGenieOverview() {
             </InlineStack>
             <InlineStack gap="200">
               <Badge tone="critical">Not built yet</Badge>
-              <Text as="span">Discount Function</Text>
-            </InlineStack>
-            <InlineStack gap="200">
-              <Badge tone="critical">Not built yet</Badge>
-              <Text as="span">Checkout provider (Shopify Native / ShipRocket / Shopflo / GoKwik)</Text>
+              <Text as="span">Precise Discount Function (current pricing uses an automatic discount approximation)</Text>
             </InlineStack>
           </BlockStack>
         </Card>

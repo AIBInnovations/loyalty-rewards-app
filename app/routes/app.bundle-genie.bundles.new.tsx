@@ -2,13 +2,14 @@ import { json, redirect, type ActionFunctionArgs } from "@remix-run/node";
 import { useNavigate, useSubmit, useNavigation } from "@remix-run/react";
 import {
   Page, Card, BlockStack, Text, TextField, Button, Select, Banner,
-  InlineStack, Divider,
+  InlineStack, Divider, InlineGrid,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
-import { Bundle, type IBundleProduct } from "../.server/models/bundle.model";
+import { Bundle, type IBundleProduct, type IBundleVersion } from "../.server/models/bundle.model";
+import { syncBundleVersionDiscount } from "../.server/services/bundle-discount.service";
 
 function slugify(input: string): string {
   return input
@@ -20,7 +21,7 @@ function slugify(input: string): string {
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   await connectDB();
   const shopId = session.shop;
 
@@ -31,6 +32,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const discountType = String(formData.get("discountType") || "percentage");
   const discountValue = Number(formData.get("discountValue")) || 0;
   const intent = String(formData.get("intent") || "draft"); // "draft" | "publish"
+  const bgColor = String(formData.get("bgColor") || "").slice(0, 20);
+  const textColor = String(formData.get("textColor") || "").slice(0, 20);
+  const buttonColor = String(formData.get("buttonColor") || "").slice(0, 20);
+  const buttonTextColor = String(formData.get("buttonTextColor") || "").slice(0, 20);
+  const borderRadius = Math.min(40, Math.max(0, Number(formData.get("borderRadius")) || 12));
+  const layout = formData.get("layout") === "list" ? "list" : "grid";
 
   let products: IBundleProduct[] = [];
   try {
@@ -47,6 +54,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const handle = slugify(title);
+  const style = { bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout };
+
+  let versions: IBundleVersion[] = [];
+  if (intent === "publish") {
+    const version: IBundleVersion = {
+      version: 1,
+      products,
+      discountType: discountType as IBundleVersion["discountType"],
+      discountValue,
+      publishedAt: new Date(),
+      shopifyDiscountId: "",
+    };
+    version.shopifyDiscountId = await syncBundleVersionDiscount(admin as any, { title }, version);
+    versions = [version];
+  }
 
   const bundle = new Bundle({
     shopId,
@@ -59,16 +81,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     draftProducts: products,
     draftDiscountType: discountType,
     draftDiscountValue: discountValue,
+    style,
     currentVersion: intent === "publish" ? 1 : 0,
-    versions: intent === "publish"
-      ? [{
-          version: 1,
-          products,
-          discountType,
-          discountValue,
-          publishedAt: new Date(),
-        }]
-      : [],
+    versions,
   });
 
   try {
@@ -96,6 +111,12 @@ export default function BundleGenieNew() {
   const [discountType, setDiscountType] = useState("percentage");
   const [discountValue, setDiscountValue] = useState("10");
   const [products, setProducts] = useState<IBundleProduct[]>([]);
+  const [bgColor, setBgColor] = useState("");
+  const [textColor, setTextColor] = useState("");
+  const [buttonColor, setButtonColor] = useState("");
+  const [buttonTextColor, setButtonTextColor] = useState("");
+  const [borderRadius, setBorderRadius] = useState("12");
+  const [layout, setLayout] = useState("grid");
   const [error, setError] = useState("");
 
   const handleBrowseProducts = useCallback(async () => {
@@ -159,9 +180,18 @@ export default function BundleGenieNew() {
     fd.set("discountType", discountType);
     fd.set("discountValue", discountValue);
     fd.set("products", JSON.stringify(products));
+    fd.set("bgColor", bgColor);
+    fd.set("textColor", textColor);
+    fd.set("buttonColor", buttonColor);
+    fd.set("buttonTextColor", buttonTextColor);
+    fd.set("borderRadius", borderRadius);
+    fd.set("layout", layout);
     fd.set("intent", intent);
     submit(fd, { method: "post" });
-  }, [internalName, title, description, discountType, discountValue, products, submit]);
+  }, [
+    internalName, title, description, discountType, discountValue, products,
+    bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout, submit,
+  ]);
 
   return (
     <Page
@@ -255,6 +285,41 @@ export default function BundleGenieNew() {
                 />
               )}
             </InlineStack>
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">Design</Text>
+            <Text as="p" tone="subdued">
+              How this bundle looks on the product page. Leave colors blank for the theme's defaults.
+            </Text>
+            <InlineGrid columns={2} gap="300">
+              <TextField label="Background color" value={bgColor} onChange={setBgColor} placeholder="#ffffff" autoComplete="off" />
+              <TextField label="Text color" value={textColor} onChange={setTextColor} placeholder="#1a1a1a" autoComplete="off" />
+              <TextField label="Button color" value={buttonColor} onChange={setButtonColor} placeholder="#1a1a1a" autoComplete="off" />
+              <TextField label="Button text color" value={buttonTextColor} onChange={setButtonTextColor} placeholder="#ffffff" autoComplete="off" />
+            </InlineGrid>
+            <InlineGrid columns={2} gap="300">
+              <TextField
+                label="Corner radius (px)"
+                type="number"
+                value={borderRadius}
+                onChange={setBorderRadius}
+                autoComplete="off"
+                min={0}
+                max={40}
+              />
+              <Select
+                label="Layout"
+                options={[
+                  { label: "Grid", value: "grid" },
+                  { label: "List", value: "list" },
+                ]}
+                value={layout}
+                onChange={setLayout}
+              />
+            </InlineGrid>
           </BlockStack>
         </Card>
 
