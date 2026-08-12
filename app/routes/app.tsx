@@ -9,6 +9,7 @@ import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { CartDrawerSettings } from "../.server/models/cart-settings.model";
+import { BundleSettings } from "../.server/models/bundle.model";
 import { WishlistSettings } from "../.server/models/wishlist-settings.model";
 import { VolumeDiscountSettings } from "../.server/models/volume-discount.model";
 import { TimerSettings } from "../.server/models/timer-settings.model";
@@ -41,6 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // merchant's own Shopify Admin nav here — not just the storefront widget.
   const [
     cartDrawer,
+    bundleGenie,
     wishlist,
     volumeDiscounts,
     timer,
@@ -61,6 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     settings,
   ] = await Promise.all([
     CartDrawerSettings.findOne({ shopId }).lean(),
+    BundleSettings.findOne({ shopId }).lean(),
     WishlistSettings.findOne({ shopId }).lean(),
     VolumeDiscountSettings.findOne({ shopId }).lean(),
     TimerSettings.findOne({ shopId }).lean(),
@@ -84,6 +87,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const enabled = {
     loyalty: settings?.isActive ?? true,
     cartDrawer: cartDrawer?.enabled ?? false,
+    bundleGenie: bundleGenie?.enabled ?? false,
     wishlist: wishlist?.enabled ?? false,
     volumeDiscounts:
       volumeDiscounts?.campaigns?.some((campaign: any) => campaign.enabled) ??
@@ -126,6 +130,7 @@ export default function App() {
         <Link to="/app/referrals">Referrals</Link>
         {enabled.imageSearch && <Link to="/app/image-search-settings">Image Search</Link>}
         {enabled.cartDrawer && <Link to="/app/cart-settings">Cart Drawer</Link>}
+        {enabled.bundleGenie && <Link to="/app/bundle-genie">Bundle Genie</Link>}
         {enabled.volumeDiscounts && <Link to="/app/volume-discounts">Volume Discounts</Link>}
         {enabled.timer && <Link to="/app/timer-settings">Timer</Link>}
         {enabled.exitPopup && <Link to="/app/popup-settings">Exit Popup</Link>}

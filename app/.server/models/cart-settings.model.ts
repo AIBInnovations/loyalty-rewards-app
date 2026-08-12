@@ -34,6 +34,11 @@ export interface IManualProduct {
 export interface ICartDrawerSettings extends Document {
   shopId: string;
   enabled: boolean;
+  /** Checkout accelerator to trigger from the checkout button, if its script
+      is present on the page — "native" always falls back to plain /checkout.
+      Only add a new value here once its trigger function is verified working
+      (see shiprocketCheckoutBuyCartHandler precedent) — never guessed. */
+  checkoutProvider: "native" | "shiprocket";
   tiers: ICartTier[];
   /** Hides the whole tiered progress bar/card in the cart drawer. */
   showProgressBar: boolean;
@@ -131,6 +136,7 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
   {
     shopId: { type: String, required: true, unique: true },
     enabled: { type: Boolean, default: false },
+    checkoutProvider: { type: String, enum: ["native", "shiprocket"], default: "native" },
     showProgressBar: { type: Boolean, default: true },
     tiers: {
       type: [cartTierSchema],

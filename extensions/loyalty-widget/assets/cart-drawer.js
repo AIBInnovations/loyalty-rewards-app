@@ -1210,11 +1210,13 @@
   }
 
   // ShipRocket's own UPI-options and "Powered by" badges — only shown when
-  // their script is actually active on the page (same detection the
-  // checkout click handler uses), so a store without ShipRocket, or one on
-  // a different gateway, never shows ShipRocket branding on its button.
+  // the merchant selected ShipRocket as the checkout provider AND their
+  // script is actually active on the page (same detection the checkout
+  // click handler uses), so a store on native checkout or a different
+  // gateway never shows ShipRocket branding on its button.
   function hasShiprocketCheckout() {
-    return typeof window.shiprocketCheckoutBuyCartHandler === "function";
+    return (state.settings && state.settings.checkoutProvider === "shiprocket") &&
+      typeof window.shiprocketCheckoutBuyCartHandler === "function";
   }
 
   function renderShiprocketIcons() {
@@ -1448,11 +1450,16 @@
       btn.addEventListener("click", function () {
         closeDrawer();
 
-        // ShipRocket (Fastrr Boost), when installed and active on the store,
-        // exposes this on window — calling it opens their payment popup
-        // directly instead of navigating to Shopify's native checkout.
-        // Confirmed working via manual console test before wiring this in.
-        if (typeof window.shiprocketCheckoutBuyCartHandler === "function") {
+        // Merchant-selected checkout provider (Cart Drawer settings). Only
+        // ever calls a provider's trigger function when both (a) the
+        // merchant picked it and (b) its script has actually exposed the
+        // function on this page — otherwise falls straight through to
+        // native checkout. Each branch here must be a function verified to
+        // exist (e.g. by console-testing on a live page) before being added
+        // — never a guessed API.
+        var provider = state.settings && state.settings.checkoutProvider;
+
+        if (provider === "shiprocket" && typeof window.shiprocketCheckoutBuyCartHandler === "function") {
           try {
             window.shiprocketCheckoutBuyCartHandler();
             return;

@@ -2,6 +2,7 @@ import type { Model } from "mongoose";
 
 import { AbandonedCart } from "./abandoned-cart.model";
 import { AuditLog } from "./audit-log.model";
+import { Bundle, BundleSettings } from "./bundle.model";
 import { CartDrawerSettings } from "./cart-settings.model";
 import { CodSettings } from "./cod-settings.model";
 import { Customer } from "./customer.model";
@@ -60,6 +61,8 @@ import { WishlistSettings } from "./wishlist-settings.model";
 export const SHOP_SCOPED_MODELS: Model<any>[] = [
   AbandonedCart,
   AuditLog,
+  Bundle,
+  BundleSettings,
   CartDrawerSettings,
   CodSettings,
   Customer,
