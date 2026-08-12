@@ -42,6 +42,15 @@ export interface IBundleProduct {
   position: number;
 }
 
+export interface IBundleStyle {
+  bgColor: string;
+  textColor: string;
+  buttonColor: string;
+  buttonTextColor: string;
+  borderRadius: number;
+  layout: "grid" | "list";
+}
+
 /**
  * Immutable snapshot taken at publish time. Orders and analytics reference
  * a specific version number even after the merchant edits the bundle again
@@ -53,6 +62,11 @@ export interface IBundleVersion {
   discountType: BundleDiscountType;
   discountValue: number;
   publishedAt: Date;
+  /** Shopify automatic-discount node ID enforcing this version's price —
+      real server-side enforcement (same discountAutomaticBasicCreate
+      mechanism already used by Volume Discounts), not a client-side-only
+      number. Empty when discountType is "none" or sync failed. */
+  shopifyDiscountId: string;
 }
 
 export interface IBundle extends Document {
@@ -70,6 +84,7 @@ export interface IBundle extends Document {
   draftProducts: IBundleProduct[];
   draftDiscountType: BundleDiscountType;
   draftDiscountValue: number;
+  style: IBundleStyle;
   currentVersion: number; // 0 = never published
   versions: IBundleVersion[];
   createdAt: Date;
@@ -105,6 +120,19 @@ const bundleVersionSchema = new Schema<IBundleVersion>(
     },
     discountValue: { type: Number, default: 0 },
     publishedAt: { type: Date, default: Date.now },
+    shopifyDiscountId: { type: String, default: "" },
+  },
+  { _id: false },
+);
+
+const bundleStyleSchema = new Schema<IBundleStyle>(
+  {
+    bgColor: { type: String, default: "" },
+    textColor: { type: String, default: "" },
+    buttonColor: { type: String, default: "" },
+    buttonTextColor: { type: String, default: "" },
+    borderRadius: { type: Number, default: 12 },
+    layout: { type: String, enum: ["grid", "list"], default: "grid" },
   },
   { _id: false },
 );
@@ -141,6 +169,7 @@ const bundleSchema = new Schema<IBundle>(
       default: "percentage",
     },
     draftDiscountValue: { type: Number, default: 0 },
+    style: { type: bundleStyleSchema, default: () => ({}) },
     currentVersion: { type: Number, default: 0 },
     versions: { type: [bundleVersionSchema], default: [] },
   },

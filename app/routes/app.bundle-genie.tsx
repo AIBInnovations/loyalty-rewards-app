@@ -57,16 +57,20 @@ export default function BundleGenieOverview() {
       backAction={{ url: "/app" }}
     >
       <BlockStack gap="400">
-        <Banner tone="info" title="Milestone 1 — foundation">
+        <InlineStack gap="200">
+          <Link to="/app/bundle-genie/bundles/new">Create your first bundle →</Link>
+        </InlineStack>
+        <Banner tone="info" title="Milestone 2 — storefront + customization">
           <p>
-            Bundle creation, editing, and publishing work end to end for the{" "}
-            <strong>Fixed Product Bundle</strong> type. The storefront widget
-            (Theme App Extension block), Shopify Functions pricing/checkout
-            enforcement, and order-attributed analytics haven't been built
-            yet — bundles publish and store correctly, but nothing renders
-            on the storefront or affects checkout until that ships. The
-            other 13 bundle types from the plan aren't implemented yet
-            either.
+            Bundle creation, editing, publishing, per-bundle design
+            (colors/layout), and a real product-page storefront widget all
+            work end to end for the <strong>Fixed Product Bundle</strong>{" "}
+            type. Price enforcement uses a Shopify automatic discount
+            (quantity-based — a customer buying N units of one bundle
+            product also qualifies; not a strict "one of each" rule). A
+            Cart Transform Function, a precise Discount Function, and
+            order-attributed analytics haven't been built yet. The other 13
+            bundle types from the plan aren't implemented yet either.
           </p>
         </Banner>
 
@@ -123,8 +127,12 @@ export default function BundleGenieOverview() {
           <BlockStack gap="200">
             <Text as="h2" variant="headingMd">Setup status</Text>
             <InlineStack gap="200">
-              <Badge tone="critical">Not built yet</Badge>
-              <Text as="span">Storefront extension (Theme App Extension block)</Text>
+              <Badge tone="success">Live</Badge>
+              <Text as="span">Storefront extension (product page widget) — enable the "Bundle Genie" app embed in your theme editor if it isn't showing</Text>
+            </InlineStack>
+            <InlineStack gap="200">
+              <Badge tone="success">Live</Badge>
+              <Text as="span">Per-bundle design/customization (colors, corner radius, layout)</Text>
             </InlineStack>
             <InlineStack gap="200">
               <Badge tone="critical">Not built yet</Badge>
@@ -132,11 +140,7 @@ export default function BundleGenieOverview() {
             </InlineStack>
             <InlineStack gap="200">
               <Badge tone="critical">Not built yet</Badge>
-              <Text as="span">Discount Function</Text>
-            </InlineStack>
-            <InlineStack gap="200">
-              <Badge tone="critical">Not built yet</Badge>
-              <Text as="span">Checkout provider (Shopify Native / ShipRocket / Shopflo / GoKwik)</Text>
+              <Text as="span">Precise Discount Function (current pricing uses an automatic discount approximation)</Text>
             </InlineStack>
           </BlockStack>
         </Card>

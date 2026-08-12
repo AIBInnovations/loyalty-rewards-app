@@ -137,6 +137,9 @@ export default function BundleGenieList() {
       backAction={{ url: "/app/bundle-genie" }}
     >
       <BlockStack gap="400">
+        <InlineStack gap="200">
+          <Link to="/app/bundle-genie/bundles/new">Create bundle →</Link>
+        </InlineStack>
         <Card>
           <div style={{ maxWidth: 240 }}>
             <Select

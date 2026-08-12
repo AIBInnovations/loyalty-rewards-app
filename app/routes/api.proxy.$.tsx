@@ -13,6 +13,7 @@ import {
   trackSearchEvent,
 } from "../.server/services/image-search.service";
 import { getBalance, redeemPoints } from "../.server/services/points.service";
+import { Bundle, BundleSettings } from "../.server/models/bundle.model";
 import { Customer } from "../.server/models/customer.model";
 import { Reward } from "../.server/models/reward.model";
 import { Transaction } from "../.server/models/transaction.model";
@@ -271,6 +272,10 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
 
   if (path === "pincode-settings") {
     return (await accessGate("pincode", shop, shopifyCustomerId)) || handleGetPincodeSettings(shop);
+  }
+
+  if (path === "bundle-for-product") {
+    return handleGetBundleForProduct(params, shop);
   }
 
   if (path === "upsell-settings") {
@@ -1485,6 +1490,43 @@ async function handleGetPincodeSettings(shop: string) {
     sectionWidth: settings?.sectionWidth || "",
     sectionHeight: settings?.sectionHeight || "",
   }, { headers: { "Cache-Control": "no-store" } });
+}
+
+// ─── Bundle Genie ─────────────────────────────────────────────────
+
+async function handleGetBundleForProduct(params: URLSearchParams, shop: string) {
+  const noStore = { headers: { "Cache-Control": "no-store" } };
+  const productId = (params.get("productId") || "").trim();
+  if (!productId) return json({ found: false }, { status: 400, ...noStore });
+
+  const bundleSettings = await BundleSettings.findOne({ shopId: shop }).lean();
+  if (!bundleSettings?.enabled) return json({ found: false }, noStore);
+
+  // Product IDs arrive from Liquid as the numeric id; stored product IDs are
+  // full GIDs (gid://shopify/Product/123) — match on the numeric suffix.
+  const bundle = await Bundle.findOne({
+    shopId: shop,
+    status: "active",
+    currentVersion: { $gt: 0 },
+    "versions.products.shopifyProductId": { $regex: productId + "$" },
+  }).lean();
+
+  if (!bundle) return json({ found: false }, noStore);
+
+  const version = bundle.versions.find((v) => v.version === bundle.currentVersion);
+  if (!version) return json({ found: false }, noStore);
+
+  return json({
+    found: true,
+    bundleId: String(bundle._id),
+    title: bundle.title,
+    description: bundle.description,
+    products: version.products,
+    discountType: version.discountType,
+    discountValue: version.discountValue,
+    priceEnforced: Boolean(version.shopifyDiscountId),
+    style: bundle.style,
+  }, noStore);
 }
 
 // ─── Upsell Settings ─────────────────────────────────────────────

@@ -1,0 +1,29 @@
+{% comment %}
+  Bundle Genie - App Embed Block
+  Product-page only. Looks up whether the current product is part of an
+  active Fixed Product Bundle and, if so, renders it with a real "Add
+  Bundle to Cart" button. Price shown is informational — actual discount
+  enforcement is a server-side Shopify automatic discount created when the
+  bundle is published (see bundle-discount.service.ts), not this script.
+{% endcomment %}
+
+{% if template.name == 'product' %}
+<div
+  id="bundle-genie-widget"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-product-id="{{ product.id }}"
+  data-money-format="{{ shop.money_format | escape }}"
+  style="display: none;"
+></div>
+
+{{ 'bundle-genie.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'bundle-genie.js' | asset_url }}" defer></script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Bundle Genie",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}
