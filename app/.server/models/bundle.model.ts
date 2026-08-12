@@ -206,3 +206,61 @@ export async function getOrCreateBundleSettings(shopId: string): Promise<IBundle
   if (!s) s = await BundleSettings.create({ shopId });
   return s;
 }
+
+/**
+ * Daily per-bundle counters. One row per (shopId, bundleId, date) — updated
+ * with atomic $inc upserts from the storefront ping endpoint and the
+ * ORDERS_PAID webhook, never overwritten wholesale. "date" is a plain
+ * YYYY-MM-DD string in UTC, not a Date, so grouping/lookup is a simple
+ * equality match without timezone math.
+ */
+export interface IBundleAnalyticsDaily extends Document {
+  shopId: string;
+  bundleId: string;
+  date: string;
+  pageSessions: number;
+  interactions: number;
+  addToCarts: number;
+  orders: number;
+  revenue: number; // minor units, same convention as IBundleProduct.price
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const bundleAnalyticsDailySchema = new Schema<IBundleAnalyticsDaily>(
+  {
+    shopId: { type: String, required: true },
+    bundleId: { type: String, required: true },
+    date: { type: String, required: true },
+    pageSessions: { type: Number, default: 0 },
+    interactions: { type: Number, default: 0 },
+    addToCarts: { type: Number, default: 0 },
+    orders: { type: Number, default: 0 },
+    revenue: { type: Number, default: 0 },
+  },
+  { timestamps: true },
+);
+
+bundleAnalyticsDailySchema.index({ shopId: 1, bundleId: 1, date: 1 }, { unique: true });
+bundleAnalyticsDailySchema.index({ shopId: 1, date: 1 });
+
+export const BundleAnalyticsDaily: Model<IBundleAnalyticsDaily> =
+  mongoose.models.BundleAnalyticsDaily ||
+  mongoose.model<IBundleAnalyticsDaily>("BundleAnalyticsDaily", bundleAnalyticsDailySchema);
+
+export type BundleAnalyticsEvent = "view" | "interaction" | "addToCart";
+
+export async function recordBundleAnalyticsEvent(
+  shopId: string,
+  bundleId: string,
+  event: BundleAnalyticsEvent,
+): Promise<void> {
+  const date = new Date().toISOString().slice(0, 10);
+  const field =
+    event === "view" ? "pageSessions" : event === "interaction" ? "interactions" : "addToCarts";
+  await BundleAnalyticsDaily.findOneAndUpdate(
+    { shopId, bundleId, date },
+    { $inc: { [field]: 1 } },
+    { upsert: true, setDefaultsOnInsert: true },
+  );
+}
