@@ -13,7 +13,12 @@ import {
   trackSearchEvent,
 } from "../.server/services/image-search.service";
 import { getBalance, redeemPoints } from "../.server/services/points.service";
-import { Bundle, BundleSettings } from "../.server/models/bundle.model";
+import {
+  Bundle,
+  BundleSettings,
+  recordBundleAnalyticsEvent,
+  type BundleAnalyticsEvent,
+} from "../.server/models/bundle.model";
 import { Customer } from "../.server/models/customer.model";
 import { Reward } from "../.server/models/reward.model";
 import { Transaction } from "../.server/models/transaction.model";
@@ -1247,6 +1252,13 @@ export const action = async ({ request, params: routeParams }: ActionFunctionArg
     return handleImageSearchEvent(request, shop);
   }
 
+  if (route === "bundle-genie/track") {
+    if (!checkRateLimit(`bundle-genie-track:${shop}`, 120)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
+    return handleBundleGenieTrack(request, shop);
+  }
+
   // ─── Customer-auth required routes ──────────────────────────────
   if (!shopifyCustomerId) {
     return json({ error: "Not logged in" }, { status: 401 });
@@ -1527,6 +1539,39 @@ async function handleGetBundleForProduct(params: URLSearchParams, shop: string) 
     priceEnforced: Boolean(version.shopifyDiscountId),
     style: bundle.style,
   }, noStore);
+}
+
+const BUNDLE_TRACK_EVENTS: BundleAnalyticsEvent[] = ["view", "interaction", "addToCart"];
+
+async function handleBundleGenieTrack(request: Request, shop: string) {
+  const noStore = { headers: { "Cache-Control": "no-store" } };
+  let bundleId = "";
+  let event = "";
+  try {
+    const body = await request.json();
+    bundleId = String(body?.bundleId || "").trim();
+    event = String(body?.event || "").trim();
+  } catch {
+    return json({ ok: false }, { status: 400, ...noStore });
+  }
+
+  if (!bundleId || !BUNDLE_TRACK_EVENTS.includes(event as BundleAnalyticsEvent)) {
+    return json({ ok: false }, { status: 400, ...noStore });
+  }
+
+  // Confirm the bundle actually belongs to this shop before counting against
+  // it — a forged bundleId shouldn't be able to inflate another shop's data
+  // or create orphaned analytics rows.
+  let owns = null;
+  try {
+    owns = await Bundle.exists({ _id: bundleId, shopId: shop });
+  } catch {
+    return json({ ok: false }, { status: 400, ...noStore });
+  }
+  if (!owns) return json({ ok: false }, { status: 404, ...noStore });
+
+  await recordBundleAnalyticsEvent(shop, bundleId, event as BundleAnalyticsEvent);
+  return json({ ok: true }, noStore);
 }
 
 // ─── Upsell Settings ─────────────────────────────────────────────
