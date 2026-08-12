@@ -2,7 +2,7 @@
 
 client_id = "539db39b9b944e7c9f794f52122735a0"
 name = "Vynexa"
-application_url = "https://loyalty-rewards-app-gxb7.onrender.com"
+application_url = "https://vynexa-app.onrender.com"
 embedded = true
 
 [build]
@@ -26,7 +26,7 @@ scopes = "read_customers,read_discounts,read_orders,read_products,write_customer
 
 [auth]
 redirect_urls = [
-  "https://loyalty-rewards-app-gxb7.onrender.com/auth/callback"
+  "https://vynexa-app.onrender.com/auth/callback"
 ]
 
 [app_proxy]
@@ -34,7 +34,7 @@ redirect_urls = [
 # widget JS has "/apps/loyalty/..." hardcoded in its fetch calls, so a
 # different value here would 404 every storefront request for shops
 # installed through this app.
-url = "https://loyalty-rewards-app-gxb7.onrender.com/api/proxy"
+url = "https://vynexa-app.onrender.com/api/proxy"
 subpath = "loyalty"
 prefix = "apps"
 
