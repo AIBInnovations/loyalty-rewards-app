@@ -52,6 +52,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       {
         $set: {
           enabled: data.enabled === "true",
+          checkoutProvider: data.checkoutProvider === "shiprocket" ? "shiprocket" : "native",
           showProgressBar: data.showProgressBar === "true",
           tiers,
           showRecommendations: data.showRecommendations === "true",
@@ -143,6 +144,9 @@ export default function CartSettingsPage() {
   const shopify = useAppBridge();
 
   const [enabled, setEnabled] = useState(settings.enabled);
+  const [checkoutProvider, setCheckoutProvider] = useState(
+    settings.checkoutProvider || "native",
+  );
   const [interceptAddToCart, setInterceptAddToCart] = useState(
     settings.interceptAddToCart,
   );
@@ -286,6 +290,7 @@ export default function CartSettingsPage() {
   const handleSave = useCallback(() => {
     const formData = new FormData();
     formData.set("enabled", String(enabled));
+    formData.set("checkoutProvider", checkoutProvider);
     formData.set("interceptAddToCart", String(interceptAddToCart));
     formData.set("showRecommendations", String(showRecommendations));
     formData.set("recommendationsTitle", recommendationsTitle);
@@ -340,7 +345,7 @@ export default function CartSettingsPage() {
     formData.set("nodeTextColor", nodeTextColor);
     submit(formData, { method: "post" });
   }, [
-    enabled, interceptAddToCart, showRecommendations, recommendationsTitle,
+    enabled, checkoutProvider, interceptAddToCart, showRecommendations, recommendationsTitle,
     recommendationsCount, recommendationMode, recommendationsSlider,
     recommendationsAddToCartBg, recommendationsAddToCartText,
     recommendationsBadgeBg, recommendationsBadgeTextColor, recommendationsBadgeAlign, manualProducts,
@@ -498,6 +503,20 @@ export default function CartSettingsPage() {
                   helpText="Opens the cart drawer instead of redirecting to the cart page when customers add products."
                   checked={interceptAddToCart}
                   onChange={setInterceptAddToCart}
+                />
+                <Select
+                  label="Checkout provider"
+                  options={[
+                    { label: "Native Shopify checkout", value: "native" },
+                    { label: "ShipRocket (Fastrr)", value: "shiprocket" },
+                  ]}
+                  value={checkoutProvider}
+                  onChange={setCheckoutProvider}
+                  helpText={
+                    checkoutProvider === "native"
+                      ? "Checkout button goes straight to Shopify's native /checkout."
+                      : "Checkout button opens ShipRocket's payment popup if their script is active on the page — falls back to native checkout automatically if it isn't."
+                  }
                 />
               </BlockStack>
             </Card>

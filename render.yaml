@@ -34,3 +34,37 @@ services:
       # when unset rather than accepting unsigned requests.
       - key: ELEVENLABS_WEBHOOK_SECRET
         sync: false
+
+  # Same codebase, second identity — Vynexa is a separate Shopify app
+  # registration (client_id in shopify.app.vynexa.toml) that needs its own
+  # OAuth backend. One Render service can only authenticate as ONE Shopify
+  # app at a time (single static SHOPIFY_API_KEY/SECRET), so Vynexa can't
+  # share loyalty-rewards-app's service without breaking that app's installs.
+  - type: web
+    name: vynexa-app
+    runtime: docker
+    region: singapore
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false  # Same Atlas cluster as loyalty-rewards-app — shared data by design
+      - key: SHOPIFY_API_KEY
+        sync: false  # Vynexa's client ID (539db39b9b944e7c9f794f52122735a0)
+      - key: SHOPIFY_API_SECRET
+        sync: false  # Vynexa's client secret
+      - key: SHOPIFY_APP_URL
+        sync: false  # Set to this service's Render URL after first deploy
+      - key: SCOPES
+        value: read_customers,write_customers,read_orders,read_checkouts,write_discounts,read_discounts,read_products
+      - key: PORT
+        value: 3000
+      - key: HF_API_TOKEN
+        sync: false
+      - key: SESSION_SECRET
+        sync: false  # Generate a fresh one — do not reuse loyalty-rewards-app's
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false  # Generate a fresh one — do not reuse loyalty-rewards-app's
+      - key: ELEVENLABS_WEBHOOK_SECRET
+        sync: false

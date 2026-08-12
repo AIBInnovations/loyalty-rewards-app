@@ -40,6 +40,7 @@ import { Transaction } from "../.server/models/transaction.model";
 import { Redemption } from "../.server/models/redemption.model";
 import { Settings } from "../.server/models/settings.model";
 import { CartDrawerSettings } from "../.server/models/cart-settings.model";
+import { BundleSettings } from "../.server/models/bundle.model";
 import { CodSettings } from "../.server/models/cod-settings.model";
 import { FaqSettings } from "../.server/models/faq-settings.model";
 import { ImageSearchSettings } from "../.server/models/image-search-settings.model";
@@ -84,6 +85,7 @@ const pluginDefinitions = [
   ["loyalty", "Loyalty & Rewards", "Loyalty", "/app/settings", "Points, referrals, tiers, redemptions, and rewards widget."],
   ["customers", "Customers", "Loyalty", "/app/customers", "Customer directory with points balance, tier, and referral code."],
   ["cartDrawer", "Cart Drawer", "Conversion", "/app/cart-settings", "Slide-out cart with progress tiers, recommendations, and upsell."],
+  ["bundleGenie", "Bundle Genie", "Conversion", "/app/bundle-genie", "Product bundles — fixed sets, tiered offers, and mix-and-match. Milestone 1 (foundation) — Fixed Product Bundle only so far."],
   ["wishlist", "Wishlist", "Merchandising", "/app/wishlist", "Wishlist and save-for-later tools for shoppers."],
   ["reviews", "Reviews & Q&A", "Content", "/app/reviews-settings", "Collect reviews, questions, photos, videos, and review rewards."],
   ["volumeDiscounts", "Volume Discounts", "Conversion", "/app/volume-discounts", "Quantity break campaigns for product and cart pages."],
@@ -452,6 +454,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     recentTransactions,
     wishlist,
     cartDrawer,
+    bundleGenie,
     volumeDiscounts,
     timer,
     exitPopup,
@@ -484,6 +487,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .lean(),
     WishlistSettings.findOne({ shopId: selectedShop }).lean(),
     CartDrawerSettings.findOne({ shopId: selectedShop }).lean(),
+    BundleSettings.findOne({ shopId: selectedShop }).lean(),
     VolumeDiscountSettings.findOne({ shopId: selectedShop }).lean(),
     TimerSettings.findOne({ shopId: selectedShop }).lean(),
     PopupSettings.findOne({ shopId: selectedShop }).lean(),
@@ -507,6 +511,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     customers: settings?.customersPageEnabled ?? true,
     wishlist: wishlist?.enabled ?? false,
     cartDrawer: cartDrawer?.enabled ?? false,
+    bundleGenie: bundleGenie?.enabled ?? false,
     volumeDiscounts:
       volumeDiscounts?.campaigns?.some((campaign: any) => campaign.enabled) ??
       false,
@@ -825,6 +830,9 @@ async function setPluginStatus(
       break;
     case "cartDrawer":
       await CartDrawerSettings.findOneAndUpdate({ shopId }, updateEnabled, options);
+      break;
+    case "bundleGenie":
+      await BundleSettings.findOneAndUpdate({ shopId }, updateEnabled, options);
       break;
     case "timer":
       await TimerSettings.findOneAndUpdate({ shopId }, updateEnabled, options);

@@ -1,0 +1,42 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "539db39b9b944e7c9f794f52122735a0"
+name = "Vynexa"
+application_url = "https://vynexa-app.onrender.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2025-01"
+
+  [[webhooks.subscriptions]]
+  topics = [
+  "products/create",
+  "products/delete",
+  "products/update",
+  "app/uninstalled"
+]
+  uri = "/webhooks"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_customers,read_discounts,read_orders,read_products,write_customers,write_discounts"
+
+[auth]
+redirect_urls = [
+  "https://vynexa-app.onrender.com/auth/callback"
+]
+
+[app_proxy]
+# subpath/prefix must stay identical to the other config — the storefront
+# widget JS has "/apps/loyalty/..." hardcoded in its fetch calls, so a
+# different value here would 404 every storefront request for shops
+# installed through this app.
+url = "https://vynexa-app.onrender.com/api/proxy"
+subpath = "loyalty"
+prefix = "apps"
+
+[pos]
+embedded = false
