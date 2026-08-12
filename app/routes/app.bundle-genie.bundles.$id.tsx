@@ -2,13 +2,14 @@ import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from
 import { useLoaderData, useNavigate, useSubmit, useNavigation } from "@remix-run/react";
 import {
   Page, Card, BlockStack, Text, TextField, Button, Select, Banner,
-  InlineStack, Divider, Badge,
+  InlineStack, Divider, Badge, InlineGrid,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { Bundle, type IBundleProduct } from "../.server/models/bundle.model";
+import { syncBundleVersionDiscount, deleteBundleDiscount } from "../.server/services/bundle-discount.service";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -22,7 +23,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   await connectDB();
   const shopId = session.shop;
 
@@ -31,20 +32,42 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const formData = await request.formData();
   const intent = String(formData.get("intent") || "");
+  const latestVersion = bundle.versions[bundle.versions.length - 1];
 
   if (intent === "archive") {
+    // Real cleanup, not just a status flip — an archived bundle's discount
+    // must stop applying, not linger active in the merchant's Shopify
+    // Discounts list.
+    if (latestVersion?.shopifyDiscountId) {
+      await deleteBundleDiscount(admin as any, latestVersion.shopifyDiscountId);
+      latestVersion.shopifyDiscountId = "";
+      bundle.markModified("versions");
+    }
     bundle.status = "archived";
     await bundle.save();
     return redirect("/app/bundle-genie/bundles");
   }
 
   if (intent === "pause") {
+    // Same reasoning as archive — a paused bundle must not keep discounting
+    // orders. Re-created on resume from the same version snapshot.
+    if (latestVersion?.shopifyDiscountId) {
+      await deleteBundleDiscount(admin as any, latestVersion.shopifyDiscountId);
+      latestVersion.shopifyDiscountId = "";
+      bundle.markModified("versions");
+    }
     bundle.status = "paused";
     await bundle.save();
     return json({ success: true });
   }
 
   if (intent === "resume") {
+    if (latestVersion && !latestVersion.shopifyDiscountId) {
+      latestVersion.shopifyDiscountId = await syncBundleVersionDiscount(
+        admin as any, { title: bundle.title }, latestVersion,
+      );
+      bundle.markModified("versions");
+    }
     bundle.status = bundle.currentVersion > 0 ? "active" : "draft";
     await bundle.save();
     return json({ success: true });
@@ -57,6 +80,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const description = String(formData.get("description") || "").trim();
   const discountType = String(formData.get("discountType") || "percentage");
   const discountValue = Number(formData.get("discountValue")) || 0;
+  const bgColor = String(formData.get("bgColor") || "").slice(0, 20);
+  const textColor = String(formData.get("textColor") || "").slice(0, 20);
+  const buttonColor = String(formData.get("buttonColor") || "").slice(0, 20);
+  const buttonTextColor = String(formData.get("buttonTextColor") || "").slice(0, 20);
+  const borderRadius = Math.min(40, Math.max(0, Number(formData.get("borderRadius")) || 12));
+  const layout = formData.get("layout") === "list" ? "list" : "grid";
 
   let products: IBundleProduct[] = [];
   try {
@@ -78,16 +107,25 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   bundle.draftProducts = products;
   bundle.draftDiscountType = discountType as any;
   bundle.draftDiscountValue = discountValue;
+  bundle.style = { bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout };
 
   if (intent === "publish") {
     const nextVersion = bundle.currentVersion + 1;
-    bundle.versions.push({
+    const version = {
       version: nextVersion,
       products,
       discountType: discountType as any,
       discountValue,
       publishedAt: new Date(),
-    });
+      shopifyDiscountId: "",
+    };
+    // Carrying the previous version's discount ID forward updates that same
+    // Shopify discount in place (new product list/value) instead of leaving
+    // an orphaned one active alongside a new one.
+    version.shopifyDiscountId = await syncBundleVersionDiscount(
+      admin as any, { title }, version, latestVersion?.shopifyDiscountId,
+    );
+    bundle.versions.push(version);
     bundle.currentVersion = nextVersion;
     bundle.status = "active";
   }
@@ -110,6 +148,12 @@ export default function BundleGenieEdit() {
   const [discountType, setDiscountType] = useState(bundle.draftDiscountType || "percentage");
   const [discountValue, setDiscountValue] = useState(String(bundle.draftDiscountValue ?? 10));
   const [products, setProducts] = useState<IBundleProduct[]>(bundle.draftProducts || []);
+  const [bgColor, setBgColor] = useState(bundle.style?.bgColor || "");
+  const [textColor, setTextColor] = useState(bundle.style?.textColor || "");
+  const [buttonColor, setButtonColor] = useState(bundle.style?.buttonColor || "");
+  const [buttonTextColor, setButtonTextColor] = useState(bundle.style?.buttonTextColor || "");
+  const [borderRadius, setBorderRadius] = useState(String(bundle.style?.borderRadius ?? 12));
+  const [layout, setLayout] = useState(bundle.style?.layout || "grid");
   const [error, setError] = useState("");
 
   const handleBrowseProducts = useCallback(async () => {
@@ -173,9 +217,18 @@ export default function BundleGenieEdit() {
     fd.set("discountType", discountType);
     fd.set("discountValue", discountValue);
     fd.set("products", JSON.stringify(products));
+    fd.set("bgColor", bgColor);
+    fd.set("textColor", textColor);
+    fd.set("buttonColor", buttonColor);
+    fd.set("buttonTextColor", buttonTextColor);
+    fd.set("borderRadius", borderRadius);
+    fd.set("layout", layout);
     fd.set("intent", intent);
     submit(fd, { method: "post" });
-  }, [internalName, title, description, discountType, discountValue, products, submit]);
+  }, [
+    internalName, title, description, discountType, discountValue, products,
+    bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout, submit,
+  ]);
 
   const runIntent = useCallback((intent: string) => {
     const fd = new FormData();
@@ -286,6 +339,41 @@ export default function BundleGenieEdit() {
                 />
               )}
             </InlineStack>
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">Design</Text>
+            <Text as="p" tone="subdued">
+              How this bundle looks on the product page. Leave colors blank for the theme's defaults.
+            </Text>
+            <InlineGrid columns={2} gap="300">
+              <TextField label="Background color" value={bgColor} onChange={setBgColor} placeholder="#ffffff" autoComplete="off" />
+              <TextField label="Text color" value={textColor} onChange={setTextColor} placeholder="#1a1a1a" autoComplete="off" />
+              <TextField label="Button color" value={buttonColor} onChange={setButtonColor} placeholder="#1a1a1a" autoComplete="off" />
+              <TextField label="Button text color" value={buttonTextColor} onChange={setButtonTextColor} placeholder="#ffffff" autoComplete="off" />
+            </InlineGrid>
+            <InlineGrid columns={2} gap="300">
+              <TextField
+                label="Corner radius (px)"
+                type="number"
+                value={borderRadius}
+                onChange={setBorderRadius}
+                autoComplete="off"
+                min={0}
+                max={40}
+              />
+              <Select
+                label="Layout"
+                options={[
+                  { label: "Grid", value: "grid" },
+                  { label: "List", value: "list" },
+                ]}
+                value={layout}
+                onChange={setLayout}
+              />
+            </InlineGrid>
           </BlockStack>
         </Card>
 
