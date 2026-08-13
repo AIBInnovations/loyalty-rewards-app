@@ -4,7 +4,7 @@ import { Page, Card, BlockStack, Text, Banner } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { getOrCreateBundleSettings, BundleSettings } from "../.server/models/bundle.model";
-import { BundleGenieNav } from "../components/bundle-genie-nav";
+import { BundleGenieShell } from "../components/bundle-genie-nav";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -40,9 +40,8 @@ export default function BundleGenieSettings() {
 
   return (
     <Page title="Bundle Genie" subtitle="Settings" backAction={{ url: "/app/bundle-genie" }}>
+      <BundleGenieShell active="settings">
       <BlockStack gap="400">
-        <BundleGenieNav active="settings" />
-
         <Card>
           <BlockStack gap="300">
             <Text as="h2" variant="headingMd">Storefront widget</Text>
@@ -71,6 +70,7 @@ export default function BundleGenieSettings() {
           </p>
         </Banner>
       </BlockStack>
+      </BundleGenieShell>
     </Page>
   );
 }
