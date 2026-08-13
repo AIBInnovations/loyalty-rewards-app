@@ -214,9 +214,23 @@ export default function BundleGenieCustomize() {
           </p>
         </Banner>
 
-        <InlineStack align="end">
-          <Button onClick={() => setStyle(DEFAULT_STYLE)}>Reset to Default</Button>
-        </InlineStack>
+        <Card>
+          <BlockStack gap="300">
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h2" variant="headingMd">Select theme</Text>
+              <Button variant="plain" onClick={() => setStyle(DEFAULT_STYLE)}>Reset to Default</Button>
+            </InlineStack>
+            <Select
+              label="Theme preset"
+              labelHidden
+              options={[{ label: "Default", value: "default" }]}
+              value="default"
+              onChange={() => {}}
+              helpText="Only one preset exists right now — Reset to Default reapplies it."
+            />
+            <TextField label="CTA Button Text" value={style.ctaText} onChange={(v) => set("ctaText", v)} autoComplete="off" maxLength={60} />
+          </BlockStack>
+        </Card>
 
         <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 420px", minWidth: 0 }}>
