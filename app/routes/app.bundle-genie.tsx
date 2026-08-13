@@ -1,5 +1,5 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
-import { Link, useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
+import { useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
 import {
   Page, Card, BlockStack, Text, InlineGrid, Button, Icon,
   EmptyState, Badge, Banner, InlineStack, IndexTable,
@@ -295,7 +295,7 @@ export default function BundleGenieOverview() {
                 <Text as="h2" variant="headingMd">Analytics</Text>
                 <Text as="p" tone="subdued">See how your store is performing with Bundle Genie. Below are today's stats.</Text>
               </BlockStack>
-              <Link to="/app/bundle-genie/analytics">View Detailed</Link>
+              <Button variant="primary" size="slim" url="/app/bundle-genie/analytics">View Detailed</Button>
             </InlineStack>
             <InlineGrid columns={{ xs: 2, sm: 5 }} gap="300">
               <BlockStack gap="050">
@@ -334,7 +334,7 @@ export default function BundleGenieOverview() {
                 <Icon source={MegaphoneIcon} tone="subdued" />
                 <Text as="h2" variant="headingMd">Campaigns</Text>
               </InlineStack>
-              <Link to="/app/bundle-genie/bundles">Show more</Link>
+              <Button variant="primary" size="slim" url="/app/bundle-genie/bundles">Show more</Button>
             </InlineStack>
           </div>
           {!hasAnyBundles ? (
