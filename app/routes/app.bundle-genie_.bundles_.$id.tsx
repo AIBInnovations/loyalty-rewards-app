@@ -6,7 +6,7 @@ import {
 } from "@shopify/polaris";
 import { ArrowUpIcon, ArrowDownIcon, DeleteIcon } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { Bundle, type IBundleProduct } from "../.server/models/bundle.model";
@@ -129,7 +129,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   bundle.draftProducts = products;
   bundle.draftDiscountType = discountType as any;
   bundle.draftDiscountValue = discountValue;
-  bundle.style = { bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout };
+  // Merge, not replace — the Customize screen sets many more style fields
+  // than this form exposes, and this save shouldn't wipe them out.
+  bundle.style = { ...(bundle.style || {}), bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout } as typeof bundle.style;
+  bundle.markModified("style");
 
   if (intent === "publish") {
     const nextVersion = bundle.currentVersion + 1;
@@ -240,7 +243,6 @@ export default function BundleGenieEdit() {
   const navigation = useNavigation();
   const shopify = useAppBridge();
   const isSaving = navigation.state === "submitting";
-  const designRef = useRef<HTMLDivElement>(null);
 
   const [internalName, setInternalName] = useState(bundle.internalName);
   const [title, setTitle] = useState(bundle.title);
@@ -382,7 +384,7 @@ export default function BundleGenieEdit() {
           : []),
         { content: "Duplicate", onAction: () => runIntent("duplicate") },
         ...(storefrontUrl ? [{ content: "View", onAction: () => window.open(storefrontUrl, "_blank") }] : []),
-        { content: "Customize Bundle", onAction: () => designRef.current?.scrollIntoView({ behavior: "smooth" }) },
+        { content: "Customize Bundle", url: `/app/bundle-genie/bundles/${bundle._id}/customize` },
         ...(bundle.status !== "archived"
           ? [{ content: "Delete", destructive: true, onAction: confirmAndArchive }]
           : []),
@@ -510,42 +512,43 @@ export default function BundleGenieEdit() {
                 </BlockStack>
               </Card>
 
-              <div ref={designRef}>
-                <Card>
-                  <BlockStack gap="400">
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
                     <Text as="h2" variant="headingMd">Design</Text>
-                    <Text as="p" tone="subdued">
-                      How this bundle looks on the product page. Leave colors blank for the theme's defaults.
-                    </Text>
-                    <InlineGrid columns={2} gap="300">
-                      <TextField label="Background color" value={bgColor} onChange={setBgColor} placeholder="#ffffff" autoComplete="off" />
-                      <TextField label="Text color" value={textColor} onChange={setTextColor} placeholder="#1a1a1a" autoComplete="off" />
-                      <TextField label="Button color" value={buttonColor} onChange={setButtonColor} placeholder="#1a1a1a" autoComplete="off" />
-                      <TextField label="Button text color" value={buttonTextColor} onChange={setButtonTextColor} placeholder="#ffffff" autoComplete="off" />
-                    </InlineGrid>
-                    <InlineGrid columns={2} gap="300">
-                      <TextField
-                        label="Corner radius (px)"
-                        type="number"
-                        value={borderRadius}
-                        onChange={setBorderRadius}
-                        autoComplete="off"
-                        min={0}
-                        max={40}
-                      />
-                      <Select
-                        label="Layout"
-                        options={[
-                          { label: "Grid", value: "grid" },
-                          { label: "List", value: "list" },
-                        ]}
-                        value={layout}
-                        onChange={setLayout}
-                      />
-                    </InlineGrid>
-                  </BlockStack>
-                </Card>
-              </div>
+                    <Button url={`/app/bundle-genie/bundles/${bundle._id}/customize`}>More customization options</Button>
+                  </InlineStack>
+                  <Text as="p" tone="subdued">
+                    How this bundle looks on the product page. Leave colors blank for the theme's defaults.
+                  </Text>
+                  <InlineGrid columns={2} gap="300">
+                    <TextField label="Background color" value={bgColor} onChange={setBgColor} placeholder="#ffffff" autoComplete="off" />
+                    <TextField label="Text color" value={textColor} onChange={setTextColor} placeholder="#1a1a1a" autoComplete="off" />
+                    <TextField label="Button color" value={buttonColor} onChange={setButtonColor} placeholder="#1a1a1a" autoComplete="off" />
+                    <TextField label="Button text color" value={buttonTextColor} onChange={setButtonTextColor} placeholder="#ffffff" autoComplete="off" />
+                  </InlineGrid>
+                  <InlineGrid columns={2} gap="300">
+                    <TextField
+                      label="Corner radius (px)"
+                      type="number"
+                      value={borderRadius}
+                      onChange={setBorderRadius}
+                      autoComplete="off"
+                      min={0}
+                      max={40}
+                    />
+                    <Select
+                      label="Layout"
+                      options={[
+                        { label: "Grid", value: "grid" },
+                        { label: "List", value: "list" },
+                      ]}
+                      value={layout}
+                      onChange={setLayout}
+                    />
+                  </InlineGrid>
+                </BlockStack>
+              </Card>
 
               <InlineStack align="end" gap="200">
                 <Button onClick={() => navigate("/app/bundle-genie/bundles")}>Cancel</Button>
