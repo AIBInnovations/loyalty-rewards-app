@@ -2,7 +2,7 @@ import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from
 import { useLoaderData, useNavigate, useSubmit, useNavigation } from "@remix-run/react";
 import {
   Page, Card, BlockStack, Text, TextField, Button, Select, Banner,
-  InlineStack, Divider, Badge, InlineGrid,
+  InlineStack, Divider, Badge, InlineGrid, Checkbox,
 } from "@shopify/polaris";
 import { ArrowUpIcon, ArrowDownIcon, DeleteIcon } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -108,6 +108,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const buttonTextColor = String(formData.get("buttonTextColor") || "").slice(0, 20);
   const borderRadius = Math.min(40, Math.max(0, Number(formData.get("borderRadius")) || 12));
   const layout = formData.get("layout") === "list" ? "list" : "grid";
+  const visibilityMode = formData.get("visibilityMode") === "primary" ? "primary" : "all";
+  const primaryProductId = String(formData.get("primaryProductId") || "");
+  const showCheckbox = formData.get("showCheckbox") === "true";
+  const uncheckByDefault = formData.get("uncheckByDefault") === "true";
+  const enableQuantitySelector = formData.get("enableQuantitySelector") === "true";
+  const quantityMin = Math.max(0, Number(formData.get("quantityMin")) || 0);
+  const quantityMax = Math.max(0, Number(formData.get("quantityMax")) || 0);
 
   let products: IBundleProduct[] = [];
   try {
@@ -131,7 +138,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   bundle.draftDiscountValue = discountValue;
   // Merge, not replace — the Customize screen sets many more style fields
   // than this form exposes, and this save shouldn't wipe them out.
-  bundle.style = { ...(bundle.style || {}), bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout } as typeof bundle.style;
+  bundle.style = {
+    ...(bundle.style || {}),
+    bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout,
+    visibilityMode, primaryProductId, showCheckbox, uncheckByDefault,
+    enableQuantitySelector, quantityMin, quantityMax,
+  } as typeof bundle.style;
   bundle.markModified("style");
 
   if (intent === "publish") {
@@ -257,6 +269,13 @@ export default function BundleGenieEdit() {
   const [buttonTextColor, setButtonTextColor] = useState(bundle.style?.buttonTextColor || "");
   const [borderRadius, setBorderRadius] = useState(String(bundle.style?.borderRadius ?? 12));
   const [layout, setLayout] = useState(bundle.style?.layout || "grid");
+  const [visibilityMode, setVisibilityMode] = useState<"primary" | "all">(bundle.style?.visibilityMode || "all");
+  const [primaryProductId, setPrimaryProductId] = useState(bundle.style?.primaryProductId || "");
+  const [showCheckbox, setShowCheckbox] = useState(bundle.style?.showCheckbox ?? false);
+  const [uncheckByDefault, setUncheckByDefault] = useState(bundle.style?.uncheckByDefault ?? false);
+  const [enableQuantitySelector, setEnableQuantitySelector] = useState(bundle.style?.enableQuantitySelector ?? false);
+  const [quantityMin, setQuantityMin] = useState(String(bundle.style?.quantityMin || ""));
+  const [quantityMax, setQuantityMax] = useState(String(bundle.style?.quantityMax || ""));
   const [error, setError] = useState("");
 
   const handleBrowseProducts = useCallback(async () => {
@@ -346,11 +365,20 @@ export default function BundleGenieEdit() {
     fd.set("buttonTextColor", buttonTextColor);
     fd.set("borderRadius", borderRadius);
     fd.set("layout", layout);
+    fd.set("visibilityMode", visibilityMode);
+    fd.set("primaryProductId", primaryProductId || products[0]?.shopifyProductId || "");
+    fd.set("showCheckbox", String(showCheckbox));
+    fd.set("uncheckByDefault", String(uncheckByDefault));
+    fd.set("enableQuantitySelector", String(enableQuantitySelector));
+    fd.set("quantityMin", quantityMin || "0");
+    fd.set("quantityMax", quantityMax || "0");
     fd.set("intent", intent);
     submit(fd, { method: "post" });
   }, [
     internalName, title, description, discountType, discountValue, products,
     bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout, submit,
+    visibilityMode, primaryProductId, showCheckbox, uncheckByDefault,
+    enableQuantitySelector, quantityMin, quantityMax,
   ]);
 
   const runIntent = useCallback((intent: string) => {
@@ -466,6 +494,18 @@ export default function BundleGenieEdit() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <Text as="p" variant="bodyMd" fontWeight="semibold">{p.title}</Text>
                           <Text as="p" variant="bodySm" tone="subdued">{formatMoney(p.price)}</Text>
+                          <InlineStack gap="300" blockAlign="center">
+                            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}>
+                              <input
+                                type="radio"
+                                name="primaryProduct"
+                                checked={primaryProductId ? primaryProductId === p.shopifyProductId : index === 0}
+                                onChange={() => setPrimaryProductId(p.shopifyProductId)}
+                              />
+                              <Text as="span" tone={((primaryProductId || products[0]?.shopifyProductId) === p.shopifyProductId) ? "magic" : "subdued"} variant="bodySm">Mark as Primary</Text>
+                            </label>
+                            <Text as="span" tone="subdued" variant="bodySm">1 variant selected</Text>
+                          </InlineStack>
                         </div>
                         <InlineStack gap="0" blockAlign="center">
                           <Button size="slim" onClick={() => changeQuantity(p.shopifyProductId, -1)} disabled={(p.defaultQuantity || 1) <= (p.minQuantity || 1)}>−</Button>
@@ -480,6 +520,46 @@ export default function BundleGenieEdit() {
                   })}
                   <Divider />
                   <Button onClick={handleBrowseProducts}>Browse products</Button>
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingMd">Bundle Visibility on</Text>
+                  <InlineStack gap="400">
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                      <input type="radio" name="visibilityMode" checked={visibilityMode === "primary"} onChange={() => setVisibilityMode("primary")} />
+                      <Text as="span">Primary product only</Text>
+                    </label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                      <input type="radio" name="visibilityMode" checked={visibilityMode === "all"} onChange={() => setVisibilityMode("all")} />
+                      <Text as="span">All selected products</Text>
+                    </label>
+                  </InlineStack>
+
+                  <Divider />
+                  <Text as="h3" variant="headingSm">Additional Settings</Text>
+                  <Checkbox label="Show checkbox" checked={showCheckbox} onChange={setShowCheckbox} />
+                  {showCheckbox && (
+                    <div style={{ marginLeft: 24 }}>
+                      <Checkbox label="Uncheck related items by default" checked={uncheckByDefault} onChange={setUncheckByDefault} />
+                    </div>
+                  )}
+                  <Checkbox label="Enable quantity selector on products" checked={enableQuantitySelector} onChange={setEnableQuantitySelector} />
+                  {enableQuantitySelector && (
+                    <div style={{ marginLeft: 24 }}>
+                      <InlineGrid columns={2} gap="300">
+                        <TextField label="Minimum quantity (optional)" type="number" value={quantityMin} onChange={setQuantityMin} autoComplete="off" min={0} />
+                        <TextField label="Maximum quantity (optional)" type="number" value={quantityMax} onChange={setQuantityMax} autoComplete="off" min={0} />
+                      </InlineGrid>
+                    </div>
+                  )}
+                  <Text as="p" tone="subdued" variant="bodySm">
+                    Split Product Variants isn't built — every product uses its first variant
+                    automatically. If "Show checkbox" lets a customer uncheck a product, note the
+                    automatic discount's minimum-quantity requirement is based on the full bundle
+                    as configured, so it may not apply to a smaller checked-out selection.
+                  </Text>
                 </BlockStack>
               </Card>
 
