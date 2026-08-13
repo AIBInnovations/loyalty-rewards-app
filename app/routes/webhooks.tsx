@@ -129,7 +129,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           );
         }
         // Fire-and-forget Bundle Genie order/revenue attribution (non-blocking)
-        attributeBundleOrder(shop, payload).catch((err) =>
+        attributeBundleOrder(shop, payload, admin as any).catch((err) =>
           console.error("[BundleGenie] Order attribution error:", err),
         );
         break;
