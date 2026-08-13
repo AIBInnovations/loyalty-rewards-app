@@ -1,15 +1,27 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
-import { Link, useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
+import { Link, useLoaderData, useSubmit, useNavigation, useSearchParams } from "@remix-run/react";
 import {
-  Page, Card, BlockStack, Text, IndexTable, Badge, Select, InlineStack, Button,
-  EmptyState,
+  Page, Card, BlockStack, Text, IndexTable, Badge, InlineStack, Button,
+  EmptyState, Tabs, TextField, Pagination, useIndexResourceState,
 } from "@shopify/polaris";
+import { ViewIcon, DuplicateIcon, EditIcon, DeleteIcon, SortAscendingIcon, SortDescendingIcon } from "@shopify/polaris-icons";
 import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { Bundle } from "../.server/models/bundle.model";
+import { Subscription } from "../.server/models/subscription.model";
 import { runBundleQuickAction, type BundleQuickActionIntent } from "../.server/services/bundle-quick-actions.service";
 import { BundleGenieShell } from "../components/bundle-genie-nav";
+
+const PAGE_SIZE = 10;
+
+const STATUS_TABS = [
+  { key: "", label: "All" },
+  { key: "active", label: "Active" },
+  { key: "draft", label: "Draft" },
+  { key: "paused", label: "Paused" },
+  { key: "archived", label: "Archived" },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -17,22 +29,36 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shopId = session.shop;
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status") || "";
+  const search = url.searchParams.get("q") || "";
+  const sortDir = url.searchParams.get("sort") === "asc" ? 1 : -1;
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1);
 
   const query: Record<string, unknown> = { shopId };
   if (statusFilter) query.status = statusFilter;
+  if (search) query.title = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
 
-  const bundles = await Bundle.find(query).sort({ updatedAt: -1 }).limit(100).lean();
+  const [bundles, totalCount, subscription] = await Promise.all([
+    Bundle.find(query).sort({ updatedAt: sortDir }).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).lean(),
+    Bundle.countDocuments(query),
+    Subscription.findOne({ shopId }).lean(),
+  ]);
 
   return json({
     statusFilter,
+    search,
+    sortDir: sortDir === 1 ? "asc" : "desc",
+    page,
+    totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
+    plan: subscription?.plan || "free",
+    billingState: subscription?.billingState || "trial",
+    shopDomain: shopId,
     bundles: bundles.map((b) => ({
       id: String(b._id),
       title: b.title,
-      internalName: b.internalName,
       type: b.type,
       status: b.status,
-      productCount: (b.draftProducts || []).length,
       updatedAt: b.updatedAt ? new Date(b.updatedAt).toISOString() : "",
+      productHandle: b.draftProducts?.[0]?.handle || "",
     })),
   });
 };
@@ -42,23 +68,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   await connectDB();
   const formData = await request.formData();
   const intent = String(formData.get("intent") || "") as BundleQuickActionIntent;
-  const bundleId = String(formData.get("bundleId") || "");
-  if (!bundleId) return json({ success: false }, { status: 400 });
-  const result = await runBundleQuickAction(session.shop, bundleId, intent);
-  return json(result, { status: result.status || 200 });
-};
+  const bundleIds = formData.getAll("bundleId").map(String).filter(Boolean);
+  if (!bundleIds.length) return json({ success: false }, { status: 400 });
 
-const STATUS_TONE: Record<string, "success" | "info" | "attention" | "warning" | "critical"> = {
-  active: "success",
-  draft: "info",
-  scheduled: "info",
-  paused: "attention",
-  expired: "warning",
-  archived: "critical",
+  const results = await Promise.all(
+    bundleIds.map((id) => runBundleQuickAction(session.shop, id, intent)),
+  );
+  const failed = results.filter((r) => !r.success);
+  if (failed.length) return json({ success: false, error: failed[0].error }, { status: failed[0].status || 400 });
+  return json({ success: true });
 };
 
 const TYPE_LABEL: Record<string, string> = {
-  fixed_product: "Fixed Product Bundle",
+  fixed_product: "Fixed Bundle",
   offer_tiers: "Offer Tiers",
   fixed_price: "Fixed Price Bundle",
   byob: "Build Your Own Bundle",
@@ -74,115 +96,189 @@ const TYPE_LABEL: Record<string, string> = {
   upsell: "Bundle Upsell/Cross-sell",
 };
 
+function StatusToggle({ bundleId, active, disabled, onToggle }: { bundleId: string; active: boolean; disabled: boolean; onToggle: (bundleId: string, next: boolean) => void }) {
+  return (
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: disabled ? "default" : "pointer" }}>
+      <span style={{ position: "relative", display: "inline-flex" }}>
+        <input
+          type="checkbox"
+          checked={active}
+          disabled={disabled}
+          onChange={() => onToggle(bundleId, !active)}
+          style={{ position: "absolute", opacity: 0, width: 1, height: 1 }}
+        />
+        <span
+          style={{
+            width: 36, height: 20, borderRadius: 999, boxSizing: "border-box", padding: 2,
+            background: active ? "#16a34a" : "#d1d5db", transition: "background 0.15s ease",
+            display: "inline-flex", alignItems: "center",
+          }}
+        >
+          <span
+            style={{
+              width: 16, height: 16, borderRadius: 999, background: "#fff",
+              boxShadow: "0 1px 2px rgba(15,23,42,0.25)", transition: "transform 0.15s ease",
+              transform: active ? "translateX(16px)" : "translateX(0)",
+            }}
+          />
+        </span>
+      </span>
+      <Text as="span" tone={active ? "success" : "subdued"}>{active ? "Active" : "Paused"}</Text>
+    </label>
+  );
+}
+
 export default function BundleGenieList() {
-  const { statusFilter, bundles } = useLoaderData<typeof loader>();
+  const { statusFilter, search, sortDir, page, totalPages, plan, billingState, shopDomain, bundles } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
-  const [status, setStatus] = useState(statusFilter);
+  const [, setSearchParams] = useSearchParams();
+  const [searchValue, setSearchValue] = useState(search);
+  const isBusy = navigation.state === "submitting";
 
-  const applyStatus = useCallback((value: string) => {
-    setStatus(value);
-    window.location.href = value
-      ? `/app/bundle-genie/bundles?status=${encodeURIComponent(value)}`
-      : "/app/bundle-genie/bundles";
-  }, []);
+  const updateParams = useCallback((updates: Record<string, string>) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [key, value] of Object.entries(updates)) {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      }
+      if (!("page" in updates)) next.delete("page");
+      return next;
+    });
+  }, [setSearchParams]);
 
-  const runAction = useCallback((bundleId: string, intent: string) => {
+  const tabIndex = Math.max(0, STATUS_TABS.findIndex((t) => t.key === statusFilter));
+
+  const runAction = useCallback((bundleId: string, intent: BundleQuickActionIntent) => {
     const fd = new FormData();
     fd.set("bundleId", bundleId);
     fd.set("intent", intent);
     submit(fd, { method: "post" });
   }, [submit]);
 
-  const isBusy = navigation.state === "submitting";
+  const { selectedResources, allResourcesSelected, handleSelectionChange, clearSelection } = useIndexResourceState(
+    bundles.map((b) => ({ id: b.id })),
+  );
+
+  const runBulkAction = useCallback((intent: BundleQuickActionIntent) => {
+    const fd = new FormData();
+    for (const id of selectedResources) fd.append("bundleId", id);
+    fd.set("intent", intent);
+    submit(fd, { method: "post" });
+    clearSelection();
+  }, [selectedResources, submit, clearSelection]);
 
   return (
     <Page
-      title="Bundle Genie"
-      subtitle="All campaigns"
+      title="Campaigns"
+      titleMetadata={<Badge tone={billingState === "active" ? "success" : "info"}>{plan === "free" ? "Free plan" : `${plan} — ${billingState}`}</Badge>}
+      subtitle="Manage all bundles, offers, and deals from this page."
       primaryAction={{ content: "Create Campaign", url: "/app/bundle-genie/bundles/new" }}
       backAction={{ url: "/app/bundle-genie" }}
     >
       <BundleGenieShell active="campaigns">
       <BlockStack gap="400">
-        <Card>
-          <div style={{ maxWidth: 240 }}>
-            <Select
-              label="Status"
-              labelHidden
-              options={[
-                { label: "All statuses", value: "" },
-                { label: "Draft", value: "draft" },
-                { label: "Active", value: "active" },
-                { label: "Paused", value: "paused" },
-                { label: "Archived", value: "archived" },
-              ]}
-              value={status}
-              onChange={applyStatus}
-            />
-          </div>
-        </Card>
-
         <Card padding="0">
+          <Tabs
+            tabs={STATUS_TABS.map((t) => ({ id: t.key || "all", content: t.label }))}
+            selected={tabIndex}
+            onSelect={(index) => updateParams({ status: STATUS_TABS[index].key })}
+          />
+          <div style={{ padding: 16, display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <TextField
+                label="Search campaigns"
+                labelHidden
+                placeholder="Search campaigns"
+                value={searchValue}
+                onChange={setSearchValue}
+                onBlur={() => updateParams({ q: searchValue })}
+                autoComplete="off"
+                clearButton
+                onClearButtonClick={() => { setSearchValue(""); updateParams({ q: "" }); }}
+              />
+            </div>
+            <Button
+              icon={sortDir === "asc" ? SortAscendingIcon : SortDescendingIcon}
+              onClick={() => updateParams({ sort: sortDir === "asc" ? "desc" : "asc" })}
+              accessibilityLabel="Toggle sort by last updated"
+            >
+              Last updated
+            </Button>
+          </div>
+
           {bundles.length === 0 ? (
             <EmptyState
-              heading="No bundles yet"
+              heading="No campaigns yet"
               action={{ content: "Create Campaign", url: "/app/bundle-genie/bundles/new" }}
               image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
             >
-              <p>Bundles you create will show up here.</p>
+              <p>Campaigns you create will show up here.</p>
             </EmptyState>
           ) : (
-            <IndexTable
-              itemCount={bundles.length}
-              headings={[
-                { title: "Bundle" },
-                { title: "Type" },
-                { title: "Status" },
-                { title: "Products" },
-                { title: "Updated" },
-                { title: "Actions" },
-              ]}
-              selectable={false}
-            >
-              {bundles.map((b, index) => (
-                <IndexTable.Row id={b.id} key={b.id} position={index}>
-                  <IndexTable.Cell>
-                    <Link to={`/app/bundle-genie/bundles/${b.id}`}>{b.title}</Link>
-                  </IndexTable.Cell>
-                  <IndexTable.Cell>{TYPE_LABEL[b.type] || b.type}</IndexTable.Cell>
-                  <IndexTable.Cell>
-                    <Badge tone={STATUS_TONE[b.status] || "info"}>{b.status}</Badge>
-                  </IndexTable.Cell>
-                  <IndexTable.Cell>{b.productCount}</IndexTable.Cell>
-                  <IndexTable.Cell>
-                    {b.updatedAt ? new Date(b.updatedAt).toLocaleDateString("en-IN") : ""}
-                  </IndexTable.Cell>
-                  <IndexTable.Cell>
-                    <InlineStack gap="150">
-                      {b.status === "active" && (
-                        <Button size="slim" disabled={isBusy} onClick={() => runAction(b.id, "pause")}>
-                          Pause
-                        </Button>
+            <>
+              <IndexTable
+                itemCount={bundles.length}
+                selectedItemsCount={allResourcesSelected ? "All" : selectedResources.length}
+                onSelectionChange={handleSelectionChange}
+                headings={[
+                  { title: "Date Last Updated" },
+                  { title: "Campaign Title" },
+                  { title: "Status" },
+                  { title: "Actions" },
+                ]}
+                bulkActions={[
+                  { content: "Duplicate", onAction: () => runBulkAction("duplicate") },
+                  { content: "Archive", onAction: () => runBulkAction("archive") },
+                ]}
+              >
+                {bundles.map((b, index) => (
+                  <IndexTable.Row id={b.id} key={b.id} position={index} selected={selectedResources.includes(b.id)}>
+                    <IndexTable.Cell>
+                      {b.updatedAt ? new Date(b.updatedAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <InlineStack gap="150" blockAlign="center">
+                        <Link to={`/app/bundle-genie/bundles/${b.id}`}>{b.title}</Link>
+                        <Badge>{TYPE_LABEL[b.type] || b.type}</Badge>
+                      </InlineStack>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      {b.status === "archived" ? (
+                        <Badge tone="critical">Archived</Badge>
+                      ) : (
+                        <StatusToggle
+                          bundleId={b.id}
+                          active={b.status === "active"}
+                          disabled={isBusy || b.status === "draft"}
+                          onToggle={(id, next) => runAction(id, next ? "resume" : "pause")}
+                        />
                       )}
-                      {b.status === "paused" && (
-                        <Button size="slim" disabled={isBusy} onClick={() => runAction(b.id, "resume")}>
-                          Resume
-                        </Button>
-                      )}
-                      <Button size="slim" disabled={isBusy} onClick={() => runAction(b.id, "duplicate")}>
-                        Duplicate
-                      </Button>
-                      {b.status !== "archived" && (
-                        <Button size="slim" tone="critical" disabled={isBusy} onClick={() => runAction(b.id, "archive")}>
-                          Archive
-                        </Button>
-                      )}
-                    </InlineStack>
-                  </IndexTable.Cell>
-                </IndexTable.Row>
-              ))}
-            </IndexTable>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <InlineStack gap="200">
+                        <Button size="slim" variant="tertiary" icon={ViewIcon} disabled={!b.productHandle} accessibilityLabel="Preview on storefront" url={b.productHandle ? `https://${shopDomain}/products/${b.productHandle}` : undefined} target={b.productHandle ? "_blank" : undefined} />
+                        <Button size="slim" variant="tertiary" icon={DuplicateIcon} disabled={isBusy} accessibilityLabel="Duplicate" onClick={() => runAction(b.id, "duplicate")} />
+                        <Button size="slim" variant="tertiary" icon={EditIcon} accessibilityLabel="Edit" url={`/app/bundle-genie/bundles/${b.id}`} />
+                        {b.status !== "archived" && (
+                          <Button size="slim" variant="tertiary" tone="critical" icon={DeleteIcon} disabled={isBusy} accessibilityLabel="Archive" onClick={() => runAction(b.id, "archive")} />
+                        )}
+                      </InlineStack>
+                    </IndexTable.Cell>
+                  </IndexTable.Row>
+                ))}
+              </IndexTable>
+              <div style={{ display: "flex", justifyContent: "center", padding: 16 }}>
+                <Pagination
+                  label={`Page ${page} of ${totalPages}`}
+                  hasPrevious={page > 1}
+                  onPrevious={() => updateParams({ page: String(page - 1) })}
+                  hasNext={page < totalPages}
+                  onNext={() => updateParams({ page: String(page + 1) })}
+                />
+              </div>
+            </>
           )}
         </Card>
       </BlockStack>
