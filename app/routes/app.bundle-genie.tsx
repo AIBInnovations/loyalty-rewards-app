@@ -1,10 +1,10 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
 import { Link, useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
 import {
-  Page, Card, BlockStack, Text, InlineGrid, Button,
+  Page, Card, BlockStack, Text, InlineGrid, Button, Icon,
   EmptyState, Badge, Banner, InlineStack, IndexTable,
 } from "@shopify/polaris";
-import { ViewIcon, DuplicateIcon, EditIcon, DeleteIcon } from "@shopify/polaris-icons";
+import { ViewIcon, DuplicateIcon, EditIcon, DeleteIcon, MegaphoneIcon } from "@shopify/polaris-icons";
 import { useState } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
@@ -34,22 +34,109 @@ function pctChange(today: number, yesterday: number): number | null {
   return Math.round(((today - yesterday) / yesterday) * 1000) / 10;
 }
 
+interface AdminAPI {
+  graphql: (
+    query: string,
+    options?: { variables?: Record<string, unknown> },
+  ) => Promise<{ json: () => Promise<{ data?: Record<string, unknown> }> }>;
+}
+
+/** Real store contact name for the dashboard greeting — falls back to null
+    (never a fake placeholder name) if the shop hasn't set a billing address. */
+async function fetchShopContactName(admin: AdminAPI): Promise<string | null> {
+  try {
+    const response = await admin.graphql(
+      `#graphql
+      query {
+        shop { billingAddress { firstName } }
+      }`,
+    );
+    const result = await response.json();
+    const firstName = (result.data?.shop as any)?.billingAddress?.firstName;
+    return firstName || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Re-pulls each bundle's product titles/prices/images from Shopify so
+    edits made directly on the product (renamed, repriced) since it was
+    added to a campaign show up here without the merchant re-picking it. */
+async function syncBundleContent(shopId: string, admin: AdminAPI): Promise<number> {
+  const bundles = await Bundle.find({ shopId, status: { $ne: "archived" } });
+  const productIds = new Set<string>();
+  for (const b of bundles) {
+    for (const p of b.draftProducts) productIds.add(p.shopifyProductId);
+  }
+  if (!productIds.size) return 0;
+
+  const response = await admin.graphql(
+    `#graphql
+    query SyncBundleProducts($ids: [ID!]!) {
+      nodes(ids: $ids) {
+        ... on Product {
+          id
+          title
+          featuredImage { url }
+          variants(first: 1) { nodes { price } }
+        }
+      }
+    }`,
+    { variables: { ids: Array.from(productIds) } },
+  );
+  const result = await response.json();
+  const nodes = (result.data?.nodes as any[]) || [];
+  const byId = new Map(
+    nodes.filter(Boolean).map((n) => [
+      n.id,
+      {
+        title: n.title as string,
+        imageUrl: (n.featuredImage?.url as string) || "",
+        price: Math.round(parseFloat(n.variants?.nodes?.[0]?.price || "0") * 100),
+      },
+    ]),
+  );
+
+  let updated = 0;
+  for (const b of bundles) {
+    let changed = false;
+    for (const p of b.draftProducts) {
+      const fresh = byId.get(p.shopifyProductId);
+      if (!fresh) continue;
+      if (fresh.title !== p.title || fresh.imageUrl !== p.imageUrl || fresh.price !== p.price) {
+        p.title = fresh.title;
+        p.imageUrl = fresh.imageUrl;
+        p.price = fresh.price;
+        changed = true;
+      }
+    }
+    if (changed) {
+      b.markModified("draftProducts");
+      await b.save();
+      updated++;
+    }
+  }
+  return updated;
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   await connectDB();
   const shopId = session.shop;
 
   const today = new Date().toISOString().slice(0, 10);
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 
-  const [bundles, subscription, todayTotals, yesterdayTotals] = await Promise.all([
+  const [bundles, subscription, todayTotals, yesterdayTotals, greetingName] = await Promise.all([
     Bundle.find({ shopId, status: { $ne: "archived" } }).sort({ updatedAt: -1 }).limit(10).lean(),
     Subscription.findOne({ shopId }).lean(),
     sumDaily(shopId, today),
     sumDaily(shopId, yesterday),
+    fetchShopContactName(admin as unknown as AdminAPI),
   ]);
 
   return json({
+    greetingName,
     plan: subscription?.plan || "free",
     billingState: subscription?.billingState || "trial",
     shopDomain: shopId,
@@ -73,23 +160,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   await connectDB();
   const formData = await request.formData();
-  const intent = String(formData.get("intent") || "") as BundleQuickActionIntent;
+  const intent = String(formData.get("intent") || "");
+
+  if (intent === "syncContent") {
+    const updated = await syncBundleContent(session.shop, admin as unknown as AdminAPI);
+    return json({ success: true, syncedCount: updated });
+  }
+
   const bundleId = String(formData.get("bundleId") || "");
   if (!bundleId) return json({ success: false }, { status: 400 });
-  const result = await runBundleQuickAction(session.shop, bundleId, intent);
+  const result = await runBundleQuickAction(session.shop, bundleId, intent as BundleQuickActionIntent);
   return json(result, { status: result.status || 200 });
-};
-
-const STATUS_TONE: Record<string, "success" | "info" | "attention" | "warning" | "critical"> = {
-  active: "success",
-  draft: "info",
-  scheduled: "info",
-  paused: "attention",
-  expired: "warning",
-  archived: "critical",
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -156,7 +240,7 @@ function ChangeBadge({ change }: { change: number | null }) {
 }
 
 export default function BundleGenieOverview() {
-  const { plan, billingState, shopDomain, hasAnyBundles, bundles, metrics } = useLoaderData<typeof loader>();
+  const { greetingName, plan, billingState, shopDomain, hasAnyBundles, bundles, metrics } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
   const isBusy = navigation.state === "submitting";
@@ -169,15 +253,32 @@ export default function BundleGenieOverview() {
     submit(fd, { method: "post" });
   };
 
+  const syncContent = () => {
+    const fd = new FormData();
+    fd.set("intent", "syncContent");
+    submit(fd, { method: "post" });
+  };
+
   return (
-    <Page
-      title="Bundle Genie"
-      titleMetadata={<Badge tone={billingState === "active" ? "success" : "info"}>{plan === "free" ? "Free plan" : `${plan} — ${billingState}`}</Badge>}
-      primaryAction={{ content: "Create Campaign", url: "/app/bundle-genie/bundles/new" }}
-      backAction={{ url: "/app" }}
-    >
+    <Page title="Bundle Genie" backAction={{ url: "/app" }}>
       <BundleGenieShell active="campaigns">
       <BlockStack gap="400">
+        <InlineStack align="space-between" blockAlign="start">
+          <BlockStack gap="100">
+            <InlineStack gap="200" blockAlign="center">
+              <Text as="h1" variant="headingXl">{greetingName ? `hey, ${greetingName}` : "Bundle Genie"}</Text>
+              <Badge tone={billingState === "active" ? "success" : "info"}>
+                {plan === "free" ? "Free plan" : `${plan} — ${billingState}`}
+              </Badge>
+            </InlineStack>
+            <Text as="p" tone="subdued">Powered by Bundle Genie</Text>
+          </BlockStack>
+          <InlineStack gap="200">
+            <Button onClick={syncContent} loading={isBusy}>Sync Content</Button>
+            <Button variant="primary" url="/app/bundle-genie/bundles/new">+ Create Campaign</Button>
+          </InlineStack>
+        </InlineStack>
+
         {!dismissedBanner && (
           <Banner tone="warning" onDismiss={() => setDismissedBanner(true)}>
             <p>
@@ -229,7 +330,10 @@ export default function BundleGenieOverview() {
         <Card padding="0">
           <div style={{ padding: "16px 16px 0" }}>
             <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">Campaigns</Text>
+              <InlineStack gap="150" blockAlign="center">
+                <Icon source={MegaphoneIcon} tone="subdued" />
+                <Text as="h2" variant="headingMd">Campaigns</Text>
+              </InlineStack>
               <Link to="/app/bundle-genie/bundles">Show more</Link>
             </InlineStack>
           </div>
@@ -260,7 +364,7 @@ export default function BundleGenieOverview() {
                   <IndexTable.Cell>
                     <InlineStack gap="150" blockAlign="center">
                       <Link to={`/app/bundle-genie/bundles/${b.id}`}>{b.title}</Link>
-                      <Badge tone={STATUS_TONE[b.status] || "info"}>{TYPE_LABEL[b.type] || b.type}</Badge>
+                      <Badge>{TYPE_LABEL[b.type] || b.type}</Badge>
                     </InlineStack>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
