@@ -4,8 +4,9 @@ import {
   Page, Card, BlockStack, Text, TextField, Button, Select, Banner,
   InlineStack, Divider, Badge, InlineGrid,
 } from "@shopify/polaris";
+import { ArrowUpIcon, ArrowDownIcon, DeleteIcon } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { Bundle, type IBundleProduct } from "../.server/models/bundle.model";
@@ -19,7 +20,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const bundle = await Bundle.findOne({ _id: params.id, shopId }).lean();
   if (!bundle) throw new Response("Bundle not found", { status: 404 });
 
-  return json({ bundle: JSON.parse(JSON.stringify(bundle)) });
+  return json({ bundle: JSON.parse(JSON.stringify(bundle)), shopDomain: shopId });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -71,6 +72,27 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     bundle.status = bundle.currentVersion > 0 ? "active" : "draft";
     await bundle.save();
     return json({ success: true });
+  }
+
+  if (intent === "duplicate") {
+    const copy = new Bundle({
+      shopId,
+      type: bundle.type,
+      internalName: bundle.internalName + " (copy)",
+      title: bundle.title + " (copy)",
+      handle: bundle.handle + "-copy-" + Date.now().toString(36),
+      description: bundle.description,
+      status: "draft",
+      featuredImageUrl: bundle.featuredImageUrl,
+      draftProducts: bundle.draftProducts,
+      draftDiscountType: bundle.draftDiscountType,
+      draftDiscountValue: bundle.draftDiscountValue,
+      style: bundle.style,
+      currentVersion: 0,
+      versions: [],
+    });
+    await copy.save();
+    return redirect(`/app/bundle-genie/bundles/${copy._id}`);
   }
 
   // "draft" or "publish" — update the working copy, optionally cut a new
@@ -134,13 +156,91 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   return json({ success: true });
 };
 
+function formatMoney(minorUnits: number): string {
+  return "₹" + (minorUnits / 100).toFixed(0);
+}
+
+function BundlePreviewPanel({
+  title, description, products, discountType, discountValue, bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout,
+}: {
+  title: string; description: string; products: IBundleProduct[];
+  discountType: string; discountValue: number;
+  bgColor: string; textColor: string; buttonColor: string; buttonTextColor: string; borderRadius: string; layout: string;
+}) {
+  const subtotal = products.reduce((sum, p) => sum + p.price * (p.defaultQuantity || 1), 0);
+  let finalPrice = subtotal;
+  if (discountType === "percentage") finalPrice = Math.round(subtotal * (1 - Math.min(discountValue, 100) / 100));
+  else if (discountType === "fixed_amount") finalPrice = Math.max(0, subtotal - discountValue * 100);
+  else if (discountType === "fixed_price") finalPrice = Math.min(subtotal, discountValue * 100);
+  const hasDiscount = discountType !== "none" && discountValue > 0;
+
+  return (
+    <Card padding="0">
+      <div style={{ background: "#eceef1", borderRadius: "8px 8px 0 0", padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ff5f57", display: "inline-block" }} />
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#febc2e", display: "inline-block" }} />
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#28c840", display: "inline-block" }} />
+        <Text as="span" tone="subdued" variant="bodySm">Bundle Preview</Text>
+      </div>
+      <div style={{ padding: 20, background: "#fafafa" }}>
+        <div
+          style={{
+            background: bgColor || "#ffffff",
+            color: textColor || "#1a1a1a",
+            borderRadius: `${borderRadius || 12}px`,
+            padding: 18,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          }}
+        >
+          <Text as="h3" variant="headingMd">{title || "Campaign title"}</Text>
+          {description && <Text as="p" tone="subdued">{description}</Text>}
+          <div style={{ marginTop: 12, display: "flex", flexDirection: layout === "list" ? "column" : "row", flexWrap: "wrap", gap: 10 }}>
+            {products.length === 0 && (
+              <Text as="p" tone="subdued">Add products to see them here.</Text>
+            )}
+            {products.map((p) => (
+              <div key={p.shopifyProductId} style={{ display: "flex", alignItems: "center", gap: 10, flex: layout === "grid" ? "1 1 160px" : undefined }}>
+                {p.imageUrl && (
+                  <img src={p.imageUrl} alt={p.title} style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 6 }} />
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <Text as="p" variant="bodySm" fontWeight="semibold" truncate>{p.title}</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{formatMoney(p.price * (p.defaultQuantity || 1))}</Text>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 14, display: "flex", alignItems: "baseline", gap: 10 }}>
+            {hasDiscount && (
+              <Text as="span" tone="subdued" textDecorationLine="line-through">{formatMoney(subtotal)}</Text>
+            )}
+            <Text as="span" variant="headingLg">{formatMoney(finalPrice)}</Text>
+          </div>
+          <button
+            type="button"
+            disabled
+            style={{
+              marginTop: 12, width: "100%", padding: 12, border: "none", cursor: "default",
+              background: buttonColor || "#1a1a1a", color: buttonTextColor || "#ffffff",
+              borderRadius: `${Math.min(Number(borderRadius) || 12, 20)}px`, fontWeight: 700,
+            }}
+          >
+            Add Bundle to Cart
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function BundleGenieEdit() {
-  const { bundle } = useLoaderData<typeof loader>();
+  const { bundle, shopDomain } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const submit = useSubmit();
   const navigation = useNavigation();
   const shopify = useAppBridge();
   const isSaving = navigation.state === "submitting";
+  const designRef = useRef<HTMLDivElement>(null);
 
   const [internalName, setInternalName] = useState(bundle.internalName);
   const [title, setTitle] = useState(bundle.title);
@@ -148,6 +248,7 @@ export default function BundleGenieEdit() {
   const [discountType, setDiscountType] = useState(bundle.draftDiscountType || "percentage");
   const [discountValue, setDiscountValue] = useState(String(bundle.draftDiscountValue ?? 10));
   const [products, setProducts] = useState<IBundleProduct[]>(bundle.draftProducts || []);
+  const [productSearch, setProductSearch] = useState("");
   const [bgColor, setBgColor] = useState(bundle.style?.bgColor || "");
   const [textColor, setTextColor] = useState(bundle.style?.textColor || "");
   const [buttonColor, setButtonColor] = useState(bundle.style?.buttonColor || "");
@@ -185,7 +286,7 @@ export default function BundleGenieEdit() {
             : undefined,
           required: true,
           minQuantity: 1,
-          maxQuantity: 1,
+          maxQuantity: 10,
           defaultQuantity: 1,
           position: position++,
         });
@@ -198,6 +299,26 @@ export default function BundleGenieEdit() {
 
   const removeProduct = useCallback((shopifyProductId: string) => {
     setProducts((prev) => prev.filter((p) => p.shopifyProductId !== shopifyProductId));
+  }, []);
+
+  const moveProduct = useCallback((index: number, direction: -1 | 1) => {
+    setProducts((prev) => {
+      const next = [...prev];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next.map((p, i) => ({ ...p, position: i }));
+    });
+  }, []);
+
+  const changeQuantity = useCallback((shopifyProductId: string, delta: number) => {
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.shopifyProductId === shopifyProductId
+          ? { ...p, defaultQuantity: Math.max(p.minQuantity || 1, Math.min(p.maxQuantity || 10, (p.defaultQuantity || 1) + delta)) }
+          : p,
+      ),
+    );
   }, []);
 
   const save = useCallback((intent: "draft" | "publish") => {
@@ -236,6 +357,17 @@ export default function BundleGenieEdit() {
     submit(fd, { method: "post" });
   }, [submit]);
 
+  const confirmAndArchive = useCallback(() => {
+    if (window.confirm(`Delete "${bundle.title}"? This pauses its discount and hides it everywhere — it can still be found under the Archived filter.`)) {
+      runIntent("archive");
+    }
+  }, [bundle.title, runIntent]);
+
+  const visibleProducts = productSearch
+    ? products.filter((p) => p.title.toLowerCase().includes(productSearch.toLowerCase()))
+    : products;
+  const storefrontUrl = products[0]?.handle ? `https://${shopDomain}/products/${products[0].handle}` : "";
+
   return (
     <Page
       title={bundle.title}
@@ -243,10 +375,17 @@ export default function BundleGenieEdit() {
       titleMetadata={<Badge tone={bundle.status === "active" ? "success" : "info"}>{bundle.status}</Badge>}
       backAction={{ url: "/app/bundle-genie/bundles" }}
       secondaryActions={[
-        bundle.status === "active"
-          ? { content: "Pause", onAction: () => runIntent("pause") }
-          : { content: "Resume", onAction: () => runIntent("resume") },
-        { content: "Archive", destructive: true, onAction: () => runIntent("archive") },
+        ...(bundle.status !== "draft" && bundle.status !== "archived"
+          ? [bundle.status === "active"
+              ? { content: "Disable", onAction: () => runIntent("pause") }
+              : { content: "Enable", onAction: () => runIntent("resume") }]
+          : []),
+        { content: "Duplicate", onAction: () => runIntent("duplicate") },
+        ...(storefrontUrl ? [{ content: "View", onAction: () => window.open(storefrontUrl, "_blank") }] : []),
+        { content: "Customize Bundle", onAction: () => designRef.current?.scrollIntoView({ behavior: "smooth" }) },
+        ...(bundle.status !== "archived"
+          ? [{ content: "Delete", destructive: true, onAction: confirmAndArchive }]
+          : []),
       ]}
     >
       <BlockStack gap="400">
@@ -257,133 +396,183 @@ export default function BundleGenieEdit() {
           </Banner>
         )}
 
-        <Card>
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">Basic information</Text>
-            <TextField
-              label="Internal name"
-              value={internalName}
-              onChange={setInternalName}
-              autoComplete="off"
-              maxLength={80}
-            />
-            <TextField
-              label="Customer-facing title"
-              value={title}
-              onChange={setTitle}
-              autoComplete="off"
-              maxLength={120}
-            />
-            <TextField
-              label="Description"
-              value={description}
-              onChange={setDescription}
-              multiline={3}
-              autoComplete="off"
-              maxLength={2000}
-            />
-          </BlockStack>
-        </Card>
+        <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div style={{ flex: "2 1 480px", minWidth: 0 }}>
+            <BlockStack gap="400">
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingMd">Basic information</Text>
+                  <TextField
+                    label="Internal name"
+                    value={internalName}
+                    onChange={setInternalName}
+                    autoComplete="off"
+                    maxLength={80}
+                  />
+                  <TextField
+                    label="Campaign title"
+                    value={title}
+                    onChange={setTitle}
+                    autoComplete="off"
+                    maxLength={120}
+                  />
+                  <TextField
+                    label="Description"
+                    value={description}
+                    onChange={setDescription}
+                    multiline={3}
+                    autoComplete="off"
+                    maxLength={2000}
+                  />
+                </BlockStack>
+              </Card>
 
-        <Card>
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">Products ({products.length})</Text>
-            {products.map((p) => (
-              <div
-                key={p.shopifyProductId}
-                style={{
-                  display: "flex", alignItems: "center", gap: "12px",
-                  padding: "8px", border: "1px solid #e0e0e0", borderRadius: "8px",
-                }}
-              >
-                {p.imageUrl && (
-                  <img src={p.imageUrl} alt={p.title} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6 }} />
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <Text as="p" variant="bodyMd" fontWeight="semibold">{p.title}</Text>
-                  <Text as="p" variant="bodySm" tone="subdued">₹{(p.price / 100).toFixed(0)}</Text>
-                </div>
-                <Button size="slim" tone="critical" onClick={() => removeProduct(p.shopifyProductId)}>
-                  Remove
-                </Button>
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">Products in Bundle ({products.length})</Text>
+                  </InlineStack>
+                  {products.length > 3 && (
+                    <TextField
+                      label="Search products in this bundle"
+                      labelHidden
+                      placeholder="Search"
+                      value={productSearch}
+                      onChange={setProductSearch}
+                      autoComplete="off"
+                      clearButton
+                      onClearButtonClick={() => setProductSearch("")}
+                    />
+                  )}
+                  {visibleProducts.map((p) => {
+                    const index = products.findIndex((x) => x.shopifyProductId === p.shopifyProductId);
+                    return (
+                      <div
+                        key={p.shopifyProductId}
+                        style={{
+                          display: "flex", alignItems: "center", gap: "10px",
+                          padding: "10px", border: "1px solid #e0e0e0", borderRadius: "8px",
+                        }}
+                      >
+                        <BlockStack gap="0">
+                          <Button size="micro" variant="tertiary" icon={ArrowUpIcon} disabled={index === 0} accessibilityLabel="Move up" onClick={() => moveProduct(index, -1)} />
+                          <Button size="micro" variant="tertiary" icon={ArrowDownIcon} disabled={index === products.length - 1} accessibilityLabel="Move down" onClick={() => moveProduct(index, 1)} />
+                        </BlockStack>
+                        {p.imageUrl && (
+                          <img src={p.imageUrl} alt={p.title} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6 }} />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Text as="p" variant="bodyMd" fontWeight="semibold">{p.title}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">{formatMoney(p.price)}</Text>
+                        </div>
+                        <InlineStack gap="0" blockAlign="center">
+                          <Button size="slim" onClick={() => changeQuantity(p.shopifyProductId, -1)} disabled={(p.defaultQuantity || 1) <= (p.minQuantity || 1)}>−</Button>
+                          <div style={{ width: 32, textAlign: "center" }}>
+                            <Text as="span">{p.defaultQuantity || 1}</Text>
+                          </div>
+                          <Button size="slim" onClick={() => changeQuantity(p.shopifyProductId, 1)} disabled={(p.defaultQuantity || 1) >= (p.maxQuantity || 10)}>+</Button>
+                        </InlineStack>
+                        <Button size="slim" variant="tertiary" tone="critical" icon={DeleteIcon} accessibilityLabel="Remove" onClick={() => removeProduct(p.shopifyProductId)} />
+                      </div>
+                    );
+                  })}
+                  <Divider />
+                  <Button onClick={handleBrowseProducts}>Browse products</Button>
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingMd">Discount on Bundle</Text>
+                  <InlineStack gap="300">
+                    <Select
+                      label="Discount type"
+                      options={[
+                        { label: "Percentage off", value: "percentage" },
+                        { label: "Fixed amount off", value: "fixed_amount" },
+                        { label: "Fixed bundle price", value: "fixed_price" },
+                        { label: "No discount", value: "none" },
+                      ]}
+                      value={discountType}
+                      onChange={setDiscountType}
+                    />
+                    {discountType !== "none" && (
+                      <TextField
+                        label={discountType === "fixed_price" ? "Bundle price (₹)" : discountType === "fixed_amount" ? "Amount off (₹)" : "Percent off"}
+                        type="number"
+                        value={discountValue}
+                        onChange={setDiscountValue}
+                        autoComplete="off"
+                        min={0}
+                      />
+                    )}
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+
+              <div ref={designRef}>
+                <Card>
+                  <BlockStack gap="400">
+                    <Text as="h2" variant="headingMd">Design</Text>
+                    <Text as="p" tone="subdued">
+                      How this bundle looks on the product page. Leave colors blank for the theme's defaults.
+                    </Text>
+                    <InlineGrid columns={2} gap="300">
+                      <TextField label="Background color" value={bgColor} onChange={setBgColor} placeholder="#ffffff" autoComplete="off" />
+                      <TextField label="Text color" value={textColor} onChange={setTextColor} placeholder="#1a1a1a" autoComplete="off" />
+                      <TextField label="Button color" value={buttonColor} onChange={setButtonColor} placeholder="#1a1a1a" autoComplete="off" />
+                      <TextField label="Button text color" value={buttonTextColor} onChange={setButtonTextColor} placeholder="#ffffff" autoComplete="off" />
+                    </InlineGrid>
+                    <InlineGrid columns={2} gap="300">
+                      <TextField
+                        label="Corner radius (px)"
+                        type="number"
+                        value={borderRadius}
+                        onChange={setBorderRadius}
+                        autoComplete="off"
+                        min={0}
+                        max={40}
+                      />
+                      <Select
+                        label="Layout"
+                        options={[
+                          { label: "Grid", value: "grid" },
+                          { label: "List", value: "list" },
+                        ]}
+                        value={layout}
+                        onChange={setLayout}
+                      />
+                    </InlineGrid>
+                  </BlockStack>
+                </Card>
               </div>
-            ))}
-            <Divider />
-            <Button onClick={handleBrowseProducts}>Browse products</Button>
-          </BlockStack>
-        </Card>
 
-        <Card>
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">Pricing</Text>
-            <InlineStack gap="300">
-              <Select
-                label="Discount type"
-                options={[
-                  { label: "Percentage off", value: "percentage" },
-                  { label: "Fixed amount off", value: "fixed_amount" },
-                  { label: "Fixed bundle price", value: "fixed_price" },
-                  { label: "No discount", value: "none" },
-                ]}
-                value={discountType}
-                onChange={setDiscountType}
-              />
-              {discountType !== "none" && (
-                <TextField
-                  label={discountType === "fixed_price" ? "Bundle price (₹)" : discountType === "fixed_amount" ? "Amount off (₹)" : "Percent off"}
-                  type="number"
-                  value={discountValue}
-                  onChange={setDiscountValue}
-                  autoComplete="off"
-                  min={0}
-                />
-              )}
-            </InlineStack>
-          </BlockStack>
-        </Card>
+              <InlineStack align="end" gap="200">
+                <Button onClick={() => navigate("/app/bundle-genie/bundles")}>Cancel</Button>
+                <Button loading={isSaving} onClick={() => save("draft")}>Save draft</Button>
+                <Button variant="primary" loading={isSaving} onClick={() => save("publish")}>
+                  Publish new version
+                </Button>
+              </InlineStack>
+            </BlockStack>
+          </div>
 
-        <Card>
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">Design</Text>
-            <Text as="p" tone="subdued">
-              How this bundle looks on the product page. Leave colors blank for the theme's defaults.
-            </Text>
-            <InlineGrid columns={2} gap="300">
-              <TextField label="Background color" value={bgColor} onChange={setBgColor} placeholder="#ffffff" autoComplete="off" />
-              <TextField label="Text color" value={textColor} onChange={setTextColor} placeholder="#1a1a1a" autoComplete="off" />
-              <TextField label="Button color" value={buttonColor} onChange={setButtonColor} placeholder="#1a1a1a" autoComplete="off" />
-              <TextField label="Button text color" value={buttonTextColor} onChange={setButtonTextColor} placeholder="#ffffff" autoComplete="off" />
-            </InlineGrid>
-            <InlineGrid columns={2} gap="300">
-              <TextField
-                label="Corner radius (px)"
-                type="number"
-                value={borderRadius}
-                onChange={setBorderRadius}
-                autoComplete="off"
-                min={0}
-                max={40}
-              />
-              <Select
-                label="Layout"
-                options={[
-                  { label: "Grid", value: "grid" },
-                  { label: "List", value: "list" },
-                ]}
-                value={layout}
-                onChange={setLayout}
-              />
-            </InlineGrid>
-          </BlockStack>
-        </Card>
-
-        <InlineStack align="end" gap="200">
-          <Button onClick={() => navigate("/app/bundle-genie/bundles")}>Cancel</Button>
-          <Button loading={isSaving} onClick={() => save("draft")}>Save draft</Button>
-          <Button variant="primary" loading={isSaving} onClick={() => save("publish")}>
-            Publish new version
-          </Button>
-        </InlineStack>
+          <div style={{ flex: "1 1 320px", minWidth: 280, position: "sticky", top: 16 }}>
+            <BundlePreviewPanel
+              title={title}
+              description={description}
+              products={products}
+              discountType={discountType}
+              discountValue={Number(discountValue) || 0}
+              bgColor={bgColor}
+              textColor={textColor}
+              buttonColor={buttonColor}
+              buttonTextColor={buttonTextColor}
+              borderRadius={borderRadius}
+              layout={layout}
+            />
+          </div>
+        </div>
       </BlockStack>
     </Page>
   );
