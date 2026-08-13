@@ -4,7 +4,7 @@ import { Page, Card, BlockStack, Text, IndexTable, InlineGrid, Banner } from "@s
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { Bundle, BundleAnalyticsDaily } from "../.server/models/bundle.model";
-import { BundleGenieNav } from "../components/bundle-genie-nav";
+import { BundleGenieShell } from "../components/bundle-genie-nav";
 
 function formatRevenue(minorUnits: number): string {
   return "₹" + (minorUnits / 100).toFixed(0);
@@ -61,9 +61,8 @@ export default function BundleGenieAnalytics() {
 
   return (
     <Page title="Bundle Genie" subtitle="Analytics — last 30 days" backAction={{ url: "/app/bundle-genie" }}>
+      <BundleGenieShell active="analytics">
       <BlockStack gap="400">
-        <BundleGenieNav active="analytics" />
-
         {!hasData && (
           <Banner tone="info">
             <p>
@@ -130,6 +129,7 @@ export default function BundleGenieAnalytics() {
           </IndexTable>
         </Card>
       </BlockStack>
+      </BundleGenieShell>
     </Page>
   );
 }

@@ -11,7 +11,7 @@ import { connectDB } from "../db.server";
 import { Bundle, BundleAnalyticsDaily } from "../.server/models/bundle.model";
 import { Subscription } from "../.server/models/subscription.model";
 import { runBundleQuickAction, type BundleQuickActionIntent } from "../.server/services/bundle-quick-actions.service";
-import { BundleGenieNav } from "../components/bundle-genie-nav";
+import { BundleGenieShell } from "../components/bundle-genie-nav";
 
 const EMPTY_TOTALS = { pageSessions: 0, interactions: 0, addToCarts: 0, orders: 0, revenue: 0 };
 
@@ -176,9 +176,8 @@ export default function BundleGenieOverview() {
       primaryAction={{ content: "Create Campaign", url: "/app/bundle-genie/bundles/new" }}
       backAction={{ url: "/app" }}
     >
+      <BundleGenieShell active="campaigns">
       <BlockStack gap="400">
-        <BundleGenieNav active="campaigns" />
-
         {!dismissedBanner && (
           <Banner tone="warning" onDismiss={() => setDismissedBanner(true)}>
             <p>
@@ -321,6 +320,7 @@ export default function BundleGenieOverview() {
           )}
         </Card>
       </BlockStack>
+      </BundleGenieShell>
     </Page>
   );
 }

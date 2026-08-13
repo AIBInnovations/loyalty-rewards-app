@@ -9,7 +9,7 @@ import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { Bundle } from "../.server/models/bundle.model";
 import { runBundleQuickAction, type BundleQuickActionIntent } from "../.server/services/bundle-quick-actions.service";
-import { BundleGenieNav } from "../components/bundle-genie-nav";
+import { BundleGenieShell } from "../components/bundle-genie-nav";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -103,8 +103,8 @@ export default function BundleGenieList() {
       primaryAction={{ content: "Create Campaign", url: "/app/bundle-genie/bundles/new" }}
       backAction={{ url: "/app/bundle-genie" }}
     >
+      <BundleGenieShell active="campaigns">
       <BlockStack gap="400">
-        <BundleGenieNav active="campaigns" />
         <Card>
           <div style={{ maxWidth: 240 }}>
             <Select
@@ -186,6 +186,7 @@ export default function BundleGenieList() {
           )}
         </Card>
       </BlockStack>
+      </BundleGenieShell>
     </Page>
   );
 }
