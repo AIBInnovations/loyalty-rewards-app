@@ -363,7 +363,7 @@ export default function BundleGenieOverview() {
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <InlineStack gap="150" blockAlign="center">
-                      <Link to={`/app/bundle-genie/bundles/${b.id}`}>{b.title}</Link>
+                      <Text as="span" fontWeight="semibold">{b.title}</Text>
                       <Badge>{TYPE_LABEL[b.type] || b.type}</Badge>
                     </InlineStack>
                   </IndexTable.Cell>
