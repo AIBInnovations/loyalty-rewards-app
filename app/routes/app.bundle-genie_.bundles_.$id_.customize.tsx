@@ -17,6 +17,10 @@ const DEFAULT_STYLE: IBundleStyle = {
   imageAspectRatio: "square", cardLayoutStyle: "auto", cardBorderRadius: 12, cardBorderColor: "", cardBgColor: "", cardShadow: "soft", showPrice: true, showCompareAtPrice: true,
   ctaText: "Add Bundle to Cart", ctaBorderColor: "", ctaBorderRadius: 12, ctaWidth: "full", ctaPadding: 14, ctaShadow: "none", ctaHoverEnabled: false, ctaHoverBgColor: "", ctaHoverTextColor: "",
   customCss: "",
+  clearCartOnAdd: false, postAddRedirect: "none",
+  discountPrefix: "", discountSuffix: "",
+  currencySymbol: "", showPaymentIcons: false,
+  addOrderTags: false, addOrderNotes: false,
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -90,7 +94,7 @@ function shadowCss(shadow: string): string {
 }
 
 function PreviewPanel({ title, products, style }: { title: string; products: IBundleProduct[]; style: IBundleStyle }) {
-  const money = (cents: number) => "₹" + (cents / 100).toFixed(0);
+  const money = (cents: number) => (style.currencySymbol || "₹") + (cents / 100).toFixed(0);
   const isVertical = style.cardLayoutStyle === "vertical" || (style.cardLayoutStyle === "auto" && style.layout === "list");
 
   return (
@@ -160,6 +164,11 @@ function PreviewPanel({ title, products, style }: { title: string; products: IBu
         >
           {style.ctaText || "Add Bundle to Cart"}
         </button>
+        {style.showPaymentIcons && (
+          <div style={{ marginTop: 8, textAlign: "center" }}>
+            <Text as="span" tone="subdued" variant="bodySm">Visa • Mastercard • UPI • RuPay</Text>
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -195,14 +204,19 @@ export default function BundleGenieCustomize() {
       <BlockStack gap="400">
         <Banner tone="info">
           <p>
-            Not all reference options are here yet — Checkout Partner selection isn't built (we
-            only integrate providers after verifying their real trigger API, same rule that's
-            applied everywhere else in this app), and Variant Config, Ratings, Freebies, and the
-            Advanced/stock-and-order options need subsystems this app doesn't have yet. This
-            covers everything that's a real visual style on the widget: branding, typography,
-            product cards, and the CTA button, plus a raw Custom CSS override for anything else.
+            Still not built: Checkout Partner selection (only integrating providers after
+            verifying their real trigger API, same rule applied everywhere else in this app),
+            Variant Config and Product Ratings (different data models this app doesn't have),
+            Freebies (no gift-item mechanism yet), and out-of-stock detection (needs a live
+            inventory lookup this endpoint doesn't do yet). Everything else from the reference —
+            branding, typography, product cards, CTA button, cart/redirect behavior, discount
+            naming, and order tagging — is real and wired to the actual storefront widget below.
           </p>
         </Banner>
+
+        <InlineStack align="end">
+          <Button onClick={() => setStyle(DEFAULT_STYLE)}>Reset to Default</Button>
+        </InlineStack>
 
         <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 420px", minWidth: 0 }}>
@@ -232,7 +246,7 @@ export default function BundleGenieCustomize() {
                 <ColorField label="Title text color" value={style.titleTextColor} onChange={(v) => set("titleTextColor", v)} />
               </Section>
 
-              <Section title="Product cards" subtitle="Product card styling and content visibility" open={openSection === "cards"} onToggle={() => toggle("cards")}>
+              <Section title="Product Section" subtitle="Product card styling and content visibility" open={openSection === "cards"} onToggle={() => toggle("cards")}>
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="span">Image aspect ratio</Text>
                   <ButtonGroup variant="segmented">
@@ -296,6 +310,34 @@ export default function BundleGenieCustomize() {
                     <ColorField label="Hover text color" value={style.ctaHoverTextColor} onChange={(v) => set("ctaHoverTextColor", v)} />
                   </>
                 )}
+              </Section>
+
+              <Section title="Discounts" subtitle="Naming for the automatic discount this campaign creates" open={openSection === "discounts"} onToggle={() => toggle("discounts")}>
+                <Text as="p" tone="subdued">
+                  Changes how the discount shows up in your Shopify admin's Discounts list —
+                  doesn't affect the discount amount, which is set on the campaign's Pricing
+                  section.
+                </Text>
+                <TextField label="Discount title prefix" value={style.discountPrefix} onChange={(v) => set("discountPrefix", v)} autoComplete="off" maxLength={40} placeholder="e.g. Bundle Genie" />
+                <TextField label="Discount title suffix" value={style.discountSuffix} onChange={(v) => set("discountSuffix", v)} autoComplete="off" maxLength={40} placeholder="e.g. (auto)" />
+              </Section>
+
+              <Section title="Advanced Settings" subtitle="Cart behavior, currency, and order handling" open={openSection === "advanced"} onToggle={() => toggle("advanced")}>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="span">After adding to cart, redirect to</Text>
+                  <ButtonGroup variant="segmented">
+                    {(["none", "cart", "checkout"] as const).map((v) => (
+                      <Button key={v} pressed={style.postAddRedirect === v} onClick={() => set("postAddRedirect", v)}>
+                        {v === "none" ? "Stay on page" : v[0].toUpperCase() + v.slice(1)}
+                      </Button>
+                    ))}
+                  </ButtonGroup>
+                </InlineStack>
+                <Checkbox label="Clear cart before adding this bundle" checked={style.clearCartOnAdd} onChange={(v) => set("clearCartOnAdd", v)} />
+                <TextField label="Currency symbol override" value={style.currencySymbol} onChange={(v) => set("currencySymbol", v)} autoComplete="off" maxLength={6} placeholder="Leave blank to use your theme's money format" />
+                <Checkbox label="Show payment method icons under the button" checked={style.showPaymentIcons} onChange={(v) => set("showPaymentIcons", v)} />
+                <Checkbox label="Tag the order when it contains this bundle" checked={style.addOrderTags} onChange={(v) => set("addOrderTags", v)} />
+                <Checkbox label="Add a note to the order when it contains this bundle" checked={style.addOrderNotes} onChange={(v) => set("addOrderNotes", v)} />
               </Section>
 
               <Section title="Custom CSS" subtitle="Write custom CSS to override bundle styling" open={openSection === "css"} onToggle={() => toggle("css")}>

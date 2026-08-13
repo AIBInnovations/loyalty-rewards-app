@@ -87,6 +87,22 @@ export interface IBundleStyle {
 
   // Raw override, applied last
   customCss: string;
+
+  // Cart & checkout behavior
+  clearCartOnAdd: boolean;
+  postAddRedirect: "none" | "cart" | "checkout";
+
+  // Discount naming (the Shopify automatic discount's title, not its value)
+  discountPrefix: string;
+  discountSuffix: string;
+
+  // Display
+  currencySymbol: string;
+  showPaymentIcons: boolean;
+
+  // Order behavior — applied when a paid order contains this bundle
+  addOrderTags: boolean;
+  addOrderNotes: boolean;
 }
 
 /**
@@ -204,6 +220,18 @@ const bundleStyleSchema = new Schema<IBundleStyle>(
     ctaHoverTextColor: { type: String, default: "" },
 
     customCss: { type: String, default: "", maxlength: 20000 },
+
+    clearCartOnAdd: { type: Boolean, default: false },
+    postAddRedirect: { type: String, enum: ["none", "cart", "checkout"], default: "none" },
+
+    discountPrefix: { type: String, default: "", maxlength: 40 },
+    discountSuffix: { type: String, default: "", maxlength: 40 },
+
+    currencySymbol: { type: String, default: "", maxlength: 6 },
+    showPaymentIcons: { type: Boolean, default: false },
+
+    addOrderTags: { type: Boolean, default: false },
+    addOrderNotes: { type: Boolean, default: false },
   },
   { _id: false },
 );
