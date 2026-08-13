@@ -141,3 +141,27 @@ export const METAFIELD_DEFINITION_CREATE = `#graphql
     }
   }
 `;
+
+export const TAGS_ADD = `#graphql
+  mutation tagsAdd($id: ID!, $tags: [String!]!) {
+    tagsAdd(id: $id, tags: $tags) {
+      node { id }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+export const ORDER_UPDATE_NOTE = `#graphql
+  mutation orderUpdate($input: OrderInput!) {
+    orderUpdate(input: $input) {
+      order { id }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;

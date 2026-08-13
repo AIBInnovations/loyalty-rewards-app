@@ -28,7 +28,7 @@ interface AdminAPI {
  * Function (not built — see Bundle Genie overview page's setup status).
  */
 function buildDiscountInput(
-  bundle: Pick<IBundle, "title">,
+  bundle: Pick<IBundle, "title"> & { style?: { discountPrefix?: string; discountSuffix?: string } },
   version: IBundleVersion,
 ): Record<string, unknown> | null {
   if (version.discountType === "none" || version.discountValue <= 0) return null;
@@ -55,8 +55,11 @@ function buildDiscountInput(
     value = { discountAmount: { amount: amountOff / 100, appliesOnEachItem: false } };
   }
 
+  const prefix = bundle.style?.discountPrefix ? bundle.style.discountPrefix.trim() + " " : "Bundle Genie — ";
+  const suffix = bundle.style?.discountSuffix ? " " + bundle.style.discountSuffix.trim() : "";
+
   return {
-    title: `Bundle Genie — ${bundle.title} (v${version.version})`,
+    title: `${prefix}${bundle.title} (v${version.version})${suffix}`,
     startsAt: new Date().toISOString(),
     customerGets: {
       value,
@@ -102,7 +105,7 @@ async function runMutation(
  */
 export async function syncBundleVersionDiscount(
   admin: AdminAPI,
-  bundle: Pick<IBundle, "title">,
+  bundle: Pick<IBundle, "title"> & { style?: { discountPrefix?: string; discountSuffix?: string } },
   version: IBundleVersion,
   previousShopifyDiscountId?: string,
 ): Promise<string> {

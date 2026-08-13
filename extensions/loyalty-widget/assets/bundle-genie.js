@@ -27,8 +27,9 @@
     } catch (e) {}
   }
 
-  function formatMoney(cents) {
+  function formatMoney(cents, symbolOverride) {
     var amount = cents / 100;
+    if (symbolOverride) return symbolOverride + amount.toFixed(0);
     var format = moneyFormat;
     if (format.indexOf("{{amount_no_decimals}}") !== -1) {
       return format.replace("{{amount_no_decimals}}", Math.round(amount).toString());
@@ -115,14 +116,15 @@
 
     var showPrice = s.showPrice !== false;
     var showCompareAt = s.showCompareAtPrice !== false;
+    var currencySymbol = s.currencySymbol || "";
 
     var itemsHtml = bundle.products.map(function (p) {
       var priceHtml = "";
       if (showPrice) {
         var compareHtml = showCompareAt && p.compareAtPrice > p.price
-          ? '<span class="bg-genie-item-compare">' + formatMoney(p.compareAtPrice * (p.defaultQuantity || 1)) + "</span>"
+          ? '<span class="bg-genie-item-compare">' + formatMoney(p.compareAtPrice * (p.defaultQuantity || 1), currencySymbol) + "</span>"
           : "";
-        priceHtml = compareHtml + '<span class="bg-genie-item-price">' + formatMoney(p.price * (p.defaultQuantity || 1)) + "</span>";
+        priceHtml = compareHtml + '<span class="bg-genie-item-price">' + formatMoney(p.price * (p.defaultQuantity || 1), currencySymbol) + "</span>";
       }
       return (
         '<div class="bg-genie-item">' +
@@ -143,11 +145,12 @@
       '<div class="bg-genie-items">' + itemsHtml + "</div>" +
       '<div class="bg-genie-price-row">' +
         (hasDiscount
-          ? '<span class="bg-genie-price-compare">' + formatMoney(subtotal) + "</span>" +
-            '<span class="bg-genie-price-final">' + formatMoney(finalPrice) + "</span>"
-          : '<span class="bg-genie-price-final">' + formatMoney(subtotal) + "</span>") +
+          ? '<span class="bg-genie-price-compare">' + formatMoney(subtotal, currencySymbol) + "</span>" +
+            '<span class="bg-genie-price-final">' + formatMoney(finalPrice, currencySymbol) + "</span>"
+          : '<span class="bg-genie-price-final">' + formatMoney(subtotal, currencySymbol) + "</span>") +
       "</div>" +
       '<button type="button" class="bg-genie-add-btn" id="bg-genie-add-btn">' + ctaLabel + "</button>" +
+      (s.showPaymentIcons ? '<div class="bg-genie-payment-icons">Visa &bull; Mastercard &bull; UPI &bull; RuPay</div>' : "") +
       '<div class="bg-genie-error" id="bg-genie-error" style="display:none;"></div>';
 
     // Placed right after the product form's Add to Cart button, same
@@ -199,11 +202,15 @@
       // Plain /cart/add.js — cart-drawer.js already wraps window.fetch and
       // auto-detects any call here, refreshing and opening the drawer. No
       // extra integration call needed.
-      fetch("/cart/add.js", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: items }),
-      })
+      var addToCart = function () {
+        return fetch("/cart/add.js", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: items }),
+        });
+      };
+
+      (s.clearCartOnAdd ? fetch("/cart/clear.js", { method: "POST" }).then(addToCart) : addToCart())
         .then(function (r) {
           if (!r.ok) {
             return r.json().then(function (b) {
@@ -212,6 +219,14 @@
           }
           track(bundle.bundleId, "addToCart");
           btn.textContent = "Added!";
+          if (s.postAddRedirect === "checkout") {
+            window.location.href = "/checkout";
+            return;
+          }
+          if (s.postAddRedirect === "cart") {
+            window.location.href = "/cart";
+            return;
+          }
           setTimeout(function () {
             btn.disabled = false;
             btn.textContent = ctaLabel;

@@ -130,6 +130,13 @@
 }
 .bg-genie-add-btn:disabled { opacity: 0.6; cursor: default; }
 
+.bg-genie-payment-icons {
+  margin-top: 8px;
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.6;
+}
+
 .bg-genie-error {
   margin-top: 8px;
   font-size: 12px;

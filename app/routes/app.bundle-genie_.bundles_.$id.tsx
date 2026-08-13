@@ -65,7 +65,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (intent === "resume") {
     if (latestVersion && !latestVersion.shopifyDiscountId) {
       latestVersion.shopifyDiscountId = await syncBundleVersionDiscount(
-        admin as any, { title: bundle.title }, latestVersion,
+        admin as any, { title: bundle.title, style: bundle.style }, latestVersion,
       );
       bundle.markModified("versions");
     }
@@ -148,7 +148,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // Shopify discount in place (new product list/value) instead of leaving
     // an orphaned one active alongside a new one.
     version.shopifyDiscountId = await syncBundleVersionDiscount(
-      admin as any, { title }, version, latestVersion?.shopifyDiscountId,
+      admin as any, { title, style: bundle.style }, version, latestVersion?.shopifyDiscountId,
     );
     bundle.versions.push(version);
     bundle.currentVersion = nextVersion;
