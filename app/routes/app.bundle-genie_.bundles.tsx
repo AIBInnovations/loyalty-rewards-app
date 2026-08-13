@@ -2,9 +2,9 @@ import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-r
 import { Link, useLoaderData, useSubmit, useNavigation, useSearchParams } from "@remix-run/react";
 import {
   Page, Card, BlockStack, Text, IndexTable, Badge, InlineStack, Button,
-  EmptyState, Tabs, TextField, Pagination, useIndexResourceState,
+  EmptyState, Tabs, TextField, Pagination, useIndexResourceState, Popover, OptionList,
 } from "@shopify/polaris";
-import { ViewIcon, DuplicateIcon, EditIcon, DeleteIcon, SortAscendingIcon, SortDescendingIcon } from "@shopify/polaris-icons";
+import { ViewIcon, DuplicateIcon, EditIcon, DeleteIcon, SortAscendingIcon, SortDescendingIcon, SearchIcon, FilterIcon } from "@shopify/polaris-icons";
 import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
@@ -15,12 +15,15 @@ import { BundleGenieShell } from "../components/bundle-genie-nav";
 
 const PAGE_SIZE = 10;
 
-const STATUS_TABS = [
+const VISIBLE_TABS = [
   { key: "", label: "All" },
   { key: "active", label: "Active" },
   { key: "draft", label: "Draft" },
-  { key: "paused", label: "Paused" },
-  { key: "archived", label: "Archived" },
+];
+
+const FILTER_ONLY_STATUSES = [
+  { value: "paused", label: "Paused" },
+  { value: "archived", label: "Archived" },
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -148,7 +151,9 @@ export default function BundleGenieList() {
     });
   }, [setSearchParams]);
 
-  const tabIndex = Math.max(0, STATUS_TABS.findIndex((t) => t.key === statusFilter));
+  const tabIndex = Math.max(0, VISIBLE_TABS.findIndex((t) => t.key === statusFilter));
+  const [searchOpen, setSearchOpen] = useState(Boolean(search));
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const runAction = useCallback((bundleId: string, intent: BundleQuickActionIntent) => {
     const fd = new FormData();
@@ -180,13 +185,38 @@ export default function BundleGenieList() {
       <BundleGenieShell active="campaigns">
       <BlockStack gap="400">
         <Card padding="0">
-          <Tabs
-            tabs={STATUS_TABS.map((t) => ({ id: t.key || "all", content: t.label }))}
-            selected={tabIndex}
-            onSelect={(index) => updateParams({ status: STATUS_TABS[index].key })}
-          />
-          <div style={{ padding: 16, display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingRight: 16 }}>
+            <Tabs
+              tabs={VISIBLE_TABS.map((t) => ({ id: t.key || "all", content: t.label }))}
+              selected={tabIndex}
+              onSelect={(index) => updateParams({ status: VISIBLE_TABS[index].key })}
+            />
+            <InlineStack gap="150">
+              <Button icon={SearchIcon} accessibilityLabel="Search campaigns" onClick={() => setSearchOpen((v) => !v)} pressed={searchOpen} />
+              <Popover
+                active={filterOpen}
+                onClose={() => setFilterOpen(false)}
+                activator={
+                  <Button icon={FilterIcon} accessibilityLabel="Filter by status" onClick={() => setFilterOpen((v) => !v)} pressed={filterOpen || FILTER_ONLY_STATUSES.some((s) => s.value === statusFilter)} />
+                }
+              >
+                <OptionList
+                  title="Status"
+                  onChange={(selected) => { updateParams({ status: selected[0] || "" }); setFilterOpen(false); }}
+                  options={FILTER_ONLY_STATUSES}
+                  selected={FILTER_ONLY_STATUSES.some((s) => s.value === statusFilter) ? [statusFilter] : []}
+                />
+              </Popover>
+              <Button
+                icon={sortDir === "asc" ? SortAscendingIcon : SortDescendingIcon}
+                onClick={() => updateParams({ sort: sortDir === "asc" ? "desc" : "asc" })}
+                accessibilityLabel="Toggle sort by last updated"
+              />
+            </InlineStack>
+          </div>
+
+          {searchOpen && (
+            <div style={{ padding: "0 16px 16px" }}>
               <TextField
                 label="Search campaigns"
                 labelHidden
@@ -197,16 +227,10 @@ export default function BundleGenieList() {
                 autoComplete="off"
                 clearButton
                 onClearButtonClick={() => { setSearchValue(""); updateParams({ q: "" }); }}
+                autoFocus
               />
             </div>
-            <Button
-              icon={sortDir === "asc" ? SortAscendingIcon : SortDescendingIcon}
-              onClick={() => updateParams({ sort: sortDir === "asc" ? "desc" : "asc" })}
-              accessibilityLabel="Toggle sort by last updated"
-            >
-              Last updated
-            </Button>
-          </div>
+          )}
 
           {bundles.length === 0 ? (
             <EmptyState
