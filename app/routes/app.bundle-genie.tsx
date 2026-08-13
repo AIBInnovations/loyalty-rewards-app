@@ -261,7 +261,7 @@ export default function BundleGenieOverview() {
 
   return (
     <Page title="Bundle Genie" backAction={{ url: "/app" }}>
-      <BundleGenieShell active="campaigns">
+      <BundleGenieShell active="dashboard">
       <BlockStack gap="400">
         <InlineStack align="space-between" blockAlign="start">
           <BlockStack gap="100">
