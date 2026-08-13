@@ -49,6 +49,44 @@ export interface IBundleStyle {
   buttonTextColor: string;
   borderRadius: number;
   layout: "grid" | "list";
+
+  // Branding
+  primaryColor: string;
+  primaryContrastColor: string;
+  secondaryColor: string;
+  secondaryContrastColor: string;
+  sectionBgColor: string;
+  infoAlignment: "left" | "center" | "right";
+
+  // Title & header
+  titleFontSize: number;
+  subtitleFontSize: number;
+  titleBgColor: string;
+  titleTextColor: string;
+
+  // Product cards
+  imageAspectRatio: "square" | "portrait";
+  cardLayoutStyle: "horizontal" | "vertical" | "auto";
+  cardBorderRadius: number;
+  cardBorderColor: string;
+  cardBgColor: string;
+  cardShadow: "none" | "soft" | "spread";
+  showPrice: boolean;
+  showCompareAtPrice: boolean;
+
+  // CTA button (beyond the quick buttonColor/buttonTextColor above)
+  ctaText: string;
+  ctaBorderColor: string;
+  ctaBorderRadius: number;
+  ctaWidth: "fit" | "full";
+  ctaPadding: number;
+  ctaShadow: "none" | "soft" | "spread";
+  ctaHoverEnabled: boolean;
+  ctaHoverBgColor: string;
+  ctaHoverTextColor: string;
+
+  // Raw override, applied last
+  customCss: string;
 }
 
 /**
@@ -133,6 +171,39 @@ const bundleStyleSchema = new Schema<IBundleStyle>(
     buttonTextColor: { type: String, default: "" },
     borderRadius: { type: Number, default: 12 },
     layout: { type: String, enum: ["grid", "list"], default: "grid" },
+
+    primaryColor: { type: String, default: "" },
+    primaryContrastColor: { type: String, default: "" },
+    secondaryColor: { type: String, default: "" },
+    secondaryContrastColor: { type: String, default: "" },
+    sectionBgColor: { type: String, default: "" },
+    infoAlignment: { type: String, enum: ["left", "center", "right"], default: "left" },
+
+    titleFontSize: { type: Number, default: 22 },
+    subtitleFontSize: { type: Number, default: 18 },
+    titleBgColor: { type: String, default: "" },
+    titleTextColor: { type: String, default: "" },
+
+    imageAspectRatio: { type: String, enum: ["square", "portrait"], default: "square" },
+    cardLayoutStyle: { type: String, enum: ["horizontal", "vertical", "auto"], default: "auto" },
+    cardBorderRadius: { type: Number, default: 12 },
+    cardBorderColor: { type: String, default: "" },
+    cardBgColor: { type: String, default: "" },
+    cardShadow: { type: String, enum: ["none", "soft", "spread"], default: "soft" },
+    showPrice: { type: Boolean, default: true },
+    showCompareAtPrice: { type: Boolean, default: true },
+
+    ctaText: { type: String, default: "Add Bundle to Cart" },
+    ctaBorderColor: { type: String, default: "" },
+    ctaBorderRadius: { type: Number, default: 12 },
+    ctaWidth: { type: String, enum: ["fit", "full"], default: "full" },
+    ctaPadding: { type: Number, default: 14 },
+    ctaShadow: { type: String, enum: ["none", "soft", "spread"], default: "none" },
+    ctaHoverEnabled: { type: Boolean, default: false },
+    ctaHoverBgColor: { type: String, default: "" },
+    ctaHoverTextColor: { type: String, default: "" },
+
+    customCss: { type: String, default: "", maxlength: 20000 },
   },
   { _id: false },
 );
