@@ -21,6 +21,9 @@ const DEFAULT_STYLE: IBundleStyle = {
   discountPrefix: "", discountSuffix: "",
   currencySymbol: "", showPaymentIcons: false,
   addOrderTags: false, addOrderNotes: false,
+  visibilityMode: "all", primaryProductId: "",
+  showCheckbox: false, uncheckByDefault: false,
+  enableQuantitySelector: false, quantityMin: 0, quantityMax: 0,
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
