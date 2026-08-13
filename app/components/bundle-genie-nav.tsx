@@ -3,7 +3,8 @@ import { BlockStack } from "@shopify/polaris";
 import type { ReactNode } from "react";
 
 const NAV_ITEMS: Array<{ key: string; label: string; url: string }> = [
-  { key: "campaigns", label: "Campaigns", url: "/app/bundle-genie" },
+  { key: "dashboard", label: "Bundle Dashboard", url: "/app/bundle-genie" },
+  { key: "campaigns", label: "Campaigns", url: "/app/bundle-genie/bundles" },
   { key: "analytics", label: "Analytics", url: "/app/bundle-genie/analytics" },
   { key: "billing", label: "Billing", url: "/app/bundle-genie/billing" },
   { key: "settings", label: "Settings", url: "/app/bundle-genie/settings" },
