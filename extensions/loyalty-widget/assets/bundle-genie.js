@@ -98,41 +98,90 @@
       (s.ctaHoverEnabled ? " bg-genie-cta-hover" : "");
     widget.style.cssText = vars;
 
-    var subtotal = bundle.products.reduce(function (sum, p) {
-      return sum + p.price * (p.defaultQuantity || 1);
-    }, 0);
-
-    var finalPrice = subtotal;
-    var hasDiscount = bundle.priceEnforced && bundle.discountType !== "none";
-    if (hasDiscount) {
-      if (bundle.discountType === "percentage") {
-        finalPrice = Math.round(subtotal * (1 - bundle.discountValue / 100));
-      } else if (bundle.discountType === "fixed_amount") {
-        finalPrice = Math.max(0, subtotal - bundle.discountValue);
-      } else if (bundle.discountType === "fixed_price") {
-        finalPrice = Math.min(subtotal, bundle.discountValue);
-      }
-    }
-
     var showPrice = s.showPrice !== false;
     var showCompareAt = s.showCompareAtPrice !== false;
     var currencySymbol = s.currencySymbol || "";
+    var showCheckbox = !!s.showCheckbox;
+    var enableQty = !!s.enableQuantitySelector;
 
-    var itemsHtml = bundle.products.map(function (p) {
+    // Per-item runtime state — checked/quantity the customer can change
+    // before adding, independent of the merchant-configured defaults.
+    var itemState = bundle.products.map(function (p) {
+      var min = s.quantityMin > 0 ? s.quantityMin : (p.minQuantity || 1);
+      var max = s.quantityMax > 0 ? s.quantityMax : (p.maxQuantity || 10);
+      return {
+        checked: !(showCheckbox && s.uncheckByDefault),
+        qty: Math.min(max, Math.max(min, p.defaultQuantity || 1)),
+        min: min,
+        max: max,
+      };
+    });
+
+    function computePrice() {
+      var subtotal = 0;
+      bundle.products.forEach(function (p, i) {
+        if (itemState[i].checked) subtotal += p.price * itemState[i].qty;
+      });
+      var finalPrice = subtotal;
+      var hasDiscount = bundle.priceEnforced && bundle.discountType !== "none";
+      var allChecked = itemState.every(function (st) { return st.checked; });
+      // Discount only applies to the exact configured line-up — a partial
+      // selection isn't guaranteed to still meet Shopify's minimum-quantity
+      // requirement on the automatic discount.
+      if (hasDiscount && allChecked) {
+        if (bundle.discountType === "percentage") {
+          finalPrice = Math.round(subtotal * (1 - bundle.discountValue / 100));
+        } else if (bundle.discountType === "fixed_amount") {
+          finalPrice = Math.max(0, subtotal - bundle.discountValue);
+        } else if (bundle.discountType === "fixed_price") {
+          finalPrice = Math.min(subtotal, bundle.discountValue);
+        }
+      } else {
+        hasDiscount = false;
+      }
+      return { subtotal: subtotal, finalPrice: finalPrice, hasDiscount: hasDiscount };
+    }
+
+    function renderPriceRow() {
+      var priceEl = widget.querySelector("#bg-genie-price-row");
+      if (!priceEl) return;
+      var p = computePrice();
+      priceEl.innerHTML = p.hasDiscount
+        ? '<span class="bg-genie-price-compare">' + formatMoney(p.subtotal, currencySymbol) + "</span>" +
+          '<span class="bg-genie-price-final">' + formatMoney(p.finalPrice, currencySymbol) + "</span>"
+        : '<span class="bg-genie-price-final">' + formatMoney(p.subtotal, currencySymbol) + "</span>";
+      var anyChecked = itemState.some(function (st) { return st.checked; });
+      var addBtn = widget.querySelector("#bg-genie-add-btn");
+      if (addBtn) addBtn.disabled = !anyChecked;
+    }
+
+    var itemsHtml = bundle.products.map(function (p, i) {
       var priceHtml = "";
       if (showPrice) {
         var compareHtml = showCompareAt && p.compareAtPrice > p.price
-          ? '<span class="bg-genie-item-compare">' + formatMoney(p.compareAtPrice * (p.defaultQuantity || 1), currencySymbol) + "</span>"
+          ? '<span class="bg-genie-item-compare">' + formatMoney(p.compareAtPrice * itemState[i].qty, currencySymbol) + "</span>"
           : "";
-        priceHtml = compareHtml + '<span class="bg-genie-item-price">' + formatMoney(p.price * (p.defaultQuantity || 1), currencySymbol) + "</span>";
+        priceHtml = compareHtml + '<span class="bg-genie-item-price" id="bg-genie-item-price-' + i + '">' + formatMoney(p.price * itemState[i].qty, currencySymbol) + "</span>";
       }
+      var checkboxHtml = showCheckbox
+        ? '<input type="checkbox" class="bg-genie-item-check" data-index="' + i + '"' + (itemState[i].checked ? " checked" : "") + '>'
+        : "";
+      var qtyHtml = enableQty
+        ? '<span class="bg-genie-qty">' +
+            '<button type="button" class="bg-genie-qty-btn" data-index="' + i + '" data-delta="-1">−</button>' +
+            '<span class="bg-genie-qty-val" id="bg-genie-qty-' + i + '">' + itemState[i].qty + "</span>" +
+            '<button type="button" class="bg-genie-qty-btn" data-index="' + i + '" data-delta="1">+</button>' +
+          "</span>"
+        : "";
       return (
         '<div class="bg-genie-item">' +
+          checkboxHtml +
           (p.imageUrl
             ? '<img class="bg-genie-item-img" src="' + esc(p.imageUrl) + '" alt="' + esc(p.title) + '" loading="lazy">'
             : "") +
           '<span class="bg-genie-item-title">' + esc(p.title) + "</span>" +
           priceHtml +
+          qtyHtml +
         "</div>"
       );
     }).join("");
@@ -143,12 +192,7 @@
       '<h3 class="bg-genie-title">' + esc(bundle.title) + "</h3>" +
       (bundle.description ? '<p class="bg-genie-desc">' + esc(bundle.description) + "</p>" : "") +
       '<div class="bg-genie-items">' + itemsHtml + "</div>" +
-      '<div class="bg-genie-price-row">' +
-        (hasDiscount
-          ? '<span class="bg-genie-price-compare">' + formatMoney(subtotal, currencySymbol) + "</span>" +
-            '<span class="bg-genie-price-final">' + formatMoney(finalPrice, currencySymbol) + "</span>"
-          : '<span class="bg-genie-price-final">' + formatMoney(subtotal, currencySymbol) + "</span>") +
-      "</div>" +
+      '<div class="bg-genie-price-row" id="bg-genie-price-row"></div>' +
       '<button type="button" class="bg-genie-add-btn" id="bg-genie-add-btn">' + ctaLabel + "</button>" +
       (s.showPaymentIcons ? '<div class="bg-genie-payment-icons">Visa &bull; Mastercard &bull; UPI &bull; RuPay</div>' : "") +
       '<div class="bg-genie-error" id="bg-genie-error" style="display:none;"></div>';
@@ -171,6 +215,30 @@
       root.parentNode.insertBefore(widget, root.nextSibling);
     }
 
+    renderPriceRow();
+
+    widget.querySelectorAll(".bg-genie-item-check").forEach(function (el) {
+      el.addEventListener("change", function () {
+        var i = Number(el.getAttribute("data-index"));
+        itemState[i].checked = el.checked;
+        renderPriceRow();
+      });
+    });
+
+    widget.querySelectorAll(".bg-genie-qty-btn").forEach(function (el) {
+      el.addEventListener("click", function () {
+        var i = Number(el.getAttribute("data-index"));
+        var delta = Number(el.getAttribute("data-delta"));
+        var st = itemState[i];
+        st.qty = Math.min(st.max, Math.max(st.min, st.qty + delta));
+        var qtyEl = widget.querySelector("#bg-genie-qty-" + i);
+        if (qtyEl) qtyEl.textContent = st.qty;
+        var priceEl = widget.querySelector("#bg-genie-item-price-" + i);
+        if (priceEl) priceEl.textContent = formatMoney(bundle.products[i].price * st.qty, currencySymbol);
+        renderPriceRow();
+      });
+    });
+
     var btn = document.getElementById("bg-genie-add-btn");
     var errorEl = document.getElementById("bg-genie-error");
 
@@ -180,22 +248,29 @@
       btn.textContent = "Adding...";
       errorEl.style.display = "none";
 
-      var items = bundle.products.map(function (p) {
+      var items = bundle.products.map(function (p, i) {
+        if (!itemState[i].checked) return null;
         return {
           id: Number(String(p.shopifyVariantId || "").replace("gid://shopify/ProductVariant/", "")),
-          quantity: p.defaultQuantity || 1,
+          quantity: itemState[i].qty,
           properties: {
             _bundle_id: bundle.bundleId,
             _bundle_title: bundle.title,
           },
         };
-      }).filter(function (item) { return item.id; });
+      }).filter(function (item) { return item && item.id; });
 
-      if (items.length !== bundle.products.length) {
+      var checkedCount = itemState.filter(function (st) { return st.checked; }).length;
+      if (items.length !== checkedCount) {
         btn.disabled = false;
         btn.textContent = ctaLabel;
-        errorEl.textContent = "One of this bundle's products is unavailable right now.";
+        errorEl.textContent = "One of the selected products is unavailable right now.";
         errorEl.style.display = "block";
+        return;
+      }
+      if (!items.length) {
+        btn.disabled = false;
+        btn.textContent = ctaLabel;
         return;
       }
 

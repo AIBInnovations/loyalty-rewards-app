@@ -103,6 +103,15 @@ export interface IBundleStyle {
   // Order behavior — applied when a paid order contains this bundle
   addOrderTags: boolean;
   addOrderNotes: boolean;
+
+  // Product visibility & selection behavior
+  visibilityMode: "primary" | "all";
+  primaryProductId: string;
+  showCheckbox: boolean;
+  uncheckByDefault: boolean;
+  enableQuantitySelector: boolean;
+  quantityMin: number; // 0 = no bundle-wide override, use each product's own minQuantity
+  quantityMax: number; // 0 = no bundle-wide override, use each product's own maxQuantity
 }
 
 /**
@@ -232,6 +241,14 @@ const bundleStyleSchema = new Schema<IBundleStyle>(
 
     addOrderTags: { type: Boolean, default: false },
     addOrderNotes: { type: Boolean, default: false },
+
+    visibilityMode: { type: String, enum: ["primary", "all"], default: "all" },
+    primaryProductId: { type: String, default: "" },
+    showCheckbox: { type: Boolean, default: false },
+    uncheckByDefault: { type: Boolean, default: false },
+    enableQuantitySelector: { type: Boolean, default: false },
+    quantityMin: { type: Number, default: 0 },
+    quantityMax: { type: Number, default: 0 },
   },
   { _id: false },
 );

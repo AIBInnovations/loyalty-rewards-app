@@ -1525,6 +1525,15 @@ async function handleGetBundleForProduct(params: URLSearchParams, shop: string) 
 
   if (!bundle) return json({ found: false }, noStore);
 
+  // "Primary product only" — the query above matches any product in the
+  // bundle, but this bundle should only actually show on its designated
+  // primary product's page, not every product it contains.
+  if (bundle.style?.visibilityMode === "primary" && bundle.style.primaryProductId) {
+    if (!bundle.style.primaryProductId.endsWith(productId)) {
+      return json({ found: false }, noStore);
+    }
+  }
+
   const version = bundle.versions.find((v) => v.version === bundle.currentVersion);
   if (!version) return json({ found: false }, noStore);
 
