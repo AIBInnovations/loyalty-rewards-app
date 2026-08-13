@@ -15,6 +15,18 @@
     return d.innerHTML;
   }
 
+  function track(bundleId, event) {
+    // Fire-and-forget — analytics must never block or break the widget.
+    try {
+      fetch("/apps/loyalty/bundle-genie/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bundleId: bundleId, event: event }),
+        keepalive: true,
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   function formatMoney(cents) {
     var amount = cents / 100;
     var format = moneyFormat;
@@ -104,6 +116,7 @@
     var errorEl = document.getElementById("bg-genie-error");
 
     btn.addEventListener("click", function () {
+      track(bundle.bundleId, "interaction");
       btn.disabled = true;
       btn.textContent = "Adding...";
       errorEl.style.display = "none";
@@ -141,6 +154,7 @@
               throw new Error(b.description || b.message || "Could not add bundle to cart.");
             });
           }
+          track(bundle.bundleId, "addToCart");
           btn.textContent = "Added!";
           setTimeout(function () {
             btn.disabled = false;
@@ -163,7 +177,10 @@
       return r.json();
     })
     .then(function (data) {
-      if (data && data.found) render(data);
+      if (data && data.found) {
+        render(data);
+        track(data.bundleId, "view");
+      }
     })
     .catch(function () {
       // No bundle for this product, app proxy misconfigured, or network

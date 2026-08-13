@@ -20,6 +20,7 @@ import {
 import { handleCheckoutWebhook } from "../.server/services/abandoned-cart-poller.service";
 import { sendCodConfirmation } from "../.server/services/cod-whatsapp.service";
 import { ingestOrderForSalesPop } from "../.server/services/sales-pop.service";
+import { attributeBundleOrder } from "../.server/services/bundle-analytics.service";
 import {
   handleProductCreate,
   handleProductUpdate,
@@ -127,6 +128,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             console.error("[SalesPop] Ingest error:", err),
           );
         }
+        // Fire-and-forget Bundle Genie order/revenue attribution (non-blocking)
+        attributeBundleOrder(shop, payload).catch((err) =>
+          console.error("[BundleGenie] Order attribution error:", err),
+        );
         break;
 
       case "ORDERS_CANCELLED":

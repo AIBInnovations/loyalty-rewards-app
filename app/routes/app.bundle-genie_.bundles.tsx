@@ -8,6 +8,8 @@ import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { Bundle } from "../.server/models/bundle.model";
+import { runBundleQuickAction, type BundleQuickActionIntent } from "../.server/services/bundle-quick-actions.service";
+import { BundleGenieShell } from "../components/bundle-genie-nav";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -38,48 +40,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   await connectDB();
-  const shopId = session.shop;
-
   const formData = await request.formData();
-  const intent = String(formData.get("intent") || "");
+  const intent = String(formData.get("intent") || "") as BundleQuickActionIntent;
   const bundleId = String(formData.get("bundleId") || "");
   if (!bundleId) return json({ success: false }, { status: 400 });
-
-  const bundle = await Bundle.findOne({ _id: bundleId, shopId });
-  if (!bundle) return json({ success: false }, { status: 404 });
-
-  if (intent === "pause") {
-    bundle.status = "paused";
-    await bundle.save();
-  } else if (intent === "resume") {
-    // Only a published bundle (has at least one version) can go back to active.
-    bundle.status = bundle.currentVersion > 0 ? "active" : "draft";
-    await bundle.save();
-  } else if (intent === "archive") {
-    // Soft delete — never hard-delete a bundle that might be referenced by
-    // past order attribution once that's built (Phase 10).
-    bundle.status = "archived";
-    await bundle.save();
-  } else if (intent === "duplicate") {
-    const copy = new Bundle({
-      shopId,
-      type: bundle.type,
-      internalName: bundle.internalName + " (copy)",
-      title: bundle.title + " (copy)",
-      handle: bundle.handle + "-copy-" + Date.now().toString(36),
-      description: bundle.description,
-      status: "draft",
-      featuredImageUrl: bundle.featuredImageUrl,
-      draftProducts: bundle.draftProducts,
-      draftDiscountType: bundle.draftDiscountType,
-      draftDiscountValue: bundle.draftDiscountValue,
-      currentVersion: 0,
-      versions: [],
-    });
-    await copy.save();
-  }
-
-  return json({ success: true });
+  const result = await runBundleQuickAction(session.shop, bundleId, intent);
+  return json(result, { status: result.status || 200 });
 };
 
 const STATUS_TONE: Record<string, "success" | "info" | "attention" | "warning" | "critical"> = {
@@ -132,14 +98,13 @@ export default function BundleGenieList() {
 
   return (
     <Page
-      title="All Bundles"
-      primaryAction={{ content: "Create bundle", url: "/app/bundle-genie/bundles/new" }}
+      title="Bundle Genie"
+      subtitle="All campaigns"
+      primaryAction={{ content: "Create Campaign", url: "/app/bundle-genie/bundles/new" }}
       backAction={{ url: "/app/bundle-genie" }}
     >
+      <BundleGenieShell active="campaigns">
       <BlockStack gap="400">
-        <InlineStack gap="200">
-          <Link to="/app/bundle-genie/bundles/new">Create bundle →</Link>
-        </InlineStack>
         <Card>
           <div style={{ maxWidth: 240 }}>
             <Select
@@ -162,7 +127,7 @@ export default function BundleGenieList() {
           {bundles.length === 0 ? (
             <EmptyState
               heading="No bundles yet"
-              action={{ content: "Create bundle", url: "/app/bundle-genie/bundles/new" }}
+              action={{ content: "Create Campaign", url: "/app/bundle-genie/bundles/new" }}
               image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
             >
               <p>Bundles you create will show up here.</p>
@@ -221,6 +186,7 @@ export default function BundleGenieList() {
           )}
         </Card>
       </BlockStack>
+      </BundleGenieShell>
     </Page>
   );
 }
