@@ -1,5 +1,5 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
-import { Link, useLoaderData, useSubmit, useNavigation, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useSubmit, useNavigation, useSearchParams } from "@remix-run/react";
 import {
   Page, Card, BlockStack, Text, IndexTable, Badge, InlineStack, Button,
   EmptyState, Tabs, TextField, Pagination, useIndexResourceState, Popover, OptionList,
@@ -264,7 +264,7 @@ export default function BundleGenieList() {
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       <InlineStack gap="150" blockAlign="center">
-                        <Link to={`/app/bundle-genie/bundles/${b.id}`}>{b.title}</Link>
+                        <Text as="span" fontWeight="semibold">{b.title}</Text>
                         <Badge>{TYPE_LABEL[b.type] || b.type}</Badge>
                       </InlineStack>
                     </IndexTable.Cell>
