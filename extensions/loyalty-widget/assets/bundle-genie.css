@@ -120,11 +120,14 @@
 .bg-genie-item-title {
   display: block;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  box-sizing: border-box;
 }
 
 .bg-genie-item-price {
