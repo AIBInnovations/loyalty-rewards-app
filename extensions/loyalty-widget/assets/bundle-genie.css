@@ -45,7 +45,12 @@
   flex: 1 1 0;
   min-width: 0;
   flex-direction: column;
+  align-items: stretch;
   text-align: center;
+}
+
+.bg-genie-layout--grid .bg-genie-item-img {
+  align-self: center;
 }
 
 /* Product count never changes the layout — always one row on desktop,
