@@ -33,6 +33,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!bundle) throw new Response("Bundle not found", { status: 404 });
   return json({
     title: bundle.title,
+    description: bundle.description || "",
     products: bundle.draftProducts || [],
     style: { ...DEFAULT_STYLE, ...(bundle.style || {}) },
   });
@@ -137,7 +138,7 @@ function shadowCss(shadow: string): string {
   return "none";
 }
 
-function PreviewPanel({ title, products, style }: { title: string; products: IBundleProduct[]; style: IBundleStyle }) {
+function PreviewPanel({ title, description, products, style }: { title: string; description: string; products: IBundleProduct[]; style: IBundleStyle }) {
   const money = (cents: number) => (style.currencySymbol || "₹") + (cents / 100).toFixed(0);
   const isVertical = style.cardLayoutStyle === "vertical" || (style.cardLayoutStyle === "auto" && style.layout === "list");
 
@@ -159,9 +160,11 @@ function PreviewPanel({ title, products, style }: { title: string; products: IBu
         >
           {title || "Campaign title"}
         </div>
-        <div style={{ fontSize: style.subtitleFontSize, color: style.secondaryColor || "#6b7280", marginTop: 4 }}>
-          Pair Up &amp; Save!
-        </div>
+        {description && (
+          <div style={{ fontSize: style.subtitleFontSize, color: style.secondaryColor || "#6b7280", marginTop: 4 }}>
+            {description}
+          </div>
+        )}
         <div style={{ marginTop: 14, display: "flex", flexDirection: isVertical ? "column" : "row", flexWrap: "wrap", gap: 12 }}>
           {products.map((p) => (
             <div
@@ -219,7 +222,7 @@ function PreviewPanel({ title, products, style }: { title: string; products: IBu
 }
 
 export default function BundleGenieCustomize() {
-  const { title, products, style: initialStyle } = useLoaderData<typeof loader>();
+  const { title, description, products, style: initialStyle } = useLoaderData<typeof loader>();
   const { id } = useParams();
   const submit = useSubmit();
   const navigation = useNavigation();
@@ -417,7 +420,16 @@ export default function BundleGenieCustomize() {
           </div>
 
           <div style={{ flex: "1 1 320px", minWidth: 280, position: "sticky", top: 16 }}>
-            <PreviewPanel title={title} products={products} style={style} />
+            <PreviewPanel title={title} description={description} products={products} style={style} />
+            {!description && (
+              <div style={{ marginTop: 8 }}>
+                <Text as="p" tone="subdued" variant="bodySm">
+                  The subtitle line under the title (e.g. "Pair Up &amp; Save!") comes from the
+                  campaign's Description field — it's empty right now, so nothing shows. Set it
+                  on the <a href={`/app/bundle-genie/bundles/${id}`}>campaign's edit page</a>.
+                </Text>
+              </div>
+            )}
           </div>
         </div>
       </BlockStack>
