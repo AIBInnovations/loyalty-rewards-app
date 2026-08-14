@@ -5,7 +5,7 @@
   color: var(--bg-genie-text, #1a1a1a);
   border: 1px solid #ececec;
   border-radius: var(--bg-genie-radius, 12px);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--bg-genie-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   box-sizing: border-box;
   width: 100%;
   text-align: var(--bg-genie-align, left);
@@ -15,7 +15,7 @@
   margin: 0 0 4px;
   font-size: var(--bg-genie-title-size, 16px);
   font-weight: 700;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--bg-genie-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   color: var(--bg-genie-title-text, inherit);
   background: var(--bg-genie-title-bg, transparent);
   padding: 4px 6px;

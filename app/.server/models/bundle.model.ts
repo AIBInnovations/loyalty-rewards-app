@@ -63,6 +63,10 @@ export interface IBundleStyle {
   subtitleFontSize: number;
   titleBgColor: string;
   titleTextColor: string;
+  /** Applies to the whole widget, not just the title — CSS font-family
+      value, picked from a list or typed in free-hand. Empty = inherit the
+      theme's own font. */
+  fontFamily: string;
 
   // Product cards
   imageAspectRatio: "square" | "portrait";
@@ -213,6 +217,7 @@ const bundleStyleSchema = new Schema<IBundleStyle>(
     subtitleFontSize: { type: Number, default: 18 },
     titleBgColor: { type: String, default: "" },
     titleTextColor: { type: String, default: "" },
+    fontFamily: { type: String, default: "" },
 
     imageAspectRatio: { type: String, enum: ["square", "portrait"], default: "square" },
     cardLayoutStyle: { type: String, enum: ["horizontal", "vertical", "auto"], default: "auto" },
