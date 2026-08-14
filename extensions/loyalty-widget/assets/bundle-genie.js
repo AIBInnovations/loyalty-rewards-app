@@ -146,10 +146,11 @@
       var priceEl = widget.querySelector("#bg-genie-price-row");
       if (!priceEl) return;
       var p = computePrice();
-      priceEl.innerHTML = p.hasDiscount
+      var label = '<span class="bg-genie-price-label">Total Price:</span>';
+      priceEl.innerHTML = label + (p.hasDiscount
         ? '<span class="bg-genie-price-compare">' + formatMoney(p.subtotal, currencySymbol) + "</span>" +
           '<span class="bg-genie-price-final">' + formatMoney(p.finalPrice, currencySymbol) + "</span>"
-        : '<span class="bg-genie-price-final">' + formatMoney(p.subtotal, currencySymbol) + "</span>";
+        : '<span class="bg-genie-price-final">' + formatMoney(p.subtotal, currencySymbol) + "</span>");
       var anyChecked = itemState.some(function (st) { return st.checked; });
       var addBtn = widget.querySelector("#bg-genie-add-btn");
       if (addBtn) addBtn.disabled = !anyChecked;
@@ -179,12 +180,16 @@
           (p.imageUrl
             ? '<img class="bg-genie-item-img" src="' + esc(p.imageUrl) + '" alt="' + esc(p.title) + '" loading="lazy">'
             : "") +
-          '<span class="bg-genie-item-title">' + esc(p.title) + "</span>" +
-          priceHtml +
+          '<div class="bg-genie-item-body">' +
+            '<span class="bg-genie-item-title">' + esc(p.title) + "</span>" +
+            priceHtml +
+          "</div>" +
           qtyHtml +
         "</div>"
       );
-    }).join("");
+    }).reduce(function (html, item, i) {
+      return html + (i > 0 ? '<div class="bg-genie-plus-sep">+</div>' : "") + item;
+    }, "");
 
     var ctaLabel = esc(s.ctaText || "Add Bundle to Cart");
 
