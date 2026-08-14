@@ -38,13 +38,31 @@
 
 .bg-genie-layout--grid .bg-genie-items {
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .bg-genie-layout--grid .bg-genie-item {
-  flex: 1 1 120px;
+  flex: 1 1 0;
+  min-width: 0;
   flex-direction: column;
   text-align: center;
+}
+
+/* Product count never changes the layout — always one row on desktop,
+   always stacked on mobile, matching the reference exactly. */
+@media (max-width: 640px) {
+  .bg-genie-layout--grid .bg-genie-items {
+    flex-direction: column;
+  }
+
+  .bg-genie-layout--grid .bg-genie-item {
+    flex-direction: row;
+    text-align: left;
+  }
+
+  .bg-genie-layout--grid .bg-genie-plus-sep {
+    margin: 0;
+  }
 }
 
 .bg-genie-item {
