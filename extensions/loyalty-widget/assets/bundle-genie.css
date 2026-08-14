@@ -15,6 +15,7 @@
   margin: 0 0 4px;
   font-size: var(--bg-genie-title-size, 16px);
   font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--bg-genie-title-text, inherit);
   background: var(--bg-genie-title-bg, transparent);
   padding: 4px 6px;
@@ -47,14 +48,42 @@
 }
 
 .bg-genie-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px;
-  border: 1px solid var(--bg-genie-card-border, transparent);
-  background: var(--bg-genie-card-bg, transparent);
+  border: 1px solid var(--bg-genie-card-border, #ececec);
+  background: var(--bg-genie-card-bg, #ffffff);
   border-radius: var(--bg-genie-card-radius, 8px);
-  box-shadow: var(--bg-genie-card-shadow, none);
+  box-shadow: var(--bg-genie-card-shadow, 0 1px 4px rgba(0,0,0,0.08));
+}
+
+.bg-genie-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bg-genie-plus-sep {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #6b7280;
+  align-self: center;
+}
+
+.bg-genie-layout--grid .bg-genie-plus-sep {
+  margin: 0 -2px;
 }
 
 .bg-genie-item-img {
@@ -71,8 +100,6 @@
 }
 
 .bg-genie-item-title {
-  flex: 1;
-  min-width: 0;
   font-size: 13px;
   font-weight: 600;
 }
@@ -90,10 +117,36 @@
 }
 
 .bg-genie-item-check {
-  flex: none;
-  width: 16px;
-  height: 16px;
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border-radius: 50%;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  appearance: none;
+  -webkit-appearance: none;
   cursor: pointer;
+}
+
+.bg-genie-item-check:checked {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+}
+
+.bg-genie-item-check:checked::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 3px;
+  width: 5px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .bg-genie-qty {
@@ -128,6 +181,12 @@
   justify-content: var(--bg-genie-align, flex-start);
 }
 
+.bg-genie-price-label {
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
 .bg-genie-price-compare {
   font-size: 13px;
   text-decoration: line-through;
@@ -148,6 +207,8 @@
   padding: var(--bg-genie-cta-padding, 12px);
   font-size: 14px;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   cursor: pointer;
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
   box-shadow: var(--bg-genie-cta-shadow, none);
