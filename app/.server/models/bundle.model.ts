@@ -109,6 +109,11 @@ export interface IBundleStyle {
   primaryProductId: string;
   showCheckbox: boolean;
   uncheckByDefault: boolean;
+  /** Only matters when showCheckbox is on. "multi" = each product toggles
+      independently. "single" = the primary product is always included and
+      locked, and the customer picks exactly one of the other products to
+      pair with it — picking a new one unchecks whichever was picked before. */
+  selectionMode: "multi" | "single";
   enableQuantitySelector: boolean;
   quantityMin: number; // 0 = no bundle-wide override, use each product's own minQuantity
   quantityMax: number; // 0 = no bundle-wide override, use each product's own maxQuantity
@@ -246,6 +251,7 @@ const bundleStyleSchema = new Schema<IBundleStyle>(
     primaryProductId: { type: String, default: "" },
     showCheckbox: { type: Boolean, default: false },
     uncheckByDefault: { type: Boolean, default: false },
+    selectionMode: { type: String, enum: ["multi", "single"], default: "multi" },
     enableQuantitySelector: { type: Boolean, default: false },
     quantityMin: { type: Number, default: 0 },
     quantityMax: { type: Number, default: 0 },
