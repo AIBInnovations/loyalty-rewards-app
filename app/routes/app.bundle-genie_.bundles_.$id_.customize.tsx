@@ -2,7 +2,7 @@ import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-r
 import { useLoaderData, useSubmit, useNavigation, useParams } from "@remix-run/react";
 import {
   Page, Card, BlockStack, Text, TextField, Button, Select, Banner,
-  InlineStack, Collapsible, Icon, Checkbox, RangeSlider, ButtonGroup,
+  InlineStack, Collapsible, Icon, Checkbox, RangeSlider, ButtonGroup, Autocomplete,
 } from "@shopify/polaris";
 import { ChevronDownIcon, ChevronUpIcon } from "@shopify/polaris-icons";
 import { useState, useCallback } from "react";
@@ -13,7 +13,7 @@ import { Bundle, type IBundleStyle, type IBundleProduct } from "../.server/model
 const DEFAULT_STYLE: IBundleStyle = {
   bgColor: "", textColor: "", buttonColor: "", buttonTextColor: "", borderRadius: 12, layout: "grid",
   primaryColor: "", primaryContrastColor: "", secondaryColor: "", secondaryContrastColor: "", sectionBgColor: "", infoAlignment: "left",
-  titleFontSize: 22, subtitleFontSize: 18, titleBgColor: "", titleTextColor: "",
+  titleFontSize: 22, subtitleFontSize: 18, titleBgColor: "", titleTextColor: "", fontFamily: "",
   imageAspectRatio: "square", cardLayoutStyle: "auto", cardBorderRadius: 12, cardBorderColor: "", cardBgColor: "", cardShadow: "soft", showPrice: true, showCompareAtPrice: true,
   ctaText: "Add Bundle to Cart", ctaBorderColor: "", ctaBorderRadius: 12, ctaWidth: "full", ctaPadding: 14, ctaShadow: "none", ctaHoverEnabled: false, ctaHoverBgColor: "", ctaHoverTextColor: "",
   customCss: "",
@@ -71,6 +71,47 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
+const FONT_FAMILY_OPTIONS = [
+  { value: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", label: "System sans-serif" },
+  { value: "Georgia, 'Times New Roman', serif", label: "Georgia (serif)" },
+  { value: "'Helvetica Neue', Helvetica, Arial, sans-serif", label: "Helvetica" },
+  { value: "Verdana, Geneva, sans-serif", label: "Verdana" },
+  { value: "'Courier New', Courier, monospace", label: "Courier New (monospace)" },
+  { value: "'Playfair Display', Georgia, serif", label: "Playfair Display (serif)" },
+  { value: "'Poppins', sans-serif", label: "Poppins" },
+];
+
+function FontFamilyField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const filtered = value
+    ? FONT_FAMILY_OPTIONS.filter((o) => o.label.toLowerCase().includes(value.toLowerCase()))
+    : FONT_FAMILY_OPTIONS;
+
+  const textField = (
+    <Autocomplete.TextField
+      label="Font family"
+      value={value}
+      onChange={onChange}
+      placeholder="Theme default — pick a suggestion or type any CSS font-family"
+      helpText="Applies to the whole bundle section, not just the title. Pick from the list or type your own (e.g. a font already loaded by your theme)."
+      autoComplete="off"
+      clearButton
+      onClearButtonClick={() => onChange("")}
+    />
+  );
+
+  return (
+    <Autocomplete
+      options={filtered}
+      selected={[]}
+      onSelect={(selected) => {
+        const opt = FONT_FAMILY_OPTIONS.find((o) => o.value === selected[0]);
+        if (opt) onChange(opt.value);
+      }}
+      textField={textField}
+    />
+  );
+}
+
 function Section({ title, subtitle, open, onToggle, children }: { title: string; subtitle: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
     <Card padding="0">
@@ -108,7 +149,7 @@ function PreviewPanel({ title, products, style }: { title: string; products: IBu
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#28c840", display: "inline-block" }} />
         <Text as="span" tone="subdued" variant="bodySm">Bundle Preview</Text>
       </div>
-      <div style={{ padding: 20, background: style.sectionBgColor || "#fafafa", textAlign: style.infoAlignment }}>
+      <div style={{ padding: 20, background: style.sectionBgColor || "#fafafa", textAlign: style.infoAlignment, fontFamily: style.fontFamily || undefined }}>
         <div
           style={{
             fontSize: style.titleFontSize, fontWeight: 700,
@@ -257,6 +298,7 @@ export default function BundleGenieCustomize() {
               </Section>
 
               <Section title="Title & header" subtitle="Bundle heading typography and background" open={openSection === "title"} onToggle={() => toggle("title")}>
+                <FontFamilyField value={style.fontFamily} onChange={(v) => set("fontFamily", v)} />
                 <RangeSlider label={`Title font size — ${style.titleFontSize}px`} min={14} max={40} value={style.titleFontSize} onChange={(v) => set("titleFontSize", v as number)} output />
                 <RangeSlider label={`Subtitle font size — ${style.subtitleFontSize}px`} min={10} max={28} value={style.subtitleFontSize} onChange={(v) => set("subtitleFontSize", v as number)} output />
                 <ColorField label="Title background color" value={style.titleBgColor} onChange={(v) => set("titleBgColor", v)} />

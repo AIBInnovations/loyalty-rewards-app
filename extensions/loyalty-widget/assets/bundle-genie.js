@@ -67,6 +67,7 @@
     if (s.buttonColor || s.primaryColor) vars += "--bg-genie-btn-bg:" + (s.buttonColor || s.primaryColor) + ";";
     if (s.buttonTextColor || s.primaryContrastColor) vars += "--bg-genie-btn-text:" + (s.buttonTextColor || s.primaryContrastColor) + ";";
     if (s.borderRadius != null) vars += "--bg-genie-radius:" + s.borderRadius + "px;";
+    if (s.fontFamily) vars += "--bg-genie-font:" + s.fontFamily + ";";
     if (s.secondaryColor) vars += "--bg-genie-secondary:" + s.secondaryColor + ";";
     if (s.sectionBgColor) vars += "--bg-genie-section-bg:" + s.sectionBgColor + ";";
     vars += "--bg-genie-align:" + (s.infoAlignment || "left") + ";";
