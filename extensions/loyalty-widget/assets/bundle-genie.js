@@ -106,10 +106,18 @@
     var enableQty = !!s.enableQuantitySelector;
     var singleSelect = showCheckbox && s.selectionMode === "single";
 
+    // The product whose page is actually hosting this widget is always
+    // included — a customer looking at product X and using its own upsell
+    // widget expects X itself to end up in the cart, not just whatever
+    // companion they picked.
+    var currentPageIndex = bundle.products.findIndex(function (p) {
+      return String(p.shopifyProductId).indexOf(productId) !== -1;
+    });
+
     // "Single" mode: the primary product is always included, and exactly
     // one other product is selected alongside it (radio behaviour) instead
     // of every product toggling independently.
-    var primaryIndex = 0;
+    var primaryIndex = currentPageIndex !== -1 ? currentPageIndex : 0;
     if (singleSelect && s.primaryProductId) {
       var foundPrimary = bundle.products.findIndex(function (p) {
         return s.primaryProductId.indexOf(String(p.shopifyProductId).replace(/^gid:\/\/shopify\/Product\//, "")) !== -1
@@ -118,16 +126,23 @@
       if (foundPrimary !== -1) primaryIndex = foundPrimary;
     }
 
+    function isLocked(i) {
+      return i === currentPageIndex || (singleSelect && i === primaryIndex);
+    }
+
     // Per-item runtime state — checked/quantity the customer can change
     // before adding, independent of the merchant-configured defaults.
     var itemState = bundle.products.map(function (p, i) {
       var min = s.quantityMin > 0 ? s.quantityMin : (p.minQuantity || 1);
       var max = s.quantityMax > 0 ? s.quantityMax : (p.maxQuantity || 10);
       var checked;
-      if (singleSelect) {
-        // Primary is always on; among the rest, only the first non-primary
-        // item starts selected so there's always exactly one companion.
-        checked = i === primaryIndex || (i === (primaryIndex === 0 ? 1 : 0));
+      if (isLocked(i)) {
+        checked = true;
+      } else if (singleSelect) {
+        // Among the rest, only the first non-locked item starts selected
+        // so there's always exactly one companion alongside what's locked.
+        var firstCompanion = bundle.products.findIndex(function (_, j) { return !isLocked(j); });
+        checked = i === firstCompanion;
       } else {
         checked = !(showCheckbox && s.uncheckByDefault);
       }
@@ -189,7 +204,7 @@
       var checkboxHtml = showCheckbox
         ? '<input type="checkbox" class="bg-genie-item-check" data-index="' + i + '"' +
             (itemState[i].checked ? " checked" : "") +
-            (singleSelect && i === primaryIndex ? " disabled" : "") + '>'
+            (isLocked(i) ? " disabled" : "") + '>'
         : "";
       var qtyHtml = enableQty
         ? '<span class="bg-genie-qty">' +
@@ -249,20 +264,21 @@
     widget.querySelectorAll(".bg-genie-item-check").forEach(function (el) {
       el.addEventListener("change", function () {
         var i = Number(el.getAttribute("data-index"));
+        if (isLocked(i)) {
+          // Locked on — either it's the product this page is already for,
+          // or (in single-select mode) the designated primary product.
+          el.checked = true;
+          return;
+        }
         if (singleSelect) {
-          if (i === primaryIndex) {
-            // Locked on — revert any attempt to uncheck it.
-            el.checked = true;
-            return;
-          }
           // Radio behaviour: checking this one unchecks every other
-          // non-primary companion.
+          // non-locked companion.
           itemState.forEach(function (st, j) {
-            if (j !== primaryIndex) st.checked = j === i;
+            if (!isLocked(j)) st.checked = j === i;
           });
           widget.querySelectorAll(".bg-genie-item-check").forEach(function (otherEl) {
             var j = Number(otherEl.getAttribute("data-index"));
-            if (j !== primaryIndex) otherEl.checked = itemState[j].checked;
+            if (!isLocked(j)) otherEl.checked = itemState[j].checked;
           });
         } else {
           itemState[i].checked = el.checked;
