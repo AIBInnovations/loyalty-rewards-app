@@ -181,7 +181,7 @@
             ? '<img class="bg-genie-item-img" src="' + esc(p.imageUrl) + '" alt="' + esc(p.title) + '" loading="lazy">'
             : "") +
           '<div class="bg-genie-item-body">' +
-            '<span class="bg-genie-item-title">' + esc(p.title) + "</span>" +
+            '<span class="bg-genie-item-title" title="' + esc(p.title) + '">' + esc(p.title) + "</span>" +
             priceHtml +
           "</div>" +
           qtyHtml +
