@@ -112,6 +112,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const primaryProductId = String(formData.get("primaryProductId") || "");
   const showCheckbox = formData.get("showCheckbox") === "true";
   const uncheckByDefault = formData.get("uncheckByDefault") === "true";
+  const selectionMode = formData.get("selectionMode") === "single" ? "single" : "multi";
   const enableQuantitySelector = formData.get("enableQuantitySelector") === "true";
   const quantityMin = Math.max(0, Number(formData.get("quantityMin")) || 0);
   const quantityMax = Math.max(0, Number(formData.get("quantityMax")) || 0);
@@ -141,7 +142,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   bundle.style = {
     ...(bundle.style || {}),
     bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout,
-    visibilityMode, primaryProductId, showCheckbox, uncheckByDefault,
+    visibilityMode, primaryProductId, showCheckbox, uncheckByDefault, selectionMode,
     enableQuantitySelector, quantityMin, quantityMax,
   } as typeof bundle.style;
   bundle.markModified("style");
@@ -273,6 +274,7 @@ export default function BundleGenieEdit() {
   const [primaryProductId, setPrimaryProductId] = useState(bundle.style?.primaryProductId || "");
   const [showCheckbox, setShowCheckbox] = useState(bundle.style?.showCheckbox ?? false);
   const [uncheckByDefault, setUncheckByDefault] = useState(bundle.style?.uncheckByDefault ?? false);
+  const [selectionMode, setSelectionMode] = useState<"multi" | "single">(bundle.style?.selectionMode || "multi");
   const [enableQuantitySelector, setEnableQuantitySelector] = useState(bundle.style?.enableQuantitySelector ?? false);
   const [quantityMin, setQuantityMin] = useState(String(bundle.style?.quantityMin || ""));
   const [quantityMax, setQuantityMax] = useState(String(bundle.style?.quantityMax || ""));
@@ -369,6 +371,7 @@ export default function BundleGenieEdit() {
     fd.set("primaryProductId", primaryProductId || products[0]?.shopifyProductId || "");
     fd.set("showCheckbox", String(showCheckbox));
     fd.set("uncheckByDefault", String(uncheckByDefault));
+    fd.set("selectionMode", selectionMode);
     fd.set("enableQuantitySelector", String(enableQuantitySelector));
     fd.set("quantityMin", quantityMin || "0");
     fd.set("quantityMax", quantityMax || "0");
@@ -377,7 +380,7 @@ export default function BundleGenieEdit() {
   }, [
     internalName, title, description, discountType, discountValue, products,
     bgColor, textColor, buttonColor, buttonTextColor, borderRadius, layout, submit,
-    visibilityMode, primaryProductId, showCheckbox, uncheckByDefault,
+    visibilityMode, primaryProductId, showCheckbox, uncheckByDefault, selectionMode,
     enableQuantitySelector, quantityMin, quantityMax,
   ]);
 
@@ -542,7 +545,20 @@ export default function BundleGenieEdit() {
                   <Checkbox label="Show checkbox" checked={showCheckbox} onChange={setShowCheckbox} />
                   {showCheckbox && (
                     <div style={{ marginLeft: 24 }}>
-                      <Checkbox label="Uncheck related items by default" checked={uncheckByDefault} onChange={setUncheckByDefault} />
+                      <BlockStack gap="200">
+                        <Select
+                          label="Customer can select"
+                          options={[
+                            { label: "Any combination of products", value: "multi" },
+                            { label: "Exactly one product, always paired with the primary product", value: "single" },
+                          ]}
+                          value={selectionMode}
+                          onChange={(v) => setSelectionMode(v === "single" ? "single" : "multi")}
+                        />
+                        {selectionMode === "multi" && (
+                          <Checkbox label="Uncheck related items by default" checked={uncheckByDefault} onChange={setUncheckByDefault} />
+                        )}
+                      </BlockStack>
                     </div>
                   )}
                   <Checkbox label="Enable quantity selector on products" checked={enableQuantitySelector} onChange={setEnableQuantitySelector} />
