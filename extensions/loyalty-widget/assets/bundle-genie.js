@@ -103,14 +103,35 @@
     var currencySymbol = s.currencySymbol || "";
     var showCheckbox = !!s.showCheckbox;
     var enableQty = !!s.enableQuantitySelector;
+    var singleSelect = showCheckbox && s.selectionMode === "single";
+
+    // "Single" mode: the primary product is always included, and exactly
+    // one other product is selected alongside it (radio behaviour) instead
+    // of every product toggling independently.
+    var primaryIndex = 0;
+    if (singleSelect && s.primaryProductId) {
+      var foundPrimary = bundle.products.findIndex(function (p) {
+        return s.primaryProductId.indexOf(String(p.shopifyProductId).replace(/^gid:\/\/shopify\/Product\//, "")) !== -1
+          || String(p.shopifyProductId) === s.primaryProductId;
+      });
+      if (foundPrimary !== -1) primaryIndex = foundPrimary;
+    }
 
     // Per-item runtime state — checked/quantity the customer can change
     // before adding, independent of the merchant-configured defaults.
-    var itemState = bundle.products.map(function (p) {
+    var itemState = bundle.products.map(function (p, i) {
       var min = s.quantityMin > 0 ? s.quantityMin : (p.minQuantity || 1);
       var max = s.quantityMax > 0 ? s.quantityMax : (p.maxQuantity || 10);
+      var checked;
+      if (singleSelect) {
+        // Primary is always on; among the rest, only the first non-primary
+        // item starts selected so there's always exactly one companion.
+        checked = i === primaryIndex || (i === (primaryIndex === 0 ? 1 : 0));
+      } else {
+        checked = !(showCheckbox && s.uncheckByDefault);
+      }
       return {
-        checked: !(showCheckbox && s.uncheckByDefault),
+        checked: checked,
         qty: Math.min(max, Math.max(min, p.defaultQuantity || 1)),
         min: min,
         max: max,
@@ -165,7 +186,9 @@
         priceHtml = compareHtml + '<span class="bg-genie-item-price" id="bg-genie-item-price-' + i + '">' + formatMoney(p.price * itemState[i].qty, currencySymbol) + "</span>";
       }
       var checkboxHtml = showCheckbox
-        ? '<input type="checkbox" class="bg-genie-item-check" data-index="' + i + '"' + (itemState[i].checked ? " checked" : "") + '>'
+        ? '<input type="checkbox" class="bg-genie-item-check" data-index="' + i + '"' +
+            (itemState[i].checked ? " checked" : "") +
+            (singleSelect && i === primaryIndex ? " disabled" : "") + '>'
         : "";
       var qtyHtml = enableQty
         ? '<span class="bg-genie-qty">' +
@@ -225,7 +248,24 @@
     widget.querySelectorAll(".bg-genie-item-check").forEach(function (el) {
       el.addEventListener("change", function () {
         var i = Number(el.getAttribute("data-index"));
-        itemState[i].checked = el.checked;
+        if (singleSelect) {
+          if (i === primaryIndex) {
+            // Locked on — revert any attempt to uncheck it.
+            el.checked = true;
+            return;
+          }
+          // Radio behaviour: checking this one unchecks every other
+          // non-primary companion.
+          itemState.forEach(function (st, j) {
+            if (j !== primaryIndex) st.checked = j === i;
+          });
+          widget.querySelectorAll(".bg-genie-item-check").forEach(function (otherEl) {
+            var j = Number(otherEl.getAttribute("data-index"));
+            if (j !== primaryIndex) otherEl.checked = itemState[j].checked;
+          });
+        } else {
+          itemState[i].checked = el.checked;
+        }
         renderPriceRow();
       });
     });

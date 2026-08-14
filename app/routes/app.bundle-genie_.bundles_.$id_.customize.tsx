@@ -22,7 +22,7 @@ const DEFAULT_STYLE: IBundleStyle = {
   currencySymbol: "", showPaymentIcons: false,
   addOrderTags: false, addOrderNotes: false,
   visibilityMode: "all", primaryProductId: "",
-  showCheckbox: false, uncheckByDefault: false,
+  showCheckbox: false, uncheckByDefault: false, selectionMode: "multi",
   enableQuantitySelector: false, quantityMin: 0, quantityMax: 0,
 };
 
