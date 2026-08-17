@@ -691,21 +691,31 @@ export default function CartSettingsPage() {
     }
   }, [shopify]);
 
+  // The app uses the new embedded auth strategy (session-token/token-exchange
+  // only, no auth cookie), so any fetch() to our own loaders needs the
+  // current App Bridge session token attached — plain fetch() 401s.
+  const lookupProductByHandle = useCallback(async (rawHandle: string) => {
+    let handle = rawHandle.trim();
+    const match = handle.match(/\/products\/([a-zA-Z0-9\-_]+)/);
+    if (match) handle = match[1];
+    handle = handle.split("?")[0].split("#")[0];
+    const token = await shopify.idToken();
+    const res = await fetch(`/api/product-lookup?handle=${encodeURIComponent(handle)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body || body.error) {
+      throw new Error(body?.error || `Product lookup failed (${res.status})`);
+    }
+    return body;
+  }, [shopify]);
+
   const handleAddUpsellProduct = useCallback(async () => {
     if (!upsellProductUrl.trim()) return;
     setAddingUpsellProduct(true);
     setAddUpsellProductError("");
     try {
-      let handle = upsellProductUrl.trim();
-      const match = handle.match(/\/products\/([a-zA-Z0-9\-_]+)/);
-      if (match) handle = match[1];
-      handle = handle.split("?")[0].split("#")[0];
-      const res = await fetch(`/api/product-lookup?handle=${encodeURIComponent(handle)}`);
-      const body = await res.json().catch(() => null);
-      if (!res.ok || !body || body.error) {
-        throw new Error(body?.error || `Product lookup failed (${res.status})`);
-      }
-      const product = body;
+      const product = await lookupProductByHandle(upsellProductUrl);
       setUpsellProduct({
         shopifyProductId: product.id,
         title: product.title,
@@ -722,7 +732,7 @@ export default function CartSettingsPage() {
       );
     }
     setAddingUpsellProduct(false);
-  }, [upsellProductUrl]);
+  }, [upsellProductUrl, lookupProductByHandle]);
 
   const handleBrowseUpsellTriggerProducts = useCallback(async () => {
     setUpsellTriggerError("");
@@ -759,16 +769,7 @@ export default function CartSettingsPage() {
     setAddingUpsellTrigger(true);
     setUpsellTriggerError("");
     try {
-      let handle = upsellTriggerHandle.trim();
-      const match = handle.match(/\/products\/([a-zA-Z0-9\-_]+)/);
-      if (match) handle = match[1];
-      handle = handle.split("?")[0].split("#")[0];
-      const res = await fetch(`/api/product-lookup?handle=${encodeURIComponent(handle)}`);
-      const body = await res.json().catch(() => null);
-      if (!res.ok || !body || body.error) {
-        throw new Error(body?.error || `Product lookup failed (${res.status})`);
-      }
-      const product = body;
+      const product = await lookupProductByHandle(upsellTriggerHandle);
       setUpsellTriggerProducts((prev) => {
         if (prev.some((p) => p.shopifyProductId === product.id)) return prev;
         return [
@@ -789,7 +790,7 @@ export default function CartSettingsPage() {
       );
     }
     setAddingUpsellTrigger(false);
-  }, [upsellTriggerHandle]);
+  }, [upsellTriggerHandle, lookupProductByHandle]);
 
   const removeUpsellTriggerProduct = useCallback((shopifyProductId: string) => {
     setUpsellTriggerProducts((prev) => prev.filter((p) => p.shopifyProductId !== shopifyProductId));
