@@ -441,6 +441,7 @@ export default function CartSettingsPage() {
         triggerCollectionHandle: "",
         triggerCollectionTitle: "",
         triggerCollectionMinQuantity: 1,
+        hideProgressBarWhenActive: false,
         recommendedProducts: [],
       },
     ]);
@@ -557,6 +558,12 @@ export default function CartSettingsPage() {
           ? { ...offer, triggerCollectionMinQuantity: Math.max(1, minQuantity || 1) }
           : offer,
       ),
+    );
+  }, []);
+
+  const setOfferHideProgressBar = useCallback((offerId: string, hide: boolean) => {
+    setOffers((prev) =>
+      prev.map((offer) => (offer.id === offerId ? { ...offer, hideProgressBarWhenActive: hide } : offer)),
     );
   }, []);
 
@@ -1213,6 +1220,12 @@ export default function CartSettingsPage() {
                             />
                           </BlockStack>
                         )}
+
+                        <Checkbox
+                          label="Hide progress bar while this offer is active"
+                          checked={offer.hideProgressBarWhenActive}
+                          onChange={(v) => setOfferHideProgressBar(offer.id, v)}
+                        />
 
                         <Divider />
 
