@@ -167,6 +167,13 @@
   color: var(--cd-ink);
   cursor: pointer;
   transition: background 0.15s ease;
+  /* Every other icon button in this file resets padding — this one
+     didn't, so the theme's global `button{padding:0 var(--buttons-padding)}`
+     (32px a side by default) filled the gap, ballooning the 32px circle
+     into a wide pill and pushing the icon out of the visible center. */
+  padding: 0;
+  min-width: 0;
+  line-height: normal;
 }
 
 .cd-close:hover { background: #e7e0d1; }
