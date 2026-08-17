@@ -937,6 +937,7 @@ async function handleGetCartSettings(shop: string) {
     upsellHeadline: settings.upsellHeadline,
     upsellDiscount: settings.upsellDiscount,
     upsellProduct: settings.upsellProduct || null,
+    upsellTriggerProducts: settings.upsellTriggerProducts || [],
     fontFamily: settings.fontFamily || "",
     fontSize: settings.fontSize || 0,
     progressBarColor: settings.progressBarColor || "",

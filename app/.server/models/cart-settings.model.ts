@@ -130,6 +130,11 @@ export interface ICartDrawerSettings extends Document {
   upsellHeadline: string;
   upsellDiscount: number;
   upsellProduct: IManualProduct | null;
+  /** Gates the Steal Deals section on cart contents, same rule as
+      IOfferRule's "products" trigger — empty means always eligible
+      (backward compatible), non-empty requires at least one listed
+      product to be in the cart at its own minQuantity. */
+  upsellTriggerProducts: ITriggerProduct[];
   /** Appearance overrides. Empty string = use the built-in default. */
   fontFamily: string;
   fontSize: number;
@@ -306,6 +311,16 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
         variantId: { type: String },
       },
       default: null,
+    },
+    upsellTriggerProducts: {
+      type: [{
+        shopifyProductId: { type: String, required: true },
+        title: { type: String, default: "" },
+        handle: { type: String, default: "" },
+        imageUrl: { type: String, default: "" },
+        minQuantity: { type: Number, default: 1, min: 1 },
+      }],
+      default: [],
     },
     fontFamily: { type: String, default: "" },
     fontSize: { type: Number, default: 0, min: 0, max: 24 },

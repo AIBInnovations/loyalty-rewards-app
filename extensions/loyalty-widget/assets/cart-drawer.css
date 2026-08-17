@@ -167,6 +167,13 @@
   color: var(--cd-ink);
   cursor: pointer;
   transition: background 0.15s ease;
+  /* Every other icon button in this file resets padding — this one
+     didn't, so the theme's global `button{padding:0 var(--buttons-padding)}`
+     (32px a side by default) filled the gap, ballooning the 32px circle
+     into a wide pill and pushing the icon out of the visible center. */
+  padding: 0;
+  min-width: 0;
+  line-height: normal;
 }
 
 .cd-close:hover { background: #e7e0d1; }
@@ -178,6 +185,22 @@
 }
 
 .cd-close svg path {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* Themes that reset icons with `svg { fill: currentColor }` turn every
+   stroke-only glyph in this widget (checkout arrow, unlock lock, close X)
+   into an invisible filled sliver, since fill="none" on the <svg> is a
+   presentation attribute and loses to any author stylesheet rule. Pin
+   fill/stroke back explicitly for every stroke-only icon regardless of
+   which element it lives on. */
+svg[fill="none"] {
+  fill: none !important;
+}
+
+svg[fill="none"] path[stroke],
+svg[fill="none"] polyline[stroke] {
   fill: none !important;
   stroke: currentColor !important;
 }

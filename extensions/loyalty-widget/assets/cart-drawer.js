@@ -1252,7 +1252,26 @@
     var cartIds = state.cart.items.map(function(i) { return String(i.product_id); });
     var upId = String(state.settings.upsellProduct.shopifyProductId || "")
       .replace("gid://shopify/Product/", "");
-    return cartIds.indexOf(upId) === -1;
+    if (cartIds.indexOf(upId) !== -1) return false;
+
+    // Gate on trigger products, same rule as the Product Offers "products"
+    // trigger — empty list means always eligible (backward compatible).
+    var triggers = state.settings.upsellTriggerProducts || [];
+    if (triggers.length) {
+      var cartQty = {};
+      state.cart.items.forEach(function (item) {
+        var pid = String(item.product_id);
+        cartQty[pid] = (cartQty[pid] || 0) + (item.quantity || 0);
+      });
+      var matched = triggers.some(function (tp) {
+        var pid = String(tp.shopifyProductId || "").replace("gid://shopify/Product/", "");
+        var minQ = tp.minQuantity > 0 ? tp.minQuantity : 1;
+        return (cartQty[pid] || 0) >= minQ;
+      });
+      if (!matched) return false;
+    }
+
+    return true;
   }
 
   function renderUpsell() {
