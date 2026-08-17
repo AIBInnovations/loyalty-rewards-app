@@ -429,36 +429,136 @@ export default function CartSettingsPage() {
     );
   }, []);
 
-  const handleAddOffer = useCallback(async () => {
+  const handleAddOffer = useCallback(() => {
+    setOffersError("");
+    setOffers((prev) => [
+      ...prev,
+      {
+        id: `offer-${Date.now().toString(36)}`,
+        triggerType: "products",
+        triggerProducts: [],
+        triggerCollectionId: "",
+        triggerCollectionHandle: "",
+        triggerCollectionTitle: "",
+        triggerCollectionMinQuantity: 1,
+        recommendedProducts: [],
+      },
+    ]);
+  }, []);
+
+  const setOfferTriggerType = useCallback((offerId: string, triggerType: "products" | "collection") => {
+    setOffers((prev) => prev.map((o) => (o.id === offerId ? { ...o, triggerType } : o)));
+  }, []);
+
+  const handleBrowseOfferTriggerProducts = useCallback(async (offerId: string) => {
     setOffersError("");
     try {
       const selected = await shopify.resourcePicker({
         type: "product",
-        multiple: false,
+        multiple: true,
         action: "select",
       });
-      const product = (selected as any[])?.[0];
-      if (!product) return;
-      if (offers.some((o) => o.triggerProductId === product.id)) {
-        setOffersError("This product already has an offer.");
-        return;
-      }
-      setOffers((prev) => [
-        ...prev,
-        {
-          id: `offer-${Date.now().toString(36)}`,
-          triggerProductId: product.id,
-          triggerProductTitle: product.title,
-          triggerProductHandle: product.handle,
-          triggerProductImageUrl: product.images?.[0]?.originalSrc || product.images?.[0]?.url || "",
-          triggerMinQuantity: 1,
-          recommendedProducts: [],
-        },
-      ]);
+      if (!selected || selected.length === 0) return;
+
+      setOffers((prev) =>
+        prev.map((offer) => {
+          if (offer.id !== offerId) return offer;
+          const already = new Set(offer.triggerProducts.map((p) => p.shopifyProductId));
+          const picked: typeof offer.triggerProducts = [];
+          for (const product of selected as any[]) {
+            if (already.has(product.id) || picked.some((p) => p.shopifyProductId === product.id)) continue;
+            picked.push({
+              shopifyProductId: product.id,
+              title: product.title,
+              handle: product.handle,
+              imageUrl: product.images?.[0]?.originalSrc || product.images?.[0]?.url || "",
+              minQuantity: 1,
+            });
+          }
+          return picked.length
+            ? { ...offer, triggerProducts: [...offer.triggerProducts, ...picked] }
+            : offer;
+        }),
+      );
     } catch (err) {
       if (err instanceof Error && err.message) setOffersError(err.message);
     }
-  }, [shopify, offers]);
+  }, [shopify]);
+
+  const removeOfferTriggerProduct = useCallback((offerId: string, shopifyProductId: string) => {
+    setOffers((prev) =>
+      prev.map((offer) =>
+        offer.id === offerId
+          ? { ...offer, triggerProducts: offer.triggerProducts.filter((p) => p.shopifyProductId !== shopifyProductId) }
+          : offer,
+      ),
+    );
+  }, []);
+
+  const updateOfferTriggerProductQty = useCallback(
+    (offerId: string, shopifyProductId: string, minQuantity: number) => {
+      setOffers((prev) =>
+        prev.map((offer) =>
+          offer.id === offerId
+            ? {
+                ...offer,
+                triggerProducts: offer.triggerProducts.map((p) =>
+                  p.shopifyProductId === shopifyProductId ? { ...p, minQuantity: Math.max(1, minQuantity || 1) } : p,
+                ),
+              }
+            : offer,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleBrowseOfferTriggerCollection = useCallback(async (offerId: string) => {
+    setOffersError("");
+    try {
+      const selected = await shopify.resourcePicker({
+        type: "collection",
+        multiple: false,
+        action: "select",
+      });
+      const collection = (selected as any[])?.[0];
+      if (!collection) return;
+      setOffers((prev) =>
+        prev.map((offer) =>
+          offer.id === offerId
+            ? {
+                ...offer,
+                triggerCollectionId: collection.id,
+                triggerCollectionHandle: collection.handle,
+                triggerCollectionTitle: collection.title,
+              }
+            : offer,
+        ),
+      );
+    } catch (err) {
+      if (err instanceof Error && err.message) setOffersError(err.message);
+    }
+  }, [shopify]);
+
+  const removeOfferTriggerCollection = useCallback((offerId: string) => {
+    setOffers((prev) =>
+      prev.map((offer) =>
+        offer.id === offerId
+          ? { ...offer, triggerCollectionId: "", triggerCollectionHandle: "", triggerCollectionTitle: "" }
+          : offer,
+      ),
+    );
+  }, []);
+
+  const updateOfferCollectionMinQuantity = useCallback((offerId: string, minQuantity: number) => {
+    setOffers((prev) =>
+      prev.map((offer) =>
+        offer.id === offerId
+          ? { ...offer, triggerCollectionMinQuantity: Math.max(1, minQuantity || 1) }
+          : offer,
+      ),
+    );
+  }, []);
 
   const removeOffer = useCallback((offerId: string) => {
     setOffers((prev) => prev.filter((o) => o.id !== offerId));
@@ -515,14 +615,6 @@ export default function CartSettingsPage() {
               ),
             }
           : offer,
-      ),
-    );
-  }, []);
-
-  const updateOfferMinQuantity = useCallback((offerId: string, minQuantity: number) => {
-    setOffers((prev) =>
-      prev.map((offer) =>
-        offer.id === offerId ? { ...offer, triggerMinQuantity: Math.max(1, minQuantity || 1) } : offer,
       ),
     );
   }, []);
@@ -1046,33 +1138,81 @@ export default function CartSettingsPage() {
                     <Card key={offer.id} background="bg-surface-secondary">
                       <BlockStack gap="300">
                         <InlineStack align="space-between" blockAlign="center">
-                          <InlineStack gap="200" blockAlign="center">
-                            {offer.triggerProductImageUrl && (
-                              <img
-                                src={offer.triggerProductImageUrl}
-                                alt={offer.triggerProductTitle}
-                                style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6 }}
-                              />
-                            )}
-                            <BlockStack gap="0">
-                              <Text as="p" tone="subdued" variant="bodySm">When this product is in cart:</Text>
-                              <Text as="p" variant="bodyMd" fontWeight="semibold">{offer.triggerProductTitle}</Text>
-                            </BlockStack>
-                          </InlineStack>
+                          <Text as="p" variant="bodyMd" fontWeight="semibold">Trigger</Text>
                           <Button tone="critical" size="slim" onClick={() => removeOffer(offer.id)}>
                             Remove offer
                           </Button>
                         </InlineStack>
 
-                        <TextField
-                          label="Minimum quantity to trigger"
-                          helpText="Offer only fires once at least this many units of the trigger product are in the cart."
-                          type="number"
-                          min={1}
-                          value={String(offer.triggerMinQuantity ?? 1)}
-                          onChange={(v) => updateOfferMinQuantity(offer.id, Number(v))}
-                          autoComplete="off"
+                        <Select
+                          label="Trigger by"
+                          options={[
+                            { label: "Specific products", value: "products" },
+                            { label: "Any product from a collection", value: "collection" },
+                          ]}
+                          value={offer.triggerType}
+                          onChange={(v) => setOfferTriggerType(offer.id, v === "collection" ? "collection" : "products")}
                         />
+
+                        {offer.triggerType === "products" ? (
+                          <BlockStack gap="200">
+                            {offer.triggerProducts.map((tp) => (
+                              <div
+                                key={tp.shopifyProductId}
+                                style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, border: "1px solid #e0e0e0", borderRadius: 8 }}
+                              >
+                                {tp.imageUrl && (
+                                  <img src={tp.imageUrl} alt={tp.title} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6 }} />
+                                )}
+                                <Text as="span" variant="bodyMd">{tp.title}</Text>
+                                <div style={{ marginLeft: "auto", width: 90 }}>
+                                  <TextField
+                                    label="Qty"
+                                    labelHidden
+                                    type="number"
+                                    min={1}
+                                    value={String(tp.minQuantity ?? 1)}
+                                    onChange={(v) => updateOfferTriggerProductQty(offer.id, tp.shopifyProductId, Number(v))}
+                                    autoComplete="off"
+                                    suffix="qty"
+                                  />
+                                </div>
+                                <Button size="slim" tone="critical" onClick={() => removeOfferTriggerProduct(offer.id, tp.shopifyProductId)}>
+                                  Remove
+                                </Button>
+                              </div>
+                            ))}
+                            <Button onClick={() => handleBrowseOfferTriggerProducts(offer.id)}>
+                              Browse trigger products
+                            </Button>
+                            <Text as="p" tone="subdued" variant="bodySm">
+                              Offer fires once any one of these products reaches its own quantity in the cart.
+                            </Text>
+                          </BlockStack>
+                        ) : (
+                          <BlockStack gap="200">
+                            {offer.triggerCollectionHandle ? (
+                              <InlineStack align="space-between" blockAlign="center">
+                                <Text as="span" variant="bodyMd" fontWeight="semibold">{offer.triggerCollectionTitle}</Text>
+                                <InlineStack gap="150">
+                                  <Button size="slim" onClick={() => handleBrowseOfferTriggerCollection(offer.id)}>Change</Button>
+                                  <Button size="slim" tone="critical" onClick={() => removeOfferTriggerCollection(offer.id)}>Remove</Button>
+                                </InlineStack>
+                              </InlineStack>
+                            ) : (
+                              <Button onClick={() => handleBrowseOfferTriggerCollection(offer.id)}>Browse collections</Button>
+                            )}
+                            <TextField
+                              label="Minimum quantity to trigger"
+                              helpText="Offer fires once any single product from this collection reaches this quantity in the cart."
+                              type="number"
+                              min={1}
+                              value={String(offer.triggerCollectionMinQuantity ?? 1)}
+                              onChange={(v) => updateOfferCollectionMinQuantity(offer.id, Number(v))}
+                              autoComplete="off"
+                            />
+                          </BlockStack>
+                        )}
 
                         <Divider />
 
