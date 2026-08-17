@@ -42,6 +42,9 @@
     accessDenied: false,
     recommendations: [],
     recsLoading: false,
+    // True while the currently-shown recommendations come from an offer
+    // that has "hide progress bar while active" turned on.
+    activeOfferHideProgressBar: false,
     settingsLoaded: false,
     appliedCoupon: "",
     // Which announcement-bar message is currently showing.
@@ -264,6 +267,7 @@
       });
     state.recommendations = offerRecs;
     state.recsLoading = false;
+    state.activeOfferHideProgressBar = !!offer.hideProgressBarWhenActive;
     if (state.isOpen) render();
   }
 
@@ -338,6 +342,10 @@
   }
 
   function runNormalRecommendations() {
+    // No offer is active for this render — always show the normal progress
+    // bar (subject to the global setting), not an offer's override.
+    state.activeOfferHideProgressBar = false;
+
     // If manual mode and we have manual products from settings, use those
     if (state.settings && state.settings.recommendationMode === "manual" && state.settings.manualProducts && state.settings.manualProducts.length > 0) {
       var cartProductIds = new Set();
@@ -700,7 +708,8 @@
 
     // Nothing to show progress toward, or suggest alongside, an empty cart.
     var backendShowProgress = !state.settings || state.settings.showProgressBar !== false;
-    var hasProgress = itemCount > 0 && config.showProgress && backendShowProgress && state.tiers.length > 0;
+    var hasProgress = itemCount > 0 && config.showProgress && backendShowProgress &&
+      !state.activeOfferHideProgressBar && state.tiers.length > 0;
     var hasUpsell = shouldShowUpsell();
     var hasRecs = itemCount > 0 && config.showRecommendations && state.recommendations.length > 0;
 

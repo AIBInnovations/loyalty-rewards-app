@@ -61,6 +61,10 @@ export interface IOfferRule {
   triggerCollectionHandle: string;
   triggerCollectionTitle: string;
   triggerCollectionMinQuantity: number;
+  /** Hides the tiered progress bar/card while this offer's recommendations
+      are the ones showing — independent of the global showProgressBar
+      setting, which still governs every other state. */
+  hideProgressBarWhenActive: boolean;
   recommendedProducts: IManualProduct[];
 }
 
@@ -250,6 +254,7 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
         triggerCollectionHandle: { type: String, default: "" },
         triggerCollectionTitle: { type: String, default: "" },
         triggerCollectionMinQuantity: { type: Number, default: 1, min: 1 },
+        hideProgressBarWhenActive: { type: Boolean, default: false },
         recommendedProducts: {
           type: [{
             shopifyProductId: { type: String, required: true },
