@@ -243,57 +243,101 @@
   }
 
   // ─── Fetch Recommendations ────────────────────────────────────
+  function renderOfferRecommendations(offer, offerCartQty) {
+    var offerRecs = (offer.recommendedProducts || [])
+      .filter(function (p) {
+        return !offerCartQty[String(p.shopifyProductId).replace("gid://shopify/Product/", "")];
+      })
+      .map(function (p) {
+        return {
+          id: p.shopifyProductId,
+          title: p.title,
+          handle: p.handle,
+          url: "/products/" + p.handle,
+          price: p.price,
+          compare_at_price: p.compareAtPrice || null,
+          featured_image: p.imageUrl,
+          variants: [{ id: (p.variantId || "").replace("gid://shopify/ProductVariant/", ""), available: true }],
+          badge_text: p.badgeText || "",
+          price_display: p.priceDisplay || "price",
+        };
+      });
+    state.recommendations = offerRecs;
+    state.recsLoading = false;
+    if (state.isOpen) render();
+  }
+
+  // Collection-type offer triggers need to know which product IDs belong to
+  // the collection — checks each collection offer in order (own fetch per
+  // collection, same public endpoint collection-mode recommendations use)
+  // and stops at the first one whose threshold is met.
+  function resolveCollectionOffer(collectionOffers, offerCartQty, idx, onDone) {
+    if (idx >= collectionOffers.length) { onDone(null); return; }
+    var offer = collectionOffers[idx];
+    fetch("/collections/" + offer.triggerCollectionHandle + "/products.json?limit=250")
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var minQty = offer.triggerCollectionMinQuantity > 0 ? offer.triggerCollectionMinQuantity : 1;
+        var matched = (d.products || []).some(function (p) {
+          return (offerCartQty[String(p.id)] || 0) >= minQty;
+        });
+        if (matched) onDone(offer);
+        else resolveCollectionOffer(collectionOffers, offerCartQty, idx + 1, onDone);
+      })
+      .catch(function () { resolveCollectionOffer(collectionOffers, offerCartQty, idx + 1, onDone); });
+  }
+
   function fetchRecommendations() {
     if (!config.showRecommendations || !state.cart || !state.cart.items || !state.cart.items.length) {
       state.recommendations = [];
       return;
     }
 
-    // Offers: a trigger product being in the cart overrides the normal
+    // Offers: a trigger condition being met overrides the normal
     // auto/manual/collection recommendation logic entirely, showing only
     // that offer's configured products. Adding any OTHER product never
     // changes recommendations — only a configured trigger does, and only
-    // while it's still in the cart.
+    // while it still meets its quantity threshold in the cart.
     if (state.settings && state.settings.offers && state.settings.offers.length) {
       var offerCartQty = {};
       state.cart.items.forEach(function (item) {
         var pid = String(item.product_id);
         offerCartQty[pid] = (offerCartQty[pid] || 0) + (item.quantity || 0);
       });
-      var offerCartIds = offerCartQty; // truthy-in-cart check reuses the same map below
+
+      var productOffers = state.settings.offers.filter(function (o) { return o.triggerType !== "collection"; });
       var matchedOffer = null;
-      for (var oi = 0; oi < state.settings.offers.length; oi++) {
-        var offer = state.settings.offers[oi];
-        var triggerId = String(offer.triggerProductId || "").replace("gid://shopify/Product/", "");
-        var minQty = offer.triggerMinQuantity > 0 ? offer.triggerMinQuantity : 1;
-        if ((offerCartQty[triggerId] || 0) >= minQty) { matchedOffer = offer; break; }
+      for (var oi = 0; oi < productOffers.length; oi++) {
+        var offer = productOffers[oi];
+        var matched = (offer.triggerProducts || []).some(function (tp) {
+          var pid = String(tp.shopifyProductId || "").replace("gid://shopify/Product/", "");
+          var minQ = tp.minQuantity > 0 ? tp.minQuantity : 1;
+          return (offerCartQty[pid] || 0) >= minQ;
+        });
+        if (matched) { matchedOffer = offer; break; }
       }
+
       if (matchedOffer) {
-        var offerRecs = (matchedOffer.recommendedProducts || [])
-          .filter(function (p) {
-            return !offerCartIds[String(p.shopifyProductId).replace("gid://shopify/Product/", "")];
-          })
-          .map(function (p) {
-            return {
-              id: p.shopifyProductId,
-              title: p.title,
-              handle: p.handle,
-              url: "/products/" + p.handle,
-              price: p.price,
-              compare_at_price: p.compareAtPrice || null,
-              featured_image: p.imageUrl,
-              variants: [{ id: (p.variantId || "").replace("gid://shopify/ProductVariant/", ""), available: true }],
-              badge_text: p.badgeText || "",
-              price_display: p.priceDisplay || "price",
-            };
-          });
-        state.recommendations = offerRecs;
-        state.recsLoading = false;
-        if (state.isOpen) render();
+        renderOfferRecommendations(matchedOffer, offerCartQty);
+        return;
+      }
+
+      var collectionOffers = state.settings.offers.filter(function (o) {
+        return o.triggerType === "collection" && o.triggerCollectionHandle;
+      });
+      if (collectionOffers.length) {
+        resolveCollectionOffer(collectionOffers, offerCartQty, 0, function (offer) {
+          if (offer) renderOfferRecommendations(offer, offerCartQty);
+          else runNormalRecommendations();
+        });
         return;
       }
     }
 
+    runNormalRecommendations();
+  }
+
+  function runNormalRecommendations() {
     // If manual mode and we have manual products from settings, use those
     if (state.settings && state.settings.recommendationMode === "manual" && state.settings.manualProducts && state.settings.manualProducts.length > 0) {
       var cartProductIds = new Set();
