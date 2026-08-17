@@ -31,21 +31,36 @@ export interface IManualProduct {
   priceDisplay?: "price" | "free";
 }
 
+/** One trigger product with its own quantity threshold — "products" mode
+    lets each product in the list require a different quantity. */
+export interface ITriggerProduct {
+  shopifyProductId: string;
+  title: string;
+  handle: string;
+  imageUrl: string;
+  minQuantity: number;
+}
+
 /**
- * A trigger-product-specific recommendation override — when triggerProduct is
- * in the cart, the recommendation section shows recommendedProducts instead
- * of the normal auto/manual/collection list. Adding any OTHER product to the
- * cart never changes recommendations; only this offer's own trigger does.
+ * A trigger-based recommendation override — when the trigger condition is
+ * met, the recommendation section shows recommendedProducts instead of the
+ * normal auto/manual/collection list. Adding any OTHER product to the cart
+ * never changes recommendations; only this offer's own trigger does.
+ *
+ * Two trigger types: "products" checks each listed product against its own
+ * minQuantity (any one meeting its threshold fires the offer). "collection"
+ * checks every product in the chosen collection against one shared
+ * threshold — any single product from that collection reaching it fires
+ * the offer.
  */
 export interface IOfferRule {
   id: string;
-  triggerProductId: string;
-  triggerProductTitle: string;
-  triggerProductHandle: string;
-  triggerProductImageUrl: string;
-  /** The offer only fires once at least this many units of the trigger
-      product are in the cart. Default 1 — any quantity triggers it. */
-  triggerMinQuantity: number;
+  triggerType: "products" | "collection";
+  triggerProducts: ITriggerProduct[];
+  triggerCollectionId: string;
+  triggerCollectionHandle: string;
+  triggerCollectionTitle: string;
+  triggerCollectionMinQuantity: number;
   recommendedProducts: IManualProduct[];
 }
 
@@ -220,11 +235,21 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     offers: {
       type: [{
         id: { type: String, required: true },
-        triggerProductId: { type: String, required: true },
-        triggerProductTitle: { type: String, default: "" },
-        triggerProductHandle: { type: String, default: "" },
-        triggerProductImageUrl: { type: String, default: "" },
-        triggerMinQuantity: { type: Number, default: 1, min: 1 },
+        triggerType: { type: String, enum: ["products", "collection"], default: "products" },
+        triggerProducts: {
+          type: [{
+            shopifyProductId: { type: String, required: true },
+            title: { type: String, default: "" },
+            handle: { type: String, default: "" },
+            imageUrl: { type: String, default: "" },
+            minQuantity: { type: Number, default: 1, min: 1 },
+          }],
+          default: [],
+        },
+        triggerCollectionId: { type: String, default: "" },
+        triggerCollectionHandle: { type: String, default: "" },
+        triggerCollectionTitle: { type: String, default: "" },
+        triggerCollectionMinQuantity: { type: Number, default: 1, min: 1 },
         recommendedProducts: {
           type: [{
             shopifyProductId: { type: String, required: true },
