@@ -249,6 +249,46 @@
       return;
     }
 
+    // Offers: a trigger product being in the cart overrides the normal
+    // auto/manual/collection recommendation logic entirely, showing only
+    // that offer's configured products. Adding any OTHER product never
+    // changes recommendations — only a configured trigger does, and only
+    // while it's still in the cart.
+    if (state.settings && state.settings.offers && state.settings.offers.length) {
+      var offerCartIds = {};
+      state.cart.items.forEach(function (item) { offerCartIds[String(item.product_id)] = true; });
+      var matchedOffer = null;
+      for (var oi = 0; oi < state.settings.offers.length; oi++) {
+        var offer = state.settings.offers[oi];
+        var triggerId = String(offer.triggerProductId || "").replace("gid://shopify/Product/", "");
+        if (offerCartIds[triggerId]) { matchedOffer = offer; break; }
+      }
+      if (matchedOffer) {
+        var offerRecs = (matchedOffer.recommendedProducts || [])
+          .filter(function (p) {
+            return !offerCartIds[String(p.shopifyProductId).replace("gid://shopify/Product/", "")];
+          })
+          .map(function (p) {
+            return {
+              id: p.shopifyProductId,
+              title: p.title,
+              handle: p.handle,
+              url: "/products/" + p.handle,
+              price: p.price,
+              compare_at_price: p.compareAtPrice || null,
+              featured_image: p.imageUrl,
+              variants: [{ id: (p.variantId || "").replace("gid://shopify/ProductVariant/", ""), available: true }],
+              badge_text: p.badgeText || "",
+              price_display: p.priceDisplay || "price",
+            };
+          });
+        state.recommendations = offerRecs;
+        state.recsLoading = false;
+        if (state.isOpen) render();
+        return;
+      }
+    }
+
     // If manual mode and we have manual products from settings, use those
     if (state.settings && state.settings.recommendationMode === "manual" && state.settings.manualProducts && state.settings.manualProducts.length > 0) {
       var cartProductIds = new Set();

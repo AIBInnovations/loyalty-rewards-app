@@ -26,6 +26,7 @@ import {
   CartDrawerSettings,
   type ICartTier,
   type IManualProduct,
+  type IOfferRule,
 } from "../.server/models/cart-settings.model";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -46,6 +47,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const tiers = JSON.parse(String(data.tiers) || "[]");
     const manualProducts = JSON.parse(String(data.manualProducts) || "[]");
     const upsellProduct = data.upsellProduct ? JSON.parse(String(data.upsellProduct)) : null;
+    const offers = JSON.parse(String(data.offers) || "[]");
 
     await CartDrawerSettings.findOneAndUpdate(
       { shopId: session.shop },
@@ -66,6 +68,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           recommendationsBadgeTextColor: String(data.recommendationsBadgeTextColor || "").slice(0, 20),
           recommendationsBadgeAlign: data.recommendationsBadgeAlign === "left" ? "left" : "right",
           manualProducts,
+          offers,
           recommendationsCollectionId: String(data.recommendationsCollectionId || ""),
           recommendationsCollectionHandle: String(data.recommendationsCollectionHandle || ""),
           recommendationsCollectionTitle: String(data.recommendationsCollectionTitle || ""),
@@ -183,6 +186,8 @@ export default function CartSettingsPage() {
   const [manualProducts, setManualProducts] = useState<IManualProduct[]>(
     settings.manualProducts || [],
   );
+  const [offers, setOffers] = useState<IOfferRule[]>(settings.offers || []);
+  const [offersError, setOffersError] = useState("");
   const [recommendationsCollectionId, setRecommendationsCollectionId] = useState(
     settings.recommendationsCollectionId || "",
   );
@@ -303,6 +308,7 @@ export default function CartSettingsPage() {
     formData.set("recommendationsBadgeTextColor", recommendationsBadgeTextColor);
     formData.set("recommendationsBadgeAlign", recommendationsBadgeAlign);
     formData.set("manualProducts", JSON.stringify(manualProducts));
+    formData.set("offers", JSON.stringify(offers));
     formData.set("recommendationsCollectionId", recommendationsCollectionId);
     formData.set("recommendationsCollectionHandle", recommendationsCollectionHandle);
     formData.set("recommendationsCollectionTitle", recommendationsCollectionTitle);
@@ -349,6 +355,7 @@ export default function CartSettingsPage() {
     recommendationsCount, recommendationMode, recommendationsSlider,
     recommendationsAddToCartBg, recommendationsAddToCartText,
     recommendationsBadgeBg, recommendationsBadgeTextColor, recommendationsBadgeAlign, manualProducts,
+    offers,
     recommendationsCollectionId, recommendationsCollectionHandle,
     recommendationsCollectionTitle, recommendationsCollectionBadgeText, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor, showProgressBar,
@@ -418,6 +425,95 @@ export default function CartSettingsPage() {
     setManualProducts((prev) =>
       prev.map((p, i) =>
         i === index ? { ...p, priceDisplay: priceDisplay === "free" ? "free" : "price" } : p,
+      ),
+    );
+  }, []);
+
+  const handleAddOffer = useCallback(async () => {
+    setOffersError("");
+    try {
+      const selected = await shopify.resourcePicker({
+        type: "product",
+        multiple: false,
+        action: "select",
+      });
+      const product = (selected as any[])?.[0];
+      if (!product) return;
+      if (offers.some((o) => o.triggerProductId === product.id)) {
+        setOffersError("This product already has an offer.");
+        return;
+      }
+      setOffers((prev) => [
+        ...prev,
+        {
+          id: `offer-${Date.now().toString(36)}`,
+          triggerProductId: product.id,
+          triggerProductTitle: product.title,
+          triggerProductHandle: product.handle,
+          triggerProductImageUrl: product.images?.[0]?.originalSrc || product.images?.[0]?.url || "",
+          recommendedProducts: [],
+        },
+      ]);
+    } catch (err) {
+      if (err instanceof Error && err.message) setOffersError(err.message);
+    }
+  }, [shopify, offers]);
+
+  const removeOffer = useCallback((offerId: string) => {
+    setOffers((prev) => prev.filter((o) => o.id !== offerId));
+  }, []);
+
+  const handleBrowseOfferProducts = useCallback(async (offerId: string) => {
+    setOffersError("");
+    try {
+      const selected = await shopify.resourcePicker({
+        type: "product",
+        multiple: true,
+        action: "select",
+      });
+      if (!selected || selected.length === 0) return;
+
+      setOffers((prev) =>
+        prev.map((offer) => {
+          if (offer.id !== offerId) return offer;
+          const already = new Set(offer.recommendedProducts.map((p) => p.shopifyProductId));
+          const picked: IManualProduct[] = [];
+          for (const product of selected as any[]) {
+            if (already.has(product.id) || picked.some((p) => p.shopifyProductId === product.id)) continue;
+            const variant = product.variants?.[0];
+            picked.push({
+              shopifyProductId: product.id,
+              title: product.title,
+              handle: product.handle,
+              imageUrl: product.images?.[0]?.originalSrc || product.images?.[0]?.url || "",
+              price: Math.round(parseFloat(variant?.price || "0") * 100),
+              compareAtPrice: variant?.compareAtPrice
+                ? Math.round(parseFloat(variant.compareAtPrice) * 100)
+                : undefined,
+              variantId: variant?.id || "",
+            });
+          }
+          return picked.length
+            ? { ...offer, recommendedProducts: [...offer.recommendedProducts, ...picked] }
+            : offer;
+        }),
+      );
+    } catch (err) {
+      if (err instanceof Error && err.message) setOffersError(err.message);
+    }
+  }, [shopify]);
+
+  const removeOfferRecommendedProduct = useCallback((offerId: string, shopifyProductId: string) => {
+    setOffers((prev) =>
+      prev.map((offer) =>
+        offer.id === offerId
+          ? {
+              ...offer,
+              recommendedProducts: offer.recommendedProducts.filter(
+                (p) => p.shopifyProductId !== shopifyProductId,
+              ),
+            }
+          : offer,
       ),
     );
   }, []);
@@ -883,6 +979,84 @@ export default function CartSettingsPage() {
                     )}
                   </>
                 )}
+              </BlockStack>
+            </Card>
+          </Layout.AnnotatedSection>
+
+          <Layout.AnnotatedSection
+            title="Product Offers"
+            description="Attach specific recommended products to a trigger product. When that trigger product is in the cart, the recommendation section switches to show only these — adding any other product to the cart leaves recommendations unchanged."
+          >
+            <Card>
+              <BlockStack gap="400">
+                {offersError && (
+                  <Banner tone="critical" onDismiss={() => setOffersError("")}>
+                    {offersError}
+                  </Banner>
+                )}
+
+                {offers.length === 0 ? (
+                  <Text as="p" tone="subdued">No offers yet.</Text>
+                ) : (
+                  offers.map((offer) => (
+                    <Card key={offer.id} background="bg-surface-secondary">
+                      <BlockStack gap="300">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <InlineStack gap="200" blockAlign="center">
+                            {offer.triggerProductImageUrl && (
+                              <img
+                                src={offer.triggerProductImageUrl}
+                                alt={offer.triggerProductTitle}
+                                style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6 }}
+                              />
+                            )}
+                            <BlockStack gap="0">
+                              <Text as="p" tone="subdued" variant="bodySm">When this product is in cart:</Text>
+                              <Text as="p" variant="bodyMd" fontWeight="semibold">{offer.triggerProductTitle}</Text>
+                            </BlockStack>
+                          </InlineStack>
+                          <Button tone="critical" size="slim" onClick={() => removeOffer(offer.id)}>
+                            Remove offer
+                          </Button>
+                        </InlineStack>
+
+                        <Divider />
+
+                        <Text as="p" variant="bodySm">Show these products as recommendations instead:</Text>
+                        {offer.recommendedProducts.map((p) => (
+                          <div
+                            key={p.shopifyProductId}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 10,
+                              padding: 8, border: "1px solid #e0e0e0", borderRadius: 8,
+                            }}
+                          >
+                            {p.imageUrl && (
+                              <img src={p.imageUrl} alt={p.title} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6 }} />
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <Text as="p" variant="bodyMd">{p.title}</Text>
+                              <Text as="p" tone="subdued" variant="bodySm">₹{(p.price / 100).toFixed(0)}</Text>
+                            </div>
+                            <Button
+                              size="slim"
+                              tone="critical"
+                              onClick={() => removeOfferRecommendedProduct(offer.id, p.shopifyProductId)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                        <Button onClick={() => handleBrowseOfferProducts(offer.id)}>
+                          Browse products to recommend
+                        </Button>
+                      </BlockStack>
+                    </Card>
+                  ))
+                )}
+
+                <Divider />
+                <Button onClick={handleAddOffer}>Add offer (pick trigger product)</Button>
               </BlockStack>
             </Card>
           </Layout.AnnotatedSection>

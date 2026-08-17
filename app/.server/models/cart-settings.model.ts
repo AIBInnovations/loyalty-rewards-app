@@ -31,6 +31,21 @@ export interface IManualProduct {
   priceDisplay?: "price" | "free";
 }
 
+/**
+ * A trigger-product-specific recommendation override — when triggerProduct is
+ * in the cart, the recommendation section shows recommendedProducts instead
+ * of the normal auto/manual/collection list. Adding any OTHER product to the
+ * cart never changes recommendations; only this offer's own trigger does.
+ */
+export interface IOfferRule {
+  id: string;
+  triggerProductId: string;
+  triggerProductTitle: string;
+  triggerProductHandle: string;
+  triggerProductImageUrl: string;
+  recommendedProducts: IManualProduct[];
+}
+
 export interface ICartDrawerSettings extends Document {
   shopId: string;
   enabled: boolean;
@@ -63,6 +78,7 @@ export interface ICartDrawerSettings extends Document {
   recommendationsCollectionTitle: string;
   recommendationsCollectionBadgeText: string;
   manualProducts: IManualProduct[];
+  offers: IOfferRule[];
   showSavings: boolean;
   checkoutButtonText: string;
   prepaidBannerText: string;
@@ -195,6 +211,30 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
         variantId: { type: String },
         badgeText: { type: String, default: "", maxlength: 30 },
         priceDisplay: { type: String, enum: ["price", "free"], default: "price" },
+      }],
+      default: [],
+    },
+    offers: {
+      type: [{
+        id: { type: String, required: true },
+        triggerProductId: { type: String, required: true },
+        triggerProductTitle: { type: String, default: "" },
+        triggerProductHandle: { type: String, default: "" },
+        triggerProductImageUrl: { type: String, default: "" },
+        recommendedProducts: {
+          type: [{
+            shopifyProductId: { type: String, required: true },
+            title: { type: String },
+            handle: { type: String },
+            imageUrl: { type: String },
+            price: { type: Number },
+            compareAtPrice: { type: Number },
+            variantId: { type: String },
+            badgeText: { type: String, default: "", maxlength: 30 },
+            priceDisplay: { type: String, enum: ["price", "free"], default: "price" },
+          }],
+          default: [],
+        },
       }],
       default: [],
     },
