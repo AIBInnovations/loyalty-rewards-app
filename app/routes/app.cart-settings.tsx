@@ -27,6 +27,7 @@ import {
   type ICartTier,
   type IManualProduct,
   type IOfferRule,
+  type ITriggerProduct,
 } from "../.server/models/cart-settings.model";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -47,6 +48,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const tiers = JSON.parse(String(data.tiers) || "[]");
     const manualProducts = JSON.parse(String(data.manualProducts) || "[]");
     const upsellProduct = data.upsellProduct ? JSON.parse(String(data.upsellProduct)) : null;
+    const upsellTriggerProducts = JSON.parse(String(data.upsellTriggerProducts) || "[]");
     const offers = JSON.parse(String(data.offers) || "[]");
 
     await CartDrawerSettings.findOneAndUpdate(
@@ -101,6 +103,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           upsellHeadline: data.upsellHeadline || "Special Offer Just For You!",
           upsellDiscount: Math.min(70, Math.max(0, Number(data.upsellDiscount) || 10)),
           upsellProduct,
+          upsellTriggerProducts,
           fontFamily: String(data.fontFamily || "").slice(0, 120),
           fontSize: Math.min(24, Math.max(0, Number(data.fontSize) || 0)),
           progressBarColor: String(data.progressBarColor || "").slice(0, 20),
@@ -254,6 +257,12 @@ export default function CartSettingsPage() {
   const [upsellProductUrl, setUpsellProductUrl] = useState("");
   const [addUpsellProductError, setAddUpsellProductError] = useState("");
   const [addingUpsellProduct, setAddingUpsellProduct] = useState(false);
+  const [upsellTriggerProducts, setUpsellTriggerProducts] = useState<ITriggerProduct[]>(
+    settings.upsellTriggerProducts || [],
+  );
+  const [upsellTriggerHandle, setUpsellTriggerHandle] = useState("");
+  const [addingUpsellTrigger, setAddingUpsellTrigger] = useState(false);
+  const [upsellTriggerError, setUpsellTriggerError] = useState("");
 
   const [fontFamily, setFontFamily] = useState(settings.fontFamily || "");
   const [fontSize, setFontSize] = useState(String(settings.fontSize || ""));
@@ -335,6 +344,7 @@ export default function CartSettingsPage() {
     formData.set("upsellHeadline", upsellHeadline);
     formData.set("upsellDiscount", upsellDiscount);
     formData.set("upsellProduct", upsellProduct ? JSON.stringify(upsellProduct) : "");
+    formData.set("upsellTriggerProducts", JSON.stringify(upsellTriggerProducts));
     formData.set("fontFamily", fontFamily);
     formData.set("fontSize", fontSize);
     formData.set("progressBarColor", progressBarColor);
@@ -359,7 +369,7 @@ export default function CartSettingsPage() {
     recommendationsCollectionId, recommendationsCollectionHandle,
     recommendationsCollectionTitle, recommendationsCollectionBadgeText, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor, showProgressBar,
-    tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct,
+    tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct, upsellTriggerProducts,
     shippingBannerText, announcementTexts, announcementDelay, announcementTextColor, announcementBgColor,
     progressBannerText, paymentMethodsText, couponEnabled, couponCode,
     couponDescription, couponOffersUrl,
@@ -713,6 +723,85 @@ export default function CartSettingsPage() {
     }
     setAddingUpsellProduct(false);
   }, [upsellProductUrl]);
+
+  const handleBrowseUpsellTriggerProducts = useCallback(async () => {
+    setUpsellTriggerError("");
+    try {
+      const selected = await shopify.resourcePicker({
+        type: "product",
+        multiple: true,
+        action: "select",
+      });
+      if (!selected || selected.length === 0) return;
+
+      setUpsellTriggerProducts((prev) => {
+        const already = new Set(prev.map((p) => p.shopifyProductId));
+        const picked: ITriggerProduct[] = [];
+        for (const product of selected as any[]) {
+          if (already.has(product.id) || picked.some((p) => p.shopifyProductId === product.id)) continue;
+          picked.push({
+            shopifyProductId: product.id,
+            title: product.title,
+            handle: product.handle,
+            imageUrl: product.images?.[0]?.originalSrc || product.images?.[0]?.url || "",
+            minQuantity: 1,
+          });
+        }
+        return picked.length ? [...prev, ...picked] : prev;
+      });
+    } catch (err) {
+      if (err instanceof Error && err.message) setUpsellTriggerError(err.message);
+    }
+  }, [shopify]);
+
+  const handleAddUpsellTriggerProductByHandle = useCallback(async () => {
+    if (!upsellTriggerHandle.trim()) return;
+    setAddingUpsellTrigger(true);
+    setUpsellTriggerError("");
+    try {
+      let handle = upsellTriggerHandle.trim();
+      const match = handle.match(/\/products\/([a-zA-Z0-9\-_]+)/);
+      if (match) handle = match[1];
+      handle = handle.split("?")[0].split("#")[0];
+      const res = await fetch(`/api/product-lookup?handle=${encodeURIComponent(handle)}`);
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body || body.error) {
+        throw new Error(body?.error || `Product lookup failed (${res.status})`);
+      }
+      const product = body;
+      setUpsellTriggerProducts((prev) => {
+        if (prev.some((p) => p.shopifyProductId === product.id)) return prev;
+        return [
+          ...prev,
+          {
+            shopifyProductId: product.id,
+            title: product.title,
+            handle: product.handle,
+            imageUrl: product.imageUrl,
+            minQuantity: 1,
+          },
+        ];
+      });
+      setUpsellTriggerHandle("");
+    } catch (err) {
+      setUpsellTriggerError(
+        err instanceof Error ? err.message : "Could not find that product. Check the handle or URL and try again.",
+      );
+    }
+    setAddingUpsellTrigger(false);
+  }, [upsellTriggerHandle]);
+
+  const removeUpsellTriggerProduct = useCallback((shopifyProductId: string) => {
+    setUpsellTriggerProducts((prev) => prev.filter((p) => p.shopifyProductId !== shopifyProductId));
+  }, []);
+
+  const updateUpsellTriggerProductQty = useCallback((shopifyProductId: string, minQuantity: number) => {
+    setUpsellTriggerProducts((prev) =>
+      prev.map((p) =>
+        p.shopifyProductId === shopifyProductId ? { ...p, minQuantity: Math.max(1, minQuantity || 1) } : p,
+      ),
+    );
+  }, []);
 
   return (
     <Page
@@ -1380,6 +1469,66 @@ export default function CartSettingsPage() {
                         {upsellProduct ? "Replace Product" : "Add Product"}
                       </Button>
                     </InlineStack>
+
+                    <Divider />
+                    <Text as="h3" variant="headingSm">Show only when cart contains</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Leave empty to always show Steal Deals whenever it's enabled. Add products below and the
+                      section only appears once one of them is in the cart at its own quantity.
+                    </Text>
+
+                    {upsellTriggerError && (
+                      <Banner tone="critical" onDismiss={() => setUpsellTriggerError("")}>
+                        {upsellTriggerError}
+                      </Banner>
+                    )}
+
+                    <BlockStack gap="200">
+                      {upsellTriggerProducts.map((tp) => (
+                        <div
+                          key={tp.shopifyProductId}
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, border: "1px solid #e0e0e0", borderRadius: 8 }}
+                        >
+                          {tp.imageUrl && (
+                            <img src={tp.imageUrl} alt={tp.title} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6 }} />
+                          )}
+                          <Text as="span" variant="bodyMd">{tp.title}</Text>
+                          <div style={{ marginLeft: "auto", width: 90 }}>
+                            <TextField
+                              label="Qty"
+                              labelHidden
+                              type="number"
+                              min={1}
+                              value={String(tp.minQuantity ?? 1)}
+                              onChange={(v) => updateUpsellTriggerProductQty(tp.shopifyProductId, Number(v))}
+                              autoComplete="off"
+                              suffix="qty"
+                            />
+                          </div>
+                          <Button size="slim" tone="critical" onClick={() => removeUpsellTriggerProduct(tp.shopifyProductId)}>
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                      <Button onClick={handleBrowseUpsellTriggerProducts}>
+                        Browse products
+                      </Button>
+                      <InlineStack gap="200" blockAlign="end">
+                        <div style={{ flex: 1 }}>
+                          <TextField
+                            label="Product Handle or URL"
+                            value={upsellTriggerHandle}
+                            onChange={(v) => { setUpsellTriggerHandle(v); setUpsellTriggerError(""); }}
+                            placeholder="e.g., my-awesome-product"
+                            autoComplete="off"
+                            labelHidden
+                          />
+                        </div>
+                        <Button onClick={handleAddUpsellTriggerProductByHandle} loading={addingUpsellTrigger}>
+                          Add by handle
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
                   </>
                 )}
               </BlockStack>
