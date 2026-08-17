@@ -451,6 +451,7 @@ export default function CartSettingsPage() {
           triggerProductTitle: product.title,
           triggerProductHandle: product.handle,
           triggerProductImageUrl: product.images?.[0]?.originalSrc || product.images?.[0]?.url || "",
+          triggerMinQuantity: 1,
           recommendedProducts: [],
         },
       ]);
@@ -517,6 +518,49 @@ export default function CartSettingsPage() {
       ),
     );
   }, []);
+
+  const updateOfferMinQuantity = useCallback((offerId: string, minQuantity: number) => {
+    setOffers((prev) =>
+      prev.map((offer) =>
+        offer.id === offerId ? { ...offer, triggerMinQuantity: Math.max(1, minQuantity || 1) } : offer,
+      ),
+    );
+  }, []);
+
+  const updateOfferProductBadge = useCallback((offerId: string, shopifyProductId: string, badgeText: string) => {
+    setOffers((prev) =>
+      prev.map((offer) =>
+        offer.id === offerId
+          ? {
+              ...offer,
+              recommendedProducts: offer.recommendedProducts.map((p) =>
+                p.shopifyProductId === shopifyProductId ? { ...p, badgeText } : p,
+              ),
+            }
+          : offer,
+      ),
+    );
+  }, []);
+
+  const updateOfferProductPriceDisplay = useCallback(
+    (offerId: string, shopifyProductId: string, priceDisplay: string) => {
+      setOffers((prev) =>
+        prev.map((offer) =>
+          offer.id === offerId
+            ? {
+                ...offer,
+                recommendedProducts: offer.recommendedProducts.map((p) =>
+                  p.shopifyProductId === shopifyProductId
+                    ? { ...p, priceDisplay: priceDisplay === "free" ? "free" : "price" }
+                    : p,
+                ),
+              }
+            : offer,
+        ),
+      );
+    },
+    [],
+  );
 
   const handleBrowseCollection = useCallback(async () => {
     setAddProductError("");
@@ -1020,15 +1064,25 @@ export default function CartSettingsPage() {
                           </Button>
                         </InlineStack>
 
+                        <TextField
+                          label="Minimum quantity to trigger"
+                          helpText="Offer only fires once at least this many units of the trigger product are in the cart."
+                          type="number"
+                          min={1}
+                          value={String(offer.triggerMinQuantity ?? 1)}
+                          onChange={(v) => updateOfferMinQuantity(offer.id, Number(v))}
+                          autoComplete="off"
+                        />
+
                         <Divider />
 
                         <Text as="p" variant="bodySm">Show these products as recommendations instead:</Text>
                         {offer.recommendedProducts.map((p) => (
+                          <BlockStack gap="200" key={p.shopifyProductId}>
                           <div
-                            key={p.shopifyProductId}
                             style={{
                               display: "flex", alignItems: "center", gap: 10,
-                              padding: 8, border: "1px solid #e0e0e0", borderRadius: 8,
+                              padding: 8, border: "1px solid #e0e0e0", borderRadius: "8px 8px 0 0",
                             }}
                           >
                             {p.imageUrl && (
@@ -1046,6 +1100,30 @@ export default function CartSettingsPage() {
                               Remove
                             </Button>
                           </div>
+                          <div style={{ padding: "0 8px 8px", border: "1px solid #e0e0e0", borderTop: "none", borderRadius: "0 0 8px 8px" }}>
+                            <InlineGrid columns={2} gap="200">
+                              <TextField
+                                label="Badge text"
+                                labelHidden
+                                placeholder="Badge text (optional)"
+                                value={p.badgeText || ""}
+                                onChange={(v) => updateOfferProductBadge(offer.id, p.shopifyProductId, v)}
+                                maxLength={30}
+                                autoComplete="off"
+                              />
+                              <Select
+                                label="Price display"
+                                labelHidden
+                                options={[
+                                  { label: "Show price", value: "price" },
+                                  { label: "Show FREE", value: "free" },
+                                ]}
+                                value={p.priceDisplay || "price"}
+                                onChange={(v) => updateOfferProductPriceDisplay(offer.id, p.shopifyProductId, v)}
+                              />
+                            </InlineGrid>
+                          </div>
+                          </BlockStack>
                         ))}
                         <Button onClick={() => handleBrowseOfferProducts(offer.id)}>
                           Browse products to recommend

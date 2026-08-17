@@ -43,6 +43,9 @@ export interface IOfferRule {
   triggerProductTitle: string;
   triggerProductHandle: string;
   triggerProductImageUrl: string;
+  /** The offer only fires once at least this many units of the trigger
+      product are in the cart. Default 1 — any quantity triggers it. */
+  triggerMinQuantity: number;
   recommendedProducts: IManualProduct[];
 }
 
@@ -221,6 +224,7 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
         triggerProductTitle: { type: String, default: "" },
         triggerProductHandle: { type: String, default: "" },
         triggerProductImageUrl: { type: String, default: "" },
+        triggerMinQuantity: { type: Number, default: 1, min: 1 },
         recommendedProducts: {
           type: [{
             shopifyProductId: { type: String, required: true },
