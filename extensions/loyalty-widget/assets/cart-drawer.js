@@ -255,13 +255,18 @@
     // changes recommendations — only a configured trigger does, and only
     // while it's still in the cart.
     if (state.settings && state.settings.offers && state.settings.offers.length) {
-      var offerCartIds = {};
-      state.cart.items.forEach(function (item) { offerCartIds[String(item.product_id)] = true; });
+      var offerCartQty = {};
+      state.cart.items.forEach(function (item) {
+        var pid = String(item.product_id);
+        offerCartQty[pid] = (offerCartQty[pid] || 0) + (item.quantity || 0);
+      });
+      var offerCartIds = offerCartQty; // truthy-in-cart check reuses the same map below
       var matchedOffer = null;
       for (var oi = 0; oi < state.settings.offers.length; oi++) {
         var offer = state.settings.offers[oi];
         var triggerId = String(offer.triggerProductId || "").replace("gid://shopify/Product/", "");
-        if (offerCartIds[triggerId]) { matchedOffer = offer; break; }
+        var minQty = offer.triggerMinQuantity > 0 ? offer.triggerMinQuantity : 1;
+        if ((offerCartQty[triggerId] || 0) >= minQty) { matchedOffer = offer; break; }
       }
       if (matchedOffer) {
         var offerRecs = (matchedOffer.recommendedProducts || [])
