@@ -182,6 +182,22 @@
   stroke: currentColor !important;
 }
 
+/* Themes that reset icons with `svg { fill: currentColor }` turn every
+   stroke-only glyph in this widget (checkout arrow, unlock lock, close X)
+   into an invisible filled sliver, since fill="none" on the <svg> is a
+   presentation attribute and loses to any author stylesheet rule. Pin
+   fill/stroke back explicitly for every stroke-only icon regardless of
+   which element it lives on. */
+svg[fill="none"] {
+  fill: none !important;
+}
+
+svg[fill="none"] path[stroke],
+svg[fill="none"] polyline[stroke] {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
 /* ─── Free shipping banner ──────────────────────────────────────── */
 
 /* Announcement bar — one or more messages that slide vertically. The
