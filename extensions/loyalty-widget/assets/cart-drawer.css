@@ -171,6 +171,17 @@
 
 .cd-close:hover { background: #e7e0d1; }
 
+.cd-close svg {
+  fill: none !important;
+  stroke: currentColor !important;
+  display: block;
+}
+
+.cd-close svg path {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
 /* ─── Free shipping banner ──────────────────────────────────────── */
 
 /* Announcement bar — one or more messages that slide vertically. The
