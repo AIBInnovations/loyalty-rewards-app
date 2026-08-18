@@ -89,6 +89,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           announcementTextColor: String(data.announcementTextColor || "").slice(0, 20),
           announcementBgColor: String(data.announcementBgColor || "").slice(0, 20),
           progressBannerText: String(data.progressBannerText || "").slice(0, 100),
+          progressExtraLineText: String(data.progressExtraLineText || "").slice(0, 100),
+          progressExtraLineMinAmount: Math.max(0, Number(data.progressExtraLineMinAmount) || 0),
           paymentMethodsText: String(data.paymentMethodsText || "").slice(0, 120),
           couponEnabled: data.couponEnabled === "true",
           couponCode: String(data.couponCode || "").trim().slice(0, 40),
@@ -236,6 +238,12 @@ export default function CartSettingsPage() {
   const [progressBannerText, setProgressBannerText] = useState(
     settings.progressBannerText || "",
   );
+  const [progressExtraLineText, setProgressExtraLineText] = useState(
+    settings.progressExtraLineText || "",
+  );
+  const [progressExtraLineMinAmount, setProgressExtraLineMinAmount] = useState(
+    String((settings.progressExtraLineMinAmount || 0) / 100),
+  );
   const [paymentMethodsText, setPaymentMethodsText] = useState(
     settings.paymentMethodsText || "",
   );
@@ -340,6 +348,8 @@ export default function CartSettingsPage() {
     formData.set("announcementTextColor", announcementTextColor);
     formData.set("announcementBgColor", announcementBgColor);
     formData.set("progressBannerText", progressBannerText);
+    formData.set("progressExtraLineText", progressExtraLineText);
+    formData.set("progressExtraLineMinAmount", String(Math.round(Number(progressExtraLineMinAmount) * 100)));
     formData.set("paymentMethodsText", paymentMethodsText);
     formData.set("couponEnabled", String(couponEnabled));
     formData.set("couponCode", couponCode);
@@ -382,7 +392,8 @@ export default function CartSettingsPage() {
     tiers, showUpsell, upsellHeadline, upsellDiscountType, upsellDiscount, upsellDiscountAmount,
     upsellProduct, upsellTriggerProducts,
     shippingBannerText, announcementTexts, announcementDelay, announcementTextColor, announcementBgColor,
-    progressBannerText, paymentMethodsText, couponEnabled, couponCode,
+    progressBannerText, progressExtraLineText, progressExtraLineMinAmount,
+    paymentMethodsText, couponEnabled, couponCode,
     couponDescription, couponOffersUrl,
     fontFamily, fontSize, progressBarColor, offerLineBg, offerLineTextColor,
     buttonColor, buttonHoverColor, buttonHoverTextColor, headerCountSize, drawerWidth,
@@ -881,6 +892,25 @@ export default function CartSettingsPage() {
                   helpText="Shown as a colored strip above the progress message, e.g. a disclaimer. Hidden when empty."
                   autoComplete="off"
                   maxLength={100}
+                  disabled={!showProgressBar}
+                />
+                <TextField
+                  label="Extra Line (optional)"
+                  value={progressExtraLineText}
+                  onChange={setProgressExtraLineText}
+                  helpText="Shown below the milestone row, only once the cart total reaches the minimum price set below. Hidden when empty or below that price."
+                  autoComplete="off"
+                  maxLength={100}
+                  disabled={!showProgressBar}
+                />
+                <TextField
+                  label="Minimum Cart Price to Show Extra Line (₹)"
+                  type="number"
+                  value={progressExtraLineMinAmount}
+                  onChange={setProgressExtraLineMinAmount}
+                  min={0}
+                  prefix="₹"
+                  autoComplete="off"
                   disabled={!showProgressBar}
                 />
                 {!showProgressBar && (
