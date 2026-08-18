@@ -225,7 +225,11 @@ svg[fill="none"] polyline[stroke] {
 
 .cd-announcement-item {
   flex: none;
-  height: 2.6em;
+  /* Must match .cd-announcement-bar's own 2.6em — expressed here as a fixed
+     px instead, since this element's own font-size (0.821em) makes an em
+     value on this same element resolve against a smaller base, leaving the
+     item shorter than the bar and the text sitting off-center. */
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
