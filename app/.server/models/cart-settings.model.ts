@@ -117,6 +117,10 @@ export interface ICartDrawerSettings extends Document {
   announcementBgColor: string;
   /** Disclaimer line shown above the reward progress message. Hidden when empty. */
   progressBannerText: string;
+  /** Extra line shown below the tier checkpoint row — hidden unless both
+      set AND the cart total (in paise) has reached progressExtraLineMinAmount. */
+  progressExtraLineText: string;
+  progressExtraLineMinAmount: number;
   /** Small print under the checkout button, e.g. accepted payment methods. */
   paymentMethodsText: string;
   /** Dashed coupon card. Hidden unless enabled AND a code is set. */
@@ -297,6 +301,8 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     announcementTextColor: { type: String, default: "" },
     announcementBgColor: { type: String, default: "" },
     progressBannerText: { type: String, default: "", maxlength: 100 },
+    progressExtraLineText: { type: String, default: "", maxlength: 100 },
+    progressExtraLineMinAmount: { type: Number, default: 0, min: 0 },
     paymentMethodsText: { type: String, default: "", maxlength: 120 },
     couponEnabled: { type: Boolean, default: false },
     couponCode: { type: String, default: "", maxlength: 40 },

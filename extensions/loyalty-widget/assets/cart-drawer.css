@@ -492,6 +492,16 @@ svg[fill="none"] polyline[stroke] {
 
 .cd-progress-tier-threshold.reached { color: var(--cd-muted); }
 
+/* Extra incentive line under the checkpoint row — only shown once the
+   cart total reaches the merchant's configured minimum price. */
+.cd-progress-extra-line {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 0.786em; /* 11px at the 14px base */
+  font-weight: 600;
+  color: var(--cd-muted);
+}
+
 /* ─── Line items ────────────────────────────────────────────────── */
 
 .cd-item {

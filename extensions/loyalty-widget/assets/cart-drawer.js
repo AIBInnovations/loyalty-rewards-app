@@ -1014,6 +1014,13 @@
       (bannerText ? '<div class="cd-progress-topbar">' + esc(bannerText) + '</div>' : "") +
       (message ? '<div class="cd-progress-reward-message">' + message + '</div>' : "");
 
+    // Extra line under the checkpoint row — only once the cart total (in
+    // paise, same unit as cartTotal) reaches the merchant's configured
+    // minimum. Independent of the tiers themselves.
+    var extraLineText = state.settings && state.settings.progressExtraLineText;
+    var extraLineMinAmount = (state.settings && state.settings.progressExtraLineMinAmount) || 0;
+    var showExtraLine = Boolean(extraLineText) && cartTotal >= extraLineMinAmount;
+
     // No sticky wrapper here — render() wraps this together with the
     // shipping banner in one shared sticky container, since two separate
     // elements both pinned at top:0 would just overlap each other.
@@ -1025,6 +1032,7 @@
           ' aria-valuenow="' + (activeTierIndex + 1) + '">' +
           checkpointsHtml +
         '</div>' +
+        (showExtraLine ? '<div class="cd-progress-extra-line">' + esc(extraLineText) + '</div>' : "") +
         '</div>' +
       '</section>';
   }
