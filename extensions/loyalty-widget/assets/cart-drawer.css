@@ -404,7 +404,7 @@ svg[fill="none"] polyline[stroke] {
   background: var(--cd-dash);
   z-index: 0;
   transform: translateY(-50%);
-  transition: background-color 0.4s ease;
+  transition: background-color 0.9s ease;
 }
 
 .cd-progress-checkpoint-line.filled {
@@ -424,7 +424,7 @@ svg[fill="none"] polyline[stroke] {
   top: 0;
   bottom: 0;
   background: var(--cd-progress-bg);
-  transition: width 0.4s ease;
+  transition: width 0.9s ease;
 }
 
 .cd-progress-tier-label {
