@@ -1000,11 +1000,16 @@ svg[fill="none"] polyline[stroke] {
   font-family: inherit;
   font-weight: 700;
   font-size: 15px;
-  line-height: 1;
+  line-height: normal;
   color: #fff;
   background: var(--cd-ink);
   border: none;
   border-radius: 50%;
+  /* Same bug as .cd-close: the theme's global
+     button{padding:0 var(--buttons-padding)} fills any padding this
+     doesn't reset itself, ballooning the 26px circle into an oval. */
+  padding: 0;
+  min-width: 0;
   cursor: pointer;
   transition: background 0.15s ease;
 }
