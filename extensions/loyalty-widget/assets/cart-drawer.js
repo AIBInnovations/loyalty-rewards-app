@@ -57,6 +57,10 @@
     // celebrates the moment all tiers are unlocked once, not on every
     // re-render or every time the drawer is reopened.
     confettiFired: false,
+    // Per-unit compare_at_price for cart line items, keyed by variant_id —
+    // /cart.js doesn't expose this itself (only line-level cart-discount
+    // totals), so it's fetched separately from /products/{handle}.js.
+    itemComparePrices: {},
   };
 
   // Parse initial cart from Liquid
@@ -234,6 +238,37 @@
       });
   }
 
+  // /cart.js line items only carry price/original_price (cart-discount
+  // totals) — the product's own compare_at_price isn't included at all, so
+  // it has to be looked up per product handle. Fire-and-forget: re-renders
+  // once resolved rather than delaying the cart update itself.
+  function fetchItemComparePrices(cart) {
+    if (!cart || !cart.items || !cart.items.length) return Promise.resolve();
+
+    var handles = [];
+    var seen = {};
+    cart.items.forEach(function (item) {
+      var vid = String(item.variant_id);
+      if (state.itemComparePrices[vid] !== undefined) return;
+      if (!item.handle || seen[item.handle]) return;
+      seen[item.handle] = true;
+      handles.push(item.handle);
+    });
+    if (!handles.length) return Promise.resolve();
+
+    return Promise.all(handles.map(function (handle) {
+      return fetch("/products/" + handle + ".js")
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (product) {
+          if (!product || !product.variants) return;
+          product.variants.forEach(function (v) {
+            state.itemComparePrices[String(v.id)] = v.compare_at_price || 0;
+          });
+        })
+        .catch(function () {});
+    }));
+  }
+
   // ─── Fetch Cart ───────────────────────────────────────────────
   function fetchCart() {
     return fetch("/cart.js")
@@ -241,6 +276,9 @@
       .then(function (cart) {
         state.cart = cart;
         if (state.isOpen) render();
+        fetchItemComparePrices(cart).then(function () {
+          if (state.isOpen) render();
+        });
         return enforceUpsellTrigger(cart).then(function () { return state.cart || cart; });
       });
   }
@@ -1045,9 +1083,10 @@
     cart.items.forEach(function (item) {
       // Two independent sources of a "was" price: a cart-level discount
       // (original_line_price vs final_line_price) and the product's own
-      // compare_at_price (its regular MSRP, per unit — multiply by
-      // quantity for the line total). Show whichever is higher.
-      var lineComparePrice = item.compare_at_price ? item.compare_at_price * item.quantity : 0;
+      // compare_at_price (its regular MSRP — not exposed by /cart.js
+      // itself, see fetchItemComparePrices). Show whichever is higher.
+      var unitComparePrice = state.itemComparePrices[String(item.variant_id)] || 0;
+      var lineComparePrice = unitComparePrice ? unitComparePrice * item.quantity : 0;
       var compareLinePrice = Math.max(item.original_line_price || 0, lineComparePrice);
       var hasCompare = compareLinePrice > item.final_line_price;
       var savings = hasCompare ? compareLinePrice - item.final_line_price : 0;
