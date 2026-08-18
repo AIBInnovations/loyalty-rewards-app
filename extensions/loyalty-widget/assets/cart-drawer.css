@@ -1000,7 +1000,7 @@ svg[fill="none"] polyline[stroke] {
   font-family: inherit;
   font-weight: 700;
   font-size: 15px;
-  line-height: normal;
+  line-height: 1;
   color: #fff;
   background: var(--cd-ink);
   border: none;
