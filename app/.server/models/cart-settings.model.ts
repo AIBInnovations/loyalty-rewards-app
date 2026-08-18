@@ -128,7 +128,14 @@ export interface ICartDrawerSettings extends Document {
   interceptAddToCart: boolean;
   showUpsell: boolean;
   upsellHeadline: string;
+  /** "percentage" (default) uses upsellDiscount as a 0-70% cut. "amount"
+      uses upsellDiscountAmount, a fixed paise amount off. "none" shows the
+      product at its normal price with no discount applied at all. */
+  upsellDiscountType: "percentage" | "amount" | "none";
   upsellDiscount: number;
+  /** Fixed discount, in paise (matches IManualProduct.price's unit) — only
+      used when upsellDiscountType is "amount". */
+  upsellDiscountAmount: number;
   upsellProduct: IManualProduct | null;
   /** Gates the Steal Deals section on cart contents, same rule as
       IOfferRule's "products" trigger — empty means always eligible
@@ -299,7 +306,9 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     interceptAddToCart: { type: Boolean, default: true },
     showUpsell: { type: Boolean, default: false },
     upsellHeadline: { type: String, default: "Special Offer Just For You!" },
+    upsellDiscountType: { type: String, enum: ["percentage", "amount", "none"], default: "percentage" },
     upsellDiscount: { type: Number, default: 10, min: 0, max: 70 },
+    upsellDiscountAmount: { type: Number, default: 0, min: 0 },
     upsellProduct: {
       type: {
         shopifyProductId: { type: String },
