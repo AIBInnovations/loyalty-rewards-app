@@ -440,10 +440,18 @@ svg[fill="none"] polyline[stroke] {
   font-weight: 700;
   letter-spacing: 0.01em;
   color: var(--cd-muted-light);
-  transition: color 0.4s ease;
+  border: 1px solid var(--cd-dash);
+  border-radius: var(--cd-radius-pill);
+  padding: 2px 8px;
+  background: transparent;
+  transition: color 0.4s ease, background 0.4s ease, border-color 0.4s ease;
 }
 
-.cd-progress-tier-label.reached { color: var(--cd-progress-bg); }
+.cd-progress-tier-label.reached {
+  color: #fff;
+  background: var(--cd-progress-bg);
+  border-color: var(--cd-progress-bg);
+}
 
 /* Tier checkpoint icon — hollow "%" until reached, checkmark once passed.
    Centered within .cd-progress-checkpoint-row, same coordinate space as
@@ -487,10 +495,18 @@ svg[fill="none"] polyline[stroke] {
   font-size: 0.714em; /* 10px at the 14px base */
   font-weight: 600;
   color: var(--cd-muted-light);
-  transition: color 0.4s ease;
+  border: 1px solid var(--cd-dash);
+  border-radius: var(--cd-radius-pill);
+  padding: 2px 7px;
+  background: transparent;
+  transition: color 0.4s ease, background 0.4s ease, border-color 0.4s ease;
 }
 
-.cd-progress-tier-threshold.reached { color: var(--cd-muted); }
+.cd-progress-tier-threshold.reached {
+  color: #fff;
+  background: var(--cd-progress-bg);
+  border-color: var(--cd-progress-bg);
+}
 
 /* Extra incentive line under the checkpoint row — only shown once the
    cart total reaches the merchant's configured minimum price. */
