@@ -403,7 +403,10 @@ svg[fill="none"] polyline[stroke] {
   right: 0;
   height: 6px;
   min-height: 6px;
-  border-radius: 3px;
+  /* Rounded corners on every column's own line segment leave a lens-shaped
+     gap where two adjacent segments meet, even at zero physical distance —
+     no radius keeps the whole track reading as one continuous bar. */
+  border-radius: 0;
   box-sizing: border-box !important;
   background: var(--cd-dash);
   z-index: 0;
@@ -469,11 +472,7 @@ svg[fill="none"] polyline[stroke] {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  /* Opaque white sat on top of the line (z-index:1 vs the line's 0),
-     visually cutting it in two at every checkpoint. Transparent lets the
-     line read as one continuous bar running straight through the dot,
-     matching the reference — the border ring still marks the checkpoint. */
-  background: transparent;
+  background: #fff;
   border: 1.5px solid var(--cd-dash);
   display: flex;
   align-items: center;
