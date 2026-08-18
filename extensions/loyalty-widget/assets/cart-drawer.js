@@ -1276,10 +1276,17 @@
 
   function renderUpsell() {
     var p = state.settings.upsellProduct;
-    var discount = Number(state.settings.upsellDiscount) || 0;
+    var discountType = state.settings.upsellDiscountType || "percentage";
     var headline = state.settings.upsellHeadline || "Steal Deals";
     var originalPrice = p.price || 0;
-    var discountedPrice = Math.round(originalPrice * (1 - discount / 100));
+    var discountedPrice = originalPrice;
+    if (discountType === "amount") {
+      var discountAmount = Number(state.settings.upsellDiscountAmount) || 0;
+      discountedPrice = Math.max(0, originalPrice - discountAmount);
+    } else if (discountType === "percentage") {
+      var discount = Number(state.settings.upsellDiscount) || 0;
+      discountedPrice = Math.round(originalPrice * (1 - discount / 100));
+    }
     var variantId = String(p.variantId || "").replace("gid://shopify/ProductVariant/", "");
     // renderProductCard() already resizes the image itself — resizing here
     // too stacked two suffixes into one filename (e.g. "..._160x160_300x300.jpg"),
@@ -1300,7 +1307,7 @@
           title: p.title,
           image: p.imageUrl || "",
           price: discountedPrice,
-          comparePrice: discount > 0 ? originalPrice : 0,
+          comparePrice: discountedPrice < originalPrice ? originalPrice : 0,
           variantId: variantId,
           action: "add-upsell",
           roundAdd: true,

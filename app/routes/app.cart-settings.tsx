@@ -101,7 +101,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           interceptAddToCart: data.interceptAddToCart === "true",
           showUpsell: data.showUpsell === "true",
           upsellHeadline: data.upsellHeadline || "Special Offer Just For You!",
+          upsellDiscountType: ["percentage", "amount", "none"].includes(String(data.upsellDiscountType))
+            ? data.upsellDiscountType
+            : "percentage",
           upsellDiscount: Math.min(70, Math.max(0, Number(data.upsellDiscount) || 10)),
+          upsellDiscountAmount: Math.max(0, Number(data.upsellDiscountAmount) || 0),
           upsellProduct,
           upsellTriggerProducts,
           fontFamily: String(data.fontFamily || "").slice(0, 120),
@@ -252,7 +256,11 @@ export default function CartSettingsPage() {
   const [tiers, setTiers] = useState<ICartTier[]>(settings.tiers || []);
   const [showUpsell, setShowUpsell] = useState(settings.showUpsell || false);
   const [upsellHeadline, setUpsellHeadline] = useState(settings.upsellHeadline || "Special Offer Just For You!");
+  const [upsellDiscountType, setUpsellDiscountType] = useState(settings.upsellDiscountType || "percentage");
   const [upsellDiscount, setUpsellDiscount] = useState(String(settings.upsellDiscount ?? 10));
+  const [upsellDiscountAmount, setUpsellDiscountAmount] = useState(
+    String((settings.upsellDiscountAmount || 0) / 100),
+  );
   const [upsellProduct, setUpsellProduct] = useState<IManualProduct | null>(settings.upsellProduct || null);
   const [upsellProductUrl, setUpsellProductUrl] = useState("");
   const [addUpsellProductError, setAddUpsellProductError] = useState("");
@@ -342,7 +350,9 @@ export default function CartSettingsPage() {
     formData.set("tiers", JSON.stringify(tiers));
     formData.set("showUpsell", String(showUpsell));
     formData.set("upsellHeadline", upsellHeadline);
+    formData.set("upsellDiscountType", upsellDiscountType);
     formData.set("upsellDiscount", upsellDiscount);
+    formData.set("upsellDiscountAmount", String(Math.round(Number(upsellDiscountAmount) * 100)));
     formData.set("upsellProduct", upsellProduct ? JSON.stringify(upsellProduct) : "");
     formData.set("upsellTriggerProducts", JSON.stringify(upsellTriggerProducts));
     formData.set("fontFamily", fontFamily);
@@ -369,7 +379,8 @@ export default function CartSettingsPage() {
     recommendationsCollectionId, recommendationsCollectionHandle,
     recommendationsCollectionTitle, recommendationsCollectionBadgeText, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor, showProgressBar,
-    tiers, showUpsell, upsellHeadline, upsellDiscount, upsellProduct, upsellTriggerProducts,
+    tiers, showUpsell, upsellHeadline, upsellDiscountType, upsellDiscount, upsellDiscountAmount,
+    upsellProduct, upsellTriggerProducts,
     shippingBannerText, announcementTexts, announcementDelay, announcementTextColor, announcementBgColor,
     progressBannerText, paymentMethodsText, couponEnabled, couponCode,
     couponDescription, couponOffersUrl,
@@ -1402,16 +1413,44 @@ export default function CartSettingsPage() {
                       placeholder="Steal Deals"
                       autoComplete="off"
                     />
-                    <TextField
-                      label="Discount Percentage (0–70%)"
-                      type="number"
-                      value={upsellDiscount}
-                      onChange={setUpsellDiscount}
-                      min={0}
-                      max={70}
-                      suffix="%"
-                      autoComplete="off"
+                    <Select
+                      label="Discount Type"
+                      options={[
+                        { label: "Percentage (%)", value: "percentage" },
+                        { label: "Fixed Amount (₹)", value: "amount" },
+                        { label: "No Discount", value: "none" },
+                      ]}
+                      value={upsellDiscountType}
+                      onChange={(v) => setUpsellDiscountType(v as "percentage" | "amount" | "none")}
                     />
+                    {upsellDiscountType === "percentage" && (
+                      <TextField
+                        label="Discount Percentage (0–70%)"
+                        type="number"
+                        value={upsellDiscount}
+                        onChange={setUpsellDiscount}
+                        min={0}
+                        max={70}
+                        suffix="%"
+                        autoComplete="off"
+                      />
+                    )}
+                    {upsellDiscountType === "amount" && (
+                      <TextField
+                        label="Discount Amount (₹)"
+                        type="number"
+                        value={upsellDiscountAmount}
+                        onChange={setUpsellDiscountAmount}
+                        min={0}
+                        prefix="₹"
+                        autoComplete="off"
+                      />
+                    )}
+                    {upsellDiscountType === "none" && (
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        No discount applied — the product shows at its normal price.
+                      </Text>
+                    )}
                     <Divider />
                     <Text as="h3" variant="headingSm">Upsell Product</Text>
                     {upsellProduct ? (
@@ -1435,9 +1474,21 @@ export default function CartSettingsPage() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <Text as="p" variant="bodyMd" fontWeight="semibold">{upsellProduct.title}</Text>
                           <Text as="p" variant="bodySm" tone="subdued">
-                            ₹{(upsellProduct.price / 100).toFixed(0)}
-                            {" → "}₹{Math.round(upsellProduct.price / 100 * (1 - Number(upsellDiscount) / 100))}
-                            {" "}({upsellDiscount}% off)
+                            {upsellDiscountType === "none" ? (
+                              <>₹{(upsellProduct.price / 100).toFixed(0)} (no discount)</>
+                            ) : upsellDiscountType === "amount" ? (
+                              <>
+                                ₹{(upsellProduct.price / 100).toFixed(0)}
+                                {" → "}₹{Math.max(0, Math.round(upsellProduct.price / 100 - Number(upsellDiscountAmount || 0)))}
+                                {" "}(₹{upsellDiscountAmount || 0} off)
+                              </>
+                            ) : (
+                              <>
+                                ₹{(upsellProduct.price / 100).toFixed(0)}
+                                {" → "}₹{Math.round(upsellProduct.price / 100 * (1 - Number(upsellDiscount) / 100))}
+                                {" "}({upsellDiscount}% off)
+                              </>
+                            )}
                           </Text>
                         </div>
                         <Button size="slim" tone="critical" onClick={() => setUpsellProduct(null)}>

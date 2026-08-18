@@ -821,13 +821,22 @@ svg[fill="none"] polyline[stroke] {
   );
 }
 
-/* Fixed 320x97 card, laid out as a row — image left, info right — since a
-   97px-tall card can't fit a full-width square image stacked above text. */
+/* Row layout — image left, info + round add button right. Height is auto
+   (min 97px) rather than fixed so a two-line title doesn't get clipped or
+   force the add button off-center — matches the reference deal card, which
+   wraps the title onto two lines instead of truncating it. */
 .cd-prod--deal {
   width: 320px;
-  height: 97px;
+  min-height: 97px;
   flex-direction: row;
   align-items: center;
+}
+
+.cd-prod--deal .cd-prod-name {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
@@ -996,6 +1005,11 @@ svg[fill="none"] polyline[stroke] {
   background: var(--cd-ink);
   border: none;
   border-radius: 50%;
+  /* Same bug as .cd-close: the theme's global
+     button{padding:0 var(--buttons-padding)} fills any padding this
+     doesn't reset itself, ballooning the 26px circle into an oval. */
+  padding: 0;
+  min-width: 0;
   cursor: pointer;
   transition: background 0.15s ease;
 }
