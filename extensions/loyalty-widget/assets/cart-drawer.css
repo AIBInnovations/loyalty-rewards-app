@@ -1439,10 +1439,12 @@ svg[fill="none"] polyline[stroke] {
   .cd-footer { padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
   .cd-coupon { flex-direction: column; align-items: stretch; }
   .cd-coupon-apply { width: 100%; }
-  /* The checkout button's 245px min-width plus the price text no longer
-     fit side by side on narrow phones, overlapping instead of wrapping —
-     stack them so each gets the full row width. */
-  .cd-footer-price-row { flex-direction: column; align-items: stretch; gap: 6px; }
-  .cd-footer .cd-checkout-btn { width: 100%; min-width: 0; margin-top: 0; }
+  /* The checkout button's 245px min-width forced it wider than narrow
+     phones have room for, so it overlapped the price text instead of
+     sitting beside it. Let it size to its own content instead — price
+     block keeps min-width:0 so it can still truncate/shrink if needed. */
+  .cd-footer-price-row { gap: 8px; }
+  .cd-footer-price { flex-wrap: wrap; }
+  .cd-footer .cd-checkout-btn { min-width: 0; padding: 0 16px; }
 }
 
