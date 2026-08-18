@@ -1445,6 +1445,6 @@ svg[fill="none"] polyline[stroke] {
      block keeps min-width:0 so it can still truncate/shrink if needed. */
   .cd-footer-price-row { gap: 8px; }
   .cd-footer-price { flex-wrap: wrap; }
-  .cd-footer .cd-checkout-btn { min-width: 0; padding: 0 16px; }
+  .cd-footer .cd-checkout-btn { min-width: 200px; padding: 0 16px; }
 }
 
