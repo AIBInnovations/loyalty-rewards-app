@@ -1811,8 +1811,28 @@
     if (e.key === "Escape" && state.isOpen) closeDrawer();
   });
 
+  // The theme's own native cart drawer is permanently force-hidden above,
+  // but its own open/close JS still runs in the background whenever
+  // triggered (e.g. by an add-to-cart it observes) — including locking body
+  // scroll — even though its UI can never actually show. If that lock fires
+  // after ours releases, or independently of our drawer entirely, the whole
+  // page is left stuck unscrollable with no visible drawer to blame. Watch
+  // for exactly that and release it whenever it isn't actually us holding
+  // the lock.
+  function watchForStrayScrollLock() {
+    if (typeof MutationObserver === "undefined") return;
+    var observer = new MutationObserver(function () {
+      if (state.isOpen) return; // our own drawer legitimately owns the lock
+      if (document.body.style.overflow === "hidden") {
+        document.body.style.overflow = "";
+      }
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ["style", "class"] });
+  }
+
   // ─── Initialize ───────────────────────────────────────────────
   injectNativeCartHideCSS(); // Hide native cart drawer permanently
+  watchForStrayScrollLock();
   fetchSettings();
   interceptAddToCart();
 
