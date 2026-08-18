@@ -1166,7 +1166,7 @@
         ? '<img src="' + escAttr(imgSrc) + '" alt="' + escAttr(opts.title) + '" loading="lazy" onerror="this.style.display=\'none\'"/>'
         : '') +
       (discountPct > 0 && opts.priceDisplay !== "free"
-        ? '<span class="cd-prod-discount-badge">-' + discountPct + '% OFF</span>'
+        ? '<span class="cd-prod-discount-badge">' + discountPct + '% OFF</span>'
         : '') +
       (opts.badgeText
         ? '<span class="cd-prod-custom-badge' +
