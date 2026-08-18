@@ -241,7 +241,7 @@
       .then(function (cart) {
         state.cart = cart;
         if (state.isOpen) render();
-        return cart;
+        return enforceUpsellTrigger(cart).then(function () { return state.cart || cart; });
       });
   }
 
@@ -1252,6 +1252,28 @@
   }
 
   // ─── Upsell ───────────────────────────────────────────────────
+  // Shared by shouldShowUpsell() (gates the card) and enforceUpsellTrigger()
+  // (auto-removes the line if it's already in the cart) — empty trigger
+  // list means always eligible (backward compatible).
+  function isUpsellTriggerMet(cartQty) {
+    var triggers = (state.settings && state.settings.upsellTriggerProducts) || [];
+    if (!triggers.length) return true;
+    return triggers.some(function (tp) {
+      var pid = String(tp.shopifyProductId || "").replace("gid://shopify/Product/", "");
+      var minQ = tp.minQuantity > 0 ? tp.minQuantity : 1;
+      return (cartQty[pid] || 0) >= minQ;
+    });
+  }
+
+  function cartQtyByProductId(cart) {
+    var cartQty = {};
+    (cart.items || []).forEach(function (item) {
+      var pid = String(item.product_id);
+      cartQty[pid] = (cartQty[pid] || 0) + (item.quantity || 0);
+    });
+    return cartQty;
+  }
+
   function shouldShowUpsell() {
     if (!state.settings || !state.settings.showUpsell) return false;
     if (!state.settings.upsellProduct) return false;
@@ -1262,24 +1284,26 @@
       .replace("gid://shopify/Product/", "");
     if (cartIds.indexOf(upId) !== -1) return false;
 
-    // Gate on trigger products, same rule as the Product Offers "products"
-    // trigger — empty list means always eligible (backward compatible).
-    var triggers = state.settings.upsellTriggerProducts || [];
-    if (triggers.length) {
-      var cartQty = {};
-      state.cart.items.forEach(function (item) {
-        var pid = String(item.product_id);
-        cartQty[pid] = (cartQty[pid] || 0) + (item.quantity || 0);
-      });
-      var matched = triggers.some(function (tp) {
-        var pid = String(tp.shopifyProductId || "").replace("gid://shopify/Product/", "");
-        var minQ = tp.minQuantity > 0 ? tp.minQuantity : 1;
-        return (cartQty[pid] || 0) >= minQ;
-      });
-      if (!matched) return false;
-    }
+    if (!isUpsellTriggerMet(cartQtyByProductId(state.cart))) return false;
 
     return true;
+  }
+
+  // The upsell product can end up in the cart without its trigger condition
+  // being met — added straight from its own product page, or its trigger
+  // product removed afterward — so this strips it back out. Runs every time
+  // fetchCart() refreshes, which covers both cases in practice.
+  function enforceUpsellTrigger(cart) {
+    var upsellProduct = state.settings && state.settings.upsellProduct;
+    if (!upsellProduct || !cart || !cart.items || !cart.items.length) return Promise.resolve();
+
+    var upId = String(upsellProduct.shopifyProductId || "").replace("gid://shopify/Product/", "");
+    var line = cart.items.filter(function (i) { return String(i.product_id) === upId; })[0];
+    if (!line) return Promise.resolve();
+
+    if (isUpsellTriggerMet(cartQtyByProductId(cart))) return Promise.resolve();
+
+    return removeItem(line.key);
   }
 
   function renderUpsell() {
