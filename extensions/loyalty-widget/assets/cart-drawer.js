@@ -1043,8 +1043,14 @@
 
     var html = '<div class="cd-items">';
     cart.items.forEach(function (item) {
-      var hasCompare = item.original_line_price > item.final_line_price;
-      var savings = hasCompare ? item.original_line_price - item.final_line_price : 0;
+      // Two independent sources of a "was" price: a cart-level discount
+      // (original_line_price vs final_line_price) and the product's own
+      // compare_at_price (its regular MSRP, per unit — multiply by
+      // quantity for the line total). Show whichever is higher.
+      var lineComparePrice = item.compare_at_price ? item.compare_at_price * item.quantity : 0;
+      var compareLinePrice = Math.max(item.original_line_price || 0, lineComparePrice);
+      var hasCompare = compareLinePrice > item.final_line_price;
+      var savings = hasCompare ? compareLinePrice - item.final_line_price : 0;
 
       var imgSrc = safeImageUrl(
         item.featured_image
@@ -1082,7 +1088,7 @@
             '<div class="cd-item-price-row">' +
               '<span class="cd-item-price">' + formatMoney(item.final_line_price) + '</span>' +
               (hasCompare
-                ? '<span class="cd-item-compare-price">' + formatMoney(item.original_line_price) + '</span>' +
+                ? '<span class="cd-item-compare-price">' + formatMoney(compareLinePrice) + '</span>' +
                   '<span class="cd-item-save">Save ' + formatMoney(savings) + '</span>'
                 : '') +
             '</div>' +
