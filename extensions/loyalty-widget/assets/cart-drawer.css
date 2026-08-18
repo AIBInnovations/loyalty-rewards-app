@@ -1439,5 +1439,10 @@ svg[fill="none"] polyline[stroke] {
   .cd-footer { padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
   .cd-coupon { flex-direction: column; align-items: stretch; }
   .cd-coupon-apply { width: 100%; }
+  /* The checkout button's 245px min-width plus the price text no longer
+     fit side by side on narrow phones, overlapping instead of wrapping —
+     stack them so each gets the full row width. */
+  .cd-footer-price-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .cd-footer .cd-checkout-btn { width: 100%; min-width: 0; margin-top: 0; }
 }
 
