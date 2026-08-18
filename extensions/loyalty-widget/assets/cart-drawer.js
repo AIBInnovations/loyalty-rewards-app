@@ -1814,18 +1814,23 @@
   // The theme's own native cart drawer is permanently force-hidden above,
   // but its own open/close JS still runs in the background whenever
   // triggered (e.g. by an add-to-cart it observes) — including locking body
-  // scroll — even though its UI can never actually show. If that lock fires
-  // after ours releases, or independently of our drawer entirely, the whole
-  // page is left stuck unscrollable with no visible drawer to blame. Watch
-  // for exactly that and release it whenever it isn't actually us holding
-  // the lock.
+  // scroll — even though its UI can never actually show. That lock is a
+  // CLASS on <body> (this theme's own convention: modal-show/modal-showing/
+  // search-open/body-no-scrollbar all map to overflow:hidden in its own
+  // CSS), not an inline style, so checking body.style.overflow directly
+  // never caught it. Watch computed overflow instead — that reflects the
+  // lock regardless of which mechanism applied it — and strip both the
+  // known classes and any inline override whenever it isn't actually us
+  // holding the lock.
+  var NATIVE_SCROLL_LOCK_CLASSES = ["modal-show", "modal-showing", "search-open", "body-no-scrollbar"];
   function watchForStrayScrollLock() {
     if (typeof MutationObserver === "undefined") return;
     var observer = new MutationObserver(function () {
       if (state.isOpen) return; // our own drawer legitimately owns the lock
-      if (document.body.style.overflow === "hidden") {
-        document.body.style.overflow = "";
-      }
+      var locked = getComputedStyle(document.body).overflow === "hidden";
+      if (!locked) return;
+      NATIVE_SCROLL_LOCK_CLASSES.forEach(function (cls) { document.body.classList.remove(cls); });
+      document.body.style.overflow = "";
     });
     observer.observe(document.body, { attributes: true, attributeFilter: ["style", "class"] });
   }
