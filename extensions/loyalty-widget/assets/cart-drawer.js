@@ -1076,9 +1076,36 @@
   }
 
   // ─── Render Cart Items ────────────────────────────────────────
+  // Products marked "Show Free" (manual recommendations, offer recommended
+  // products) only changed the price label on the recommendation card
+  // itself — once added, the cart line item fell back to showing its real
+  // Shopify price, so the "free" look didn't survive past the point of
+  // adding it. Collect every variant configured that way so cart items can
+  // carry the same display through.
+  function getFreeDisplayVariantIds() {
+    var ids = {};
+    var settings = state.settings;
+    if (!settings) return ids;
+
+    (settings.manualProducts || []).forEach(function (p) {
+      if (p.priceDisplay === "free" && p.variantId) {
+        ids[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+      }
+    });
+    (settings.offers || []).forEach(function (offer) {
+      (offer.recommendedProducts || []).forEach(function (p) {
+        if (p.priceDisplay === "free" && p.variantId) {
+          ids[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+        }
+      });
+    });
+    return ids;
+  }
+
   function renderItems(cart) {
     if (!cart || !cart.items || !cart.items.length) return renderEmpty();
 
+    var freeDisplayVariantIds = getFreeDisplayVariantIds();
     var html = '<div class="cd-items">';
     cart.items.forEach(function (item) {
       // Two independent sources of a "was" price: a cart-level discount
@@ -1090,6 +1117,7 @@
       var compareLinePrice = Math.max(item.original_line_price || 0, lineComparePrice);
       var hasCompare = compareLinePrice > item.final_line_price;
       var savings = hasCompare ? compareLinePrice - item.final_line_price : 0;
+      var isFreeDisplay = !!freeDisplayVariantIds[String(item.variant_id)];
 
       var imgSrc = safeImageUrl(
         item.featured_image
@@ -1125,11 +1153,15 @@
             '</div>' +
             (variantTitle ? '<p class="cd-item-variant">' + esc(variantTitle) + '</p>' : '') +
             '<div class="cd-item-price-row">' +
-              '<span class="cd-item-price">' + formatMoney(item.final_line_price) + '</span>' +
-              (hasCompare
-                ? '<span class="cd-item-compare-price">' + formatMoney(compareLinePrice) + '</span>' +
-                  '<span class="cd-item-save">Save ' + formatMoney(savings) + '</span>'
-                : '') +
+              (isFreeDisplay
+                ? '<span class="cd-item-price">FREE</span>' +
+                  '<span class="cd-item-compare-price">' + formatMoney(item.final_line_price) + '</span>' +
+                  '<span class="cd-item-save">Save ' + formatMoney(item.final_line_price) + '</span>'
+                : '<span class="cd-item-price">' + formatMoney(item.final_line_price) + '</span>' +
+                  (hasCompare
+                    ? '<span class="cd-item-compare-price">' + formatMoney(compareLinePrice) + '</span>' +
+                      '<span class="cd-item-save">Save ' + formatMoney(savings) + '</span>'
+                    : '')) +
             '</div>' +
             '<div class="cd-item-actions">' +
               '<div class="cd-qty">' +
