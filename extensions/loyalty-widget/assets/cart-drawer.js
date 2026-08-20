@@ -1111,6 +1111,27 @@
     return String(cheapest.variant_id);
   }
 
+  // Shared by renderFooter() and renderPriceSummary() — the free item's own
+  // line total is real money Shopify still charges (this app has no way to
+  // apply an actual discount), so it's subtracted here purely so the totals
+  // shown in the drawer stay consistent with the FREE label on that line.
+  function getFreeAdjustedTotals(cart) {
+    var originalTotal = cart.original_total_price || cart.total_price;
+    var freeDisplayVariantId = getFreeDisplayVariantId(cart);
+    var freeItemAmount = 0;
+    if (freeDisplayVariantId) {
+      var freeItem = cart.items.filter(function (i) { return String(i.variant_id) === freeDisplayVariantId; })[0];
+      if (freeItem) freeItemAmount = freeItem.final_line_price;
+    }
+    var totalPrice = cart.total_price - freeItemAmount;
+    return {
+      totalPrice: totalPrice,
+      originalTotal: originalTotal,
+      hasSavings: originalTotal > totalPrice,
+      savings: originalTotal - totalPrice,
+    };
+  }
+
   function renderItems(cart) {
     if (!cart || !cart.items || !cart.items.length) return renderEmpty();
 
@@ -1482,10 +1503,11 @@
   function renderFooter(cart) {
     if (!cart) return "";
 
-    var totalPrice = cart.total_price;
-    var originalTotal = cart.original_total_price || totalPrice;
-    var hasSavings = originalTotal > totalPrice;
-    var savings = originalTotal - totalPrice;
+    var freeAdjusted = getFreeAdjustedTotals(cart);
+    var totalPrice = freeAdjusted.totalPrice;
+    var originalTotal = freeAdjusted.originalTotal;
+    var hasSavings = freeAdjusted.hasSavings;
+    var savings = freeAdjusted.savings;
 
     var showPrepaid = state.settings && state.settings.showPrepaidBanner && state.settings.prepaidBannerText;
     var checkoutText = (state.settings && state.settings.checkoutButtonText) || "CHECKOUT";
@@ -1549,10 +1571,11 @@
   function renderPriceSummary(cart) {
     if (!cart) return "";
 
-    var totalPrice = cart.total_price;
-    var originalTotal = cart.original_total_price || totalPrice;
-    var hasSavings = originalTotal > totalPrice;
-    var savings = originalTotal - totalPrice;
+    var freeAdjusted = getFreeAdjustedTotals(cart);
+    var totalPrice = freeAdjusted.totalPrice;
+    var originalTotal = freeAdjusted.originalTotal;
+    var hasSavings = freeAdjusted.hasSavings;
+    var savings = freeAdjusted.savings;
 
     var checkoutText = (state.settings && state.settings.checkoutButtonText) || "CHECKOUT";
     var payMethods = state.settings && state.settings.paymentMethodsText;
