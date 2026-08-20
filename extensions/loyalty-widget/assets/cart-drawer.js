@@ -1076,36 +1076,45 @@
   }
 
   // ─── Render Cart Items ────────────────────────────────────────
-  // Products marked "Show Free" (manual recommendations, offer recommended
-  // products) only changed the price label on the recommendation card
-  // itself — once added, the cart line item fell back to showing its real
-  // Shopify price, so the "free" look didn't survive past the point of
-  // adding it. Collect every variant configured that way so cart items can
-  // carry the same display through.
-  function getFreeDisplayVariantIds() {
-    var ids = {};
+  // Products marked "Show Free" are a "buy one, get the cheaper one free"
+  // pool — not every marked product is free at once. Only the cheapest one
+  // actually present in the cart, among at least two, gets the free
+  // treatment; whichever is pricier always shows its real price. Needs the
+  // live cart (not just settings) to know which are present and compare.
+  function getFreeDisplayVariantId(cart) {
     var settings = state.settings;
-    if (!settings) return ids;
+    if (!settings || !cart || !cart.items || !cart.items.length) return null;
 
+    var eligibleIds = {};
     (settings.manualProducts || []).forEach(function (p) {
       if (p.priceDisplay === "free" && p.variantId) {
-        ids[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+        eligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
       }
     });
     (settings.offers || []).forEach(function (offer) {
       (offer.recommendedProducts || []).forEach(function (p) {
         if (p.priceDisplay === "free" && p.variantId) {
-          ids[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+          eligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
         }
       });
     });
-    return ids;
+
+    var eligibleItems = cart.items.filter(function (item) {
+      return eligibleIds[String(item.variant_id)];
+    });
+    if (eligibleItems.length < 2) return null;
+
+    var cheapest = eligibleItems[0];
+    eligibleItems.forEach(function (item) {
+      if (item.price < cheapest.price) cheapest = item;
+    });
+    return String(cheapest.variant_id);
   }
 
   function renderItems(cart) {
     if (!cart || !cart.items || !cart.items.length) return renderEmpty();
 
-    var freeDisplayVariantIds = getFreeDisplayVariantIds();
+    var freeDisplayVariantId = getFreeDisplayVariantId(cart);
     var html = '<div class="cd-items">';
     cart.items.forEach(function (item) {
       // Two independent sources of a "was" price: a cart-level discount
@@ -1117,7 +1126,7 @@
       var compareLinePrice = Math.max(item.original_line_price || 0, lineComparePrice);
       var hasCompare = compareLinePrice > item.final_line_price;
       var savings = hasCompare ? compareLinePrice - item.final_line_price : 0;
-      var isFreeDisplay = !!freeDisplayVariantIds[String(item.variant_id)];
+      var isFreeDisplay = freeDisplayVariantId !== null && String(item.variant_id) === freeDisplayVariantId;
 
       var imgSrc = safeImageUrl(
         item.featured_image
