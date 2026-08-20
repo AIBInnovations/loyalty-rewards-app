@@ -68,6 +68,65 @@ export interface IOfferRule {
   recommendedProducts: IManualProduct[];
 }
 
+/**
+ * A merchant-facing "Cart Drawer Offer" — mirrors the same offer the
+ * merchant already created as a real discount elsewhere (Shopify Discounts
+ * or a platform like Shiprocket) so it's visible AND applied consistently
+ * inside the cart drawer, not just at checkout.
+ *
+ * Only "amountOffProducts", "buyXGetY", "freebie" and "bankOffer" have
+ * real logic here — "amountOffCart"/"tiered" are already covered by the
+ * Progress Tiers section above, "bundle" by Bundle Genie, and "upselling"
+ * by the Steal Deals section, so those four types just link back to their
+ * existing dedicated settings instead of a second, conflicting system.
+ */
+export type CartOfferType =
+  | "amountOffProducts"
+  | "amountOffCart"
+  | "tiered"
+  | "buyXGetY"
+  | "bundle"
+  | "upselling"
+  | "bankOffer"
+  | "freebie";
+
+export interface ICartOffer {
+  id: string;
+  enabled: boolean;
+  type: CartOfferType;
+  /** Shown as the offer's badge/heading in the cart drawer. */
+  title: string;
+
+  // amountOffProducts — % or fixed amount off specific products/collection.
+  discountValueType: "percentage" | "fixed_amount";
+  discountValue: number;
+  targetProducts: ITriggerProduct[];
+  targetCollectionId: string;
+  targetCollectionHandle: string;
+  targetCollectionTitle: string;
+
+  // buyXGetY — buy N of these (products or a collection), get M of the
+  // reward products free/discounted. Same trigger shape as IOfferRule.
+  buyProducts: ITriggerProduct[];
+  buyCollectionId: string;
+  buyCollectionHandle: string;
+  buyCollectionTitle: string;
+  buyQuantity: number;
+  getProducts: IManualProduct[];
+  getQuantity: number;
+  getDiscountType: "free" | "percentage" | "fixed_amount";
+  getDiscountValue: number;
+
+  // freebie — a free gift once the cart reaches a spend threshold. Shown as
+  // a recommendation the customer adds themselves (this app can't silently
+  // add items to someone's cart), marked free once added.
+  freebieMinCartAmount: number;
+  freebieProducts: IManualProduct[];
+
+  // bankOffer — pure display banner, no cart logic.
+  bankOfferText: string;
+}
+
 export interface ICartDrawerSettings extends Document {
   shopId: string;
   enabled: boolean;
@@ -101,6 +160,7 @@ export interface ICartDrawerSettings extends Document {
   recommendationsCollectionBadgeText: string;
   manualProducts: IManualProduct[];
   offers: IOfferRule[];
+  cartOffers: ICartOffer[];
   showSavings: boolean;
   checkoutButtonText: string;
   prepaidBannerText: string;
@@ -285,6 +345,84 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
           }],
           default: [],
         },
+      }],
+      default: [],
+    },
+    cartOffers: {
+      type: [{
+        id: { type: String, required: true },
+        enabled: { type: Boolean, default: true },
+        type: {
+          type: String,
+          enum: [
+            "amountOffProducts", "amountOffCart", "tiered", "buyXGetY",
+            "bundle", "upselling", "bankOffer", "freebie",
+          ],
+          default: "buyXGetY",
+        },
+        title: { type: String, default: "", maxlength: 60 },
+        discountValueType: { type: String, enum: ["percentage", "fixed_amount"], default: "percentage" },
+        discountValue: { type: Number, default: 0, min: 0 },
+        targetProducts: {
+          type: [{
+            shopifyProductId: { type: String, required: true },
+            title: { type: String, default: "" },
+            handle: { type: String, default: "" },
+            imageUrl: { type: String, default: "" },
+            minQuantity: { type: Number, default: 1, min: 1 },
+          }],
+          default: [],
+        },
+        targetCollectionId: { type: String, default: "" },
+        targetCollectionHandle: { type: String, default: "" },
+        targetCollectionTitle: { type: String, default: "" },
+        buyProducts: {
+          type: [{
+            shopifyProductId: { type: String, required: true },
+            title: { type: String, default: "" },
+            handle: { type: String, default: "" },
+            imageUrl: { type: String, default: "" },
+            minQuantity: { type: Number, default: 1, min: 1 },
+          }],
+          default: [],
+        },
+        buyCollectionId: { type: String, default: "" },
+        buyCollectionHandle: { type: String, default: "" },
+        buyCollectionTitle: { type: String, default: "" },
+        buyQuantity: { type: Number, default: 1, min: 1 },
+        getProducts: {
+          type: [{
+            shopifyProductId: { type: String, required: true },
+            title: { type: String },
+            handle: { type: String },
+            imageUrl: { type: String },
+            price: { type: Number },
+            compareAtPrice: { type: Number },
+            variantId: { type: String },
+            badgeText: { type: String, default: "", maxlength: 30 },
+            priceDisplay: { type: String, enum: ["price", "free"], default: "price" },
+          }],
+          default: [],
+        },
+        getQuantity: { type: Number, default: 1, min: 1 },
+        getDiscountType: { type: String, enum: ["free", "percentage", "fixed_amount"], default: "free" },
+        getDiscountValue: { type: Number, default: 0, min: 0 },
+        freebieMinCartAmount: { type: Number, default: 0, min: 0 },
+        freebieProducts: {
+          type: [{
+            shopifyProductId: { type: String, required: true },
+            title: { type: String },
+            handle: { type: String },
+            imageUrl: { type: String },
+            price: { type: Number },
+            compareAtPrice: { type: Number },
+            variantId: { type: String },
+            badgeText: { type: String, default: "", maxlength: 30 },
+            priceDisplay: { type: String, enum: ["price", "free"], default: "free" },
+          }],
+          default: [],
+        },
+        bankOfferText: { type: String, default: "", maxlength: 140 },
       }],
       default: [],
     },

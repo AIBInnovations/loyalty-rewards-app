@@ -765,6 +765,7 @@
         (state.accessDenied ? '<div class="cd-access-denied">Access needed for Cart Drawer rewards. Contact the store for access.</div>' : "") +
         (hasProgress && itemCount > 0 ? '<div class="cd-section-divider"></div>' : "") +
         (itemCount > 0 ? renderItems(cart) : renderEmpty()) +
+        (itemCount > 0 ? renderBankOffers() : "") +
         (itemCount > 0 ? renderCoupon() : "") +
         (itemCount > 0 && hasUpsell ? '<div class="cd-section-divider"></div>' : "") +
         (hasUpsell ? renderUpsell() : "") +
@@ -1076,11 +1077,28 @@
   }
 
   // ─── Render Cart Items ────────────────────────────────────────
+  // Buy-side of a "Cart Drawer Offer" of type buyXGetY — products only (a
+  // collection trigger would need an async fetch; the products list covers
+  // the common case). Any one listed product reaching its own minQuantity
+  // qualifies, same rule as the "products" trigger on Product Offers.
+  function isBuyXGetYConditionMet(offer, qtyByProduct) {
+    var buyProducts = offer.buyProducts || [];
+    if (!buyProducts.length) return false;
+    return buyProducts.some(function (bp) {
+      var pid = String(bp.shopifyProductId || "").replace("gid://shopify/Product/", "");
+      var minQ = bp.minQuantity > 0 ? bp.minQuantity : 1;
+      return (qtyByProduct[pid] || 0) >= minQ;
+    });
+  }
+
   // Products marked "Show Free" are a "buy one, get the cheaper one free"
   // pool — not every marked product is free at once. Only the cheapest one
   // actually present in the cart, among at least two, gets the free
   // treatment; whichever is pricier always shows its real price. Needs the
   // live cart (not just settings) to know which are present and compare.
+  // Also folds in any enabled "Cart Drawer Offer" of type buyXGetY whose
+  // reward is "free" — its buy condition gates which reward variants count
+  // as eligible at all.
   function getFreeDisplayVariantId(cart) {
     var settings = state.settings;
     if (!settings || !cart || !cart.items || !cart.items.length) return null;
@@ -1099,6 +1117,15 @@
       });
     });
 
+    var qtyByProduct = cartQtyByProductId(cart);
+    (settings.cartOffers || []).forEach(function (offer) {
+      if (!offer.enabled || offer.type !== "buyXGetY" || offer.getDiscountType !== "free") return;
+      if (!isBuyXGetYConditionMet(offer, qtyByProduct)) return;
+      (offer.getProducts || []).forEach(function (p) {
+        if (p.variantId) eligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+      });
+    });
+
     var eligibleItems = cart.items.filter(function (item) {
       return eligibleIds[String(item.variant_id)];
     });
@@ -1111,10 +1138,75 @@
     return String(cheapest.variant_id);
   }
 
-  // Shared by renderFooter() and renderPriceSummary() — the free item's own
-  // line total is real money Shopify still charges (this app has no way to
+  // Non-free line discounts from Cart Drawer Offers: amountOffProducts
+  // (always on for its target list) and buyXGetY rewards configured as
+  // percentage/fixed_amount rather than free (gated by the buy condition,
+  // applied to the cheapest matching reward product in the cart). Returns
+  // { [variantId]: { type, value, badgeText } }. discountValue for
+  // fixed_amount is entered in rupees in the admin, so it's converted to
+  // paise here to match the rest of the cart's price fields.
+  function getCartOfferLineDiscounts(cart) {
+    var out = {};
+    if (!cart || !cart.items || !cart.items.length) return out;
+    var offers = (state.settings && state.settings.cartOffers) || [];
+    if (!offers.length) return out;
+
+    var qtyByProduct = cartQtyByProductId(cart);
+
+    offers.forEach(function (offer) {
+      if (!offer.enabled) return;
+
+      if (offer.type === "amountOffProducts" && offer.discountValue > 0) {
+        var targetIds = {};
+        (offer.targetProducts || []).forEach(function (tp) {
+          targetIds[String(tp.shopifyProductId).replace("gid://shopify/Product/", "")] = true;
+        });
+        cart.items.forEach(function (item) {
+          if (targetIds[String(item.product_id)]) {
+            out[String(item.variant_id)] = {
+              type: offer.discountValueType,
+              value: offer.discountValue,
+              badgeText: offer.title || "Offer",
+            };
+          }
+        });
+      }
+
+      if (offer.type === "buyXGetY" && offer.getDiscountType !== "free" && offer.getDiscountValue > 0) {
+        if (!isBuyXGetYConditionMet(offer, qtyByProduct)) return;
+        var getIds = {};
+        (offer.getProducts || []).forEach(function (p) {
+          if (p.variantId) getIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+        });
+        var eligible = cart.items.filter(function (item) { return getIds[String(item.variant_id)]; });
+        if (eligible.length) {
+          var cheapest = eligible[0];
+          eligible.forEach(function (item) { if (item.price < cheapest.price) cheapest = item; });
+          out[String(cheapest.variant_id)] = {
+            type: offer.getDiscountType,
+            value: offer.getDiscountValue,
+            badgeText: offer.title || "Offer",
+          };
+        }
+      }
+    });
+
+    return out;
+  }
+
+  // Applies a { type, value } line discount (percentage, or fixed_amount in
+  // rupees) to a line total already in paise.
+  function applyLineDiscount(finalLinePrice, discount) {
+    if (discount.type === "percentage") {
+      return Math.max(0, Math.round(finalLinePrice * (1 - discount.value / 100)));
+    }
+    return Math.max(0, finalLinePrice - Math.round(discount.value * 100));
+  }
+
+  // Shared by renderFooter() and renderPriceSummary() — the discounted
+  // amount is real money Shopify still charges (this app has no way to
   // apply an actual discount), so it's subtracted here purely so the totals
-  // shown in the drawer stay consistent with the FREE label on that line.
+  // shown in the drawer stay consistent with what each line item displays.
   function getFreeAdjustedTotals(cart) {
     var originalTotal = cart.original_total_price || cart.total_price;
     var freeDisplayVariantId = getFreeDisplayVariantId(cart);
@@ -1123,7 +1215,18 @@
       var freeItem = cart.items.filter(function (i) { return String(i.variant_id) === freeDisplayVariantId; })[0];
       if (freeItem) freeItemAmount = freeItem.final_line_price;
     }
-    var totalPrice = cart.total_price - freeItemAmount;
+
+    var lineDiscounts = getCartOfferLineDiscounts(cart);
+    var lineDiscountAmount = 0;
+    cart.items.forEach(function (item) {
+      var vid = String(item.variant_id);
+      if (vid === freeDisplayVariantId) return; // already counted above
+      var discount = lineDiscounts[vid];
+      if (!discount) return;
+      lineDiscountAmount += item.final_line_price - applyLineDiscount(item.final_line_price, discount);
+    });
+
+    var totalPrice = cart.total_price - freeItemAmount - lineDiscountAmount;
     return {
       totalPrice: totalPrice,
       originalTotal: originalTotal,
@@ -1136,18 +1239,27 @@
     if (!cart || !cart.items || !cart.items.length) return renderEmpty();
 
     var freeDisplayVariantId = getFreeDisplayVariantId(cart);
+    var lineDiscounts = getCartOfferLineDiscounts(cart);
     var html = '<div class="cd-items">';
     cart.items.forEach(function (item) {
-      // Two independent sources of a "was" price: a cart-level discount
-      // (original_line_price vs final_line_price) and the product's own
+      var isFreeDisplay = freeDisplayVariantId !== null && String(item.variant_id) === freeDisplayVariantId;
+      var lineDiscount = !isFreeDisplay ? lineDiscounts[String(item.variant_id)] : null;
+
+      // Three independent sources of a "was" price: a cart-level discount
+      // (original_line_price vs final_line_price), the product's own
       // compare_at_price (its regular MSRP — not exposed by /cart.js
-      // itself, see fetchItemComparePrices). Show whichever is higher.
+      // itself, see fetchItemComparePrices), and a Cart Drawer Offer
+      // applying its own discount on top. Show whichever is higher.
       var unitComparePrice = state.itemComparePrices[String(item.variant_id)] || 0;
       var lineComparePrice = unitComparePrice ? unitComparePrice * item.quantity : 0;
       var compareLinePrice = Math.max(item.original_line_price || 0, lineComparePrice);
-      var hasCompare = compareLinePrice > item.final_line_price;
-      var savings = hasCompare ? compareLinePrice - item.final_line_price : 0;
-      var isFreeDisplay = freeDisplayVariantId !== null && String(item.variant_id) === freeDisplayVariantId;
+      var displayPrice = item.final_line_price;
+      if (lineDiscount) {
+        compareLinePrice = Math.max(compareLinePrice, item.final_line_price);
+        displayPrice = applyLineDiscount(item.final_line_price, lineDiscount);
+      }
+      var hasCompare = compareLinePrice > displayPrice;
+      var savings = hasCompare ? compareLinePrice - displayPrice : 0;
 
       var imgSrc = safeImageUrl(
         item.featured_image
@@ -1187,7 +1299,7 @@
                 ? '<span class="cd-item-price">FREE</span>' +
                   '<span class="cd-item-compare-price">' + formatMoney(item.final_line_price) + '</span>' +
                   '<span class="cd-item-save">Save ' + formatMoney(item.final_line_price) + '</span>'
-                : '<span class="cd-item-price">' + formatMoney(item.final_line_price) + '</span>' +
+                : '<span class="cd-item-price">' + formatMoney(displayPrice) + '</span>' +
                   (hasCompare
                     ? '<span class="cd-item-compare-price">' + formatMoney(compareLinePrice) + '</span>' +
                       '<span class="cd-item-save">Save ' + formatMoney(savings) + '</span>'
@@ -1209,6 +1321,20 @@
     });
     html += '</div>';
     return html;
+  }
+
+  // ─── Render Bank Offers ───────────────────────────────────────
+  // Pure display — Cart Drawer Offers of type bankOffer carry no cart logic
+  // of their own, just informational text (e.g. "10% off on HDFC cards").
+  function renderBankOffers() {
+    var offers = (state.settings && state.settings.cartOffers) || [];
+    var texts = offers
+      .filter(function (o) { return o.enabled && o.type === "bankOffer" && o.bankOfferText; })
+      .map(function (o) { return o.bankOfferText; });
+    if (!texts.length) return "";
+    return '<div class="cd-bank-offers">' +
+      texts.map(function (t) { return '<div class="cd-bank-offer">' + esc(t) + '</div>'; }).join("") +
+    '</div>';
   }
 
   // ─── Render Coupon ────────────────────────────────────────────
