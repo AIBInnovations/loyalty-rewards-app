@@ -916,6 +916,7 @@ async function handleGetCartSettings(shop: string) {
     recommendationsCollectionBadgeText: settings.recommendationsCollectionBadgeText || "",
     manualProducts: settings.manualProducts || [],
     offers: settings.offers || [],
+    cartOffers: settings.cartOffers || [],
     showSavings: settings.showSavings,
     checkoutButtonText: settings.checkoutButtonText,
     prepaidBannerText: settings.prepaidBannerText,

@@ -225,7 +225,11 @@ svg[fill="none"] polyline[stroke] {
 
 .cd-announcement-item {
   flex: none;
-  height: 2.6em;
+  /* Must match .cd-announcement-bar's own 2.6em — expressed here as a fixed
+     px instead, since this element's own font-size (0.821em) makes an em
+     value on this same element resolve against a smaller base, leaving the
+     item shorter than the bar and the text sitting off-center. */
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -399,12 +403,15 @@ svg[fill="none"] polyline[stroke] {
   right: 0;
   height: 6px;
   min-height: 6px;
-  border-radius: 3px;
+  /* Rounded corners on every column's own line segment leave a lens-shaped
+     gap where two adjacent segments meet, even at zero physical distance —
+     no radius keeps the whole track reading as one continuous bar. */
+  border-radius: 0;
   box-sizing: border-box !important;
   background: var(--cd-dash);
   z-index: 0;
   transform: translateY(-50%);
-  transition: background-color 0.4s ease;
+  transition: background-color 0.6s ease;
 }
 
 .cd-progress-checkpoint-line.filled {
@@ -424,7 +431,7 @@ svg[fill="none"] polyline[stroke] {
   top: 0;
   bottom: 0;
   background: var(--cd-progress-bg);
-  transition: width 0.4s ease;
+  transition: width 0.6s ease;
 }
 
 .cd-progress-tier-label {
@@ -440,10 +447,18 @@ svg[fill="none"] polyline[stroke] {
   font-weight: 700;
   letter-spacing: 0.01em;
   color: var(--cd-muted-light);
-  transition: color 0.4s ease;
+  border: 1px solid var(--cd-dash);
+  border-radius: var(--cd-radius-pill);
+  padding: 2px 8px;
+  background: transparent;
+  transition: color 0.4s ease, background 0.4s ease, border-color 0.4s ease;
 }
 
-.cd-progress-tier-label.reached { color: var(--cd-progress-bg); }
+.cd-progress-tier-label.reached {
+  color: #fff;
+  background: var(--cd-progress-bg);
+  border-color: var(--cd-progress-bg);
+}
 
 /* Tier checkpoint icon — hollow "%" until reached, checkmark once passed.
    Centered within .cd-progress-checkpoint-row, same coordinate space as
@@ -487,10 +502,18 @@ svg[fill="none"] polyline[stroke] {
   font-size: 0.714em; /* 10px at the 14px base */
   font-weight: 600;
   color: var(--cd-muted-light);
-  transition: color 0.4s ease;
+  border: 1px solid var(--cd-dash);
+  border-radius: var(--cd-radius-pill);
+  padding: 2px 7px;
+  background: transparent;
+  transition: color 0.4s ease, background 0.4s ease, border-color 0.4s ease;
 }
 
-.cd-progress-tier-threshold.reached { color: var(--cd-muted); }
+.cd-progress-tier-threshold.reached {
+  color: #fff;
+  background: var(--cd-progress-bg);
+  border-color: var(--cd-progress-bg);
+}
 
 /* Extra incentive line under the checkpoint row — only shown once the
    cart total reaches the merchant's configured minimum price. */
@@ -666,6 +689,24 @@ svg[fill="none"] polyline[stroke] {
 .cd-item-remove:hover { background: #f0ebe0; color: var(--cd-accent-dark); }
 
 /* ─── Coupon ────────────────────────────────────────────────────── */
+
+.cd-bank-offers {
+  margin: 8px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cd-bank-offer {
+  padding: 8px 12px;
+  border: 1px solid var(--cd-accent-soft);
+  border-radius: var(--cd-radius-sm);
+  background: var(--cd-offer-bg);
+  color: var(--cd-ink);
+  font-size: 0.786em; /* 11px at the 14px base */
+  font-weight: 600;
+  line-height: 1.4;
+}
 
 .cd-coupon {
   margin: 12px 16px;
@@ -1439,5 +1480,15 @@ svg[fill="none"] polyline[stroke] {
   .cd-footer { padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
   .cd-coupon { flex-direction: column; align-items: stretch; }
   .cd-coupon-apply { width: 100%; }
+  /* The checkout button's 245px min-width forced it wider than narrow
+     phones have room for, so it overlapped the price text instead of
+     sitting beside it. Let it size to its own content instead — price
+     block keeps min-width:0 so it can still truncate/shrink if needed. */
+  .cd-footer-price-row { gap: 8px; }
+  .cd-footer-price { flex-wrap: wrap; }
+  /* margin-top:6px on the button (from the base .cd-footer .cd-checkout-btn
+     rule) was pushing the whole row down within its flex line, widening the
+     gap before "See Details" below it — no purpose in this row layout. */
+  .cd-footer .cd-checkout-btn { min-width: 200px; padding: 0 16px; margin-top: 0; }
 }
 

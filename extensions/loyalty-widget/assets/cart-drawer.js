@@ -57,6 +57,10 @@
     // celebrates the moment all tiers are unlocked once, not on every
     // re-render or every time the drawer is reopened.
     confettiFired: false,
+    // Per-unit compare_at_price for cart line items, keyed by variant_id —
+    // /cart.js doesn't expose this itself (only line-level cart-discount
+    // totals), so it's fetched separately from /products/{handle}.js.
+    itemComparePrices: {},
   };
 
   // Parse initial cart from Liquid
@@ -234,6 +238,37 @@
       });
   }
 
+  // /cart.js line items only carry price/original_price (cart-discount
+  // totals) — the product's own compare_at_price isn't included at all, so
+  // it has to be looked up per product handle. Fire-and-forget: re-renders
+  // once resolved rather than delaying the cart update itself.
+  function fetchItemComparePrices(cart) {
+    if (!cart || !cart.items || !cart.items.length) return Promise.resolve();
+
+    var handles = [];
+    var seen = {};
+    cart.items.forEach(function (item) {
+      var vid = String(item.variant_id);
+      if (state.itemComparePrices[vid] !== undefined) return;
+      if (!item.handle || seen[item.handle]) return;
+      seen[item.handle] = true;
+      handles.push(item.handle);
+    });
+    if (!handles.length) return Promise.resolve();
+
+    return Promise.all(handles.map(function (handle) {
+      return fetch("/products/" + handle + ".js")
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (product) {
+          if (!product || !product.variants) return;
+          product.variants.forEach(function (v) {
+            state.itemComparePrices[String(v.id)] = v.compare_at_price || 0;
+          });
+        })
+        .catch(function () {});
+    }));
+  }
+
   // ─── Fetch Cart ───────────────────────────────────────────────
   function fetchCart() {
     return fetch("/cart.js")
@@ -241,7 +276,10 @@
       .then(function (cart) {
         state.cart = cart;
         if (state.isOpen) render();
-        return cart;
+        fetchItemComparePrices(cart).then(function () {
+          if (state.isOpen) render();
+        });
+        return enforceUpsellTrigger(cart).then(function () { return state.cart || cart; });
       });
   }
 
@@ -727,6 +765,7 @@
         (state.accessDenied ? '<div class="cd-access-denied">Access needed for Cart Drawer rewards. Contact the store for access.</div>' : "") +
         (hasProgress && itemCount > 0 ? '<div class="cd-section-divider"></div>' : "") +
         (itemCount > 0 ? renderItems(cart) : renderEmpty()) +
+        (itemCount > 0 ? renderBankOffers() : "") +
         (itemCount > 0 ? renderCoupon() : "") +
         (itemCount > 0 && hasUpsell ? '<div class="cd-section-divider"></div>' : "") +
         (hasUpsell ? renderUpsell() : "") +
@@ -1038,13 +1077,189 @@
   }
 
   // ─── Render Cart Items ────────────────────────────────────────
+  // Buy-side of a "Cart Drawer Offer" of type buyXGetY — products only (a
+  // collection trigger would need an async fetch; the products list covers
+  // the common case). Any one listed product reaching its own minQuantity
+  // qualifies, same rule as the "products" trigger on Product Offers.
+  function isBuyXGetYConditionMet(offer, qtyByProduct) {
+    var buyProducts = offer.buyProducts || [];
+    if (!buyProducts.length) return false;
+    return buyProducts.some(function (bp) {
+      var pid = String(bp.shopifyProductId || "").replace("gid://shopify/Product/", "");
+      var minQ = bp.minQuantity > 0 ? bp.minQuantity : 1;
+      return (qtyByProduct[pid] || 0) >= minQ;
+    });
+  }
+
+  // Products marked "Show Free" are a "buy one, get the cheaper one free"
+  // pool — not every marked product is free at once. Only the cheapest one
+  // actually present in the cart, among at least two, gets the free
+  // treatment; whichever is pricier always shows its real price. Needs the
+  // live cart (not just settings) to know which are present and compare.
+  // Also folds in any enabled "Cart Drawer Offer" of type buyXGetY whose
+  // reward is "free" — its buy condition gates which reward variants count
+  // as eligible at all.
+  function getFreeDisplayVariantId(cart) {
+    var settings = state.settings;
+    if (!settings || !cart || !cart.items || !cart.items.length) return null;
+
+    var eligibleIds = {};
+    (settings.manualProducts || []).forEach(function (p) {
+      if (p.priceDisplay === "free" && p.variantId) {
+        eligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+      }
+    });
+    (settings.offers || []).forEach(function (offer) {
+      (offer.recommendedProducts || []).forEach(function (p) {
+        if (p.priceDisplay === "free" && p.variantId) {
+          eligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+        }
+      });
+    });
+
+    var qtyByProduct = cartQtyByProductId(cart);
+    (settings.cartOffers || []).forEach(function (offer) {
+      if (!offer.enabled || offer.type !== "buyXGetY" || offer.getDiscountType !== "free") return;
+      if (!isBuyXGetYConditionMet(offer, qtyByProduct)) return;
+      (offer.getProducts || []).forEach(function (p) {
+        if (p.variantId) eligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+      });
+    });
+
+    var eligibleItems = cart.items.filter(function (item) {
+      return eligibleIds[String(item.variant_id)];
+    });
+    if (eligibleItems.length < 2) return null;
+
+    var cheapest = eligibleItems[0];
+    eligibleItems.forEach(function (item) {
+      if (item.price < cheapest.price) cheapest = item;
+    });
+    return String(cheapest.variant_id);
+  }
+
+  // Non-free line discounts from Cart Drawer Offers: amountOffProducts
+  // (always on for its target list) and buyXGetY rewards configured as
+  // percentage/fixed_amount rather than free (gated by the buy condition,
+  // applied to the cheapest matching reward product in the cart). Returns
+  // { [variantId]: { type, value, badgeText } }. discountValue for
+  // fixed_amount is entered in rupees in the admin, so it's converted to
+  // paise here to match the rest of the cart's price fields.
+  function getCartOfferLineDiscounts(cart) {
+    var out = {};
+    if (!cart || !cart.items || !cart.items.length) return out;
+    var offers = (state.settings && state.settings.cartOffers) || [];
+    if (!offers.length) return out;
+
+    var qtyByProduct = cartQtyByProductId(cart);
+
+    offers.forEach(function (offer) {
+      if (!offer.enabled) return;
+
+      if (offer.type === "amountOffProducts" && offer.discountValue > 0) {
+        var targetIds = {};
+        (offer.targetProducts || []).forEach(function (tp) {
+          targetIds[String(tp.shopifyProductId).replace("gid://shopify/Product/", "")] = true;
+        });
+        cart.items.forEach(function (item) {
+          if (targetIds[String(item.product_id)]) {
+            out[String(item.variant_id)] = {
+              type: offer.discountValueType,
+              value: offer.discountValue,
+              badgeText: offer.title || "Offer",
+            };
+          }
+        });
+      }
+
+      if (offer.type === "buyXGetY" && offer.getDiscountType !== "free" && offer.getDiscountValue > 0) {
+        if (!isBuyXGetYConditionMet(offer, qtyByProduct)) return;
+        var getIds = {};
+        (offer.getProducts || []).forEach(function (p) {
+          if (p.variantId) getIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+        });
+        var eligible = cart.items.filter(function (item) { return getIds[String(item.variant_id)]; });
+        if (eligible.length) {
+          var cheapest = eligible[0];
+          eligible.forEach(function (item) { if (item.price < cheapest.price) cheapest = item; });
+          out[String(cheapest.variant_id)] = {
+            type: offer.getDiscountType,
+            value: offer.getDiscountValue,
+            badgeText: offer.title || "Offer",
+          };
+        }
+      }
+    });
+
+    return out;
+  }
+
+  // Applies a { type, value } line discount (percentage, or fixed_amount in
+  // rupees) to a line total already in paise.
+  function applyLineDiscount(finalLinePrice, discount) {
+    if (discount.type === "percentage") {
+      return Math.max(0, Math.round(finalLinePrice * (1 - discount.value / 100)));
+    }
+    return Math.max(0, finalLinePrice - Math.round(discount.value * 100));
+  }
+
+  // Shared by renderFooter() and renderPriceSummary() — the discounted
+  // amount is real money Shopify still charges (this app has no way to
+  // apply an actual discount), so it's subtracted here purely so the totals
+  // shown in the drawer stay consistent with what each line item displays.
+  function getFreeAdjustedTotals(cart) {
+    var originalTotal = cart.original_total_price || cart.total_price;
+    var freeDisplayVariantId = getFreeDisplayVariantId(cart);
+    var freeItemAmount = 0;
+    if (freeDisplayVariantId) {
+      var freeItem = cart.items.filter(function (i) { return String(i.variant_id) === freeDisplayVariantId; })[0];
+      if (freeItem) freeItemAmount = freeItem.final_line_price;
+    }
+
+    var lineDiscounts = getCartOfferLineDiscounts(cart);
+    var lineDiscountAmount = 0;
+    cart.items.forEach(function (item) {
+      var vid = String(item.variant_id);
+      if (vid === freeDisplayVariantId) return; // already counted above
+      var discount = lineDiscounts[vid];
+      if (!discount) return;
+      lineDiscountAmount += item.final_line_price - applyLineDiscount(item.final_line_price, discount);
+    });
+
+    var totalPrice = cart.total_price - freeItemAmount - lineDiscountAmount;
+    return {
+      totalPrice: totalPrice,
+      originalTotal: originalTotal,
+      hasSavings: originalTotal > totalPrice,
+      savings: originalTotal - totalPrice,
+    };
+  }
+
   function renderItems(cart) {
     if (!cart || !cart.items || !cart.items.length) return renderEmpty();
 
+    var freeDisplayVariantId = getFreeDisplayVariantId(cart);
+    var lineDiscounts = getCartOfferLineDiscounts(cart);
     var html = '<div class="cd-items">';
     cart.items.forEach(function (item) {
-      var hasCompare = item.original_line_price > item.final_line_price;
-      var savings = hasCompare ? item.original_line_price - item.final_line_price : 0;
+      var isFreeDisplay = freeDisplayVariantId !== null && String(item.variant_id) === freeDisplayVariantId;
+      var lineDiscount = !isFreeDisplay ? lineDiscounts[String(item.variant_id)] : null;
+
+      // Three independent sources of a "was" price: a cart-level discount
+      // (original_line_price vs final_line_price), the product's own
+      // compare_at_price (its regular MSRP — not exposed by /cart.js
+      // itself, see fetchItemComparePrices), and a Cart Drawer Offer
+      // applying its own discount on top. Show whichever is higher.
+      var unitComparePrice = state.itemComparePrices[String(item.variant_id)] || 0;
+      var lineComparePrice = unitComparePrice ? unitComparePrice * item.quantity : 0;
+      var compareLinePrice = Math.max(item.original_line_price || 0, lineComparePrice);
+      var displayPrice = item.final_line_price;
+      if (lineDiscount) {
+        compareLinePrice = Math.max(compareLinePrice, item.final_line_price);
+        displayPrice = applyLineDiscount(item.final_line_price, lineDiscount);
+      }
+      var hasCompare = compareLinePrice > displayPrice;
+      var savings = hasCompare ? compareLinePrice - displayPrice : 0;
 
       var imgSrc = safeImageUrl(
         item.featured_image
@@ -1080,11 +1295,15 @@
             '</div>' +
             (variantTitle ? '<p class="cd-item-variant">' + esc(variantTitle) + '</p>' : '') +
             '<div class="cd-item-price-row">' +
-              '<span class="cd-item-price">' + formatMoney(item.final_line_price) + '</span>' +
-              (hasCompare
-                ? '<span class="cd-item-compare-price">' + formatMoney(item.original_line_price) + '</span>' +
-                  '<span class="cd-item-save">Save ' + formatMoney(savings) + '</span>'
-                : '') +
+              (isFreeDisplay
+                ? '<span class="cd-item-price">FREE</span>' +
+                  '<span class="cd-item-compare-price">' + formatMoney(item.final_line_price) + '</span>' +
+                  '<span class="cd-item-save">Save ' + formatMoney(item.final_line_price) + '</span>'
+                : '<span class="cd-item-price">' + formatMoney(displayPrice) + '</span>' +
+                  (hasCompare
+                    ? '<span class="cd-item-compare-price">' + formatMoney(compareLinePrice) + '</span>' +
+                      '<span class="cd-item-save">Save ' + formatMoney(savings) + '</span>'
+                    : '')) +
             '</div>' +
             '<div class="cd-item-actions">' +
               '<div class="cd-qty">' +
@@ -1102,6 +1321,20 @@
     });
     html += '</div>';
     return html;
+  }
+
+  // ─── Render Bank Offers ───────────────────────────────────────
+  // Pure display — Cart Drawer Offers of type bankOffer carry no cart logic
+  // of their own, just informational text (e.g. "10% off on HDFC cards").
+  function renderBankOffers() {
+    var offers = (state.settings && state.settings.cartOffers) || [];
+    var texts = offers
+      .filter(function (o) { return o.enabled && o.type === "bankOffer" && o.bankOfferText; })
+      .map(function (o) { return o.bankOfferText; });
+    if (!texts.length) return "";
+    return '<div class="cd-bank-offers">' +
+      texts.map(function (t) { return '<div class="cd-bank-offer">' + esc(t) + '</div>'; }).join("") +
+    '</div>';
   }
 
   // ─── Render Coupon ────────────────────────────────────────────
@@ -1166,7 +1399,7 @@
         ? '<img src="' + escAttr(imgSrc) + '" alt="' + escAttr(opts.title) + '" loading="lazy" onerror="this.style.display=\'none\'"/>'
         : '') +
       (discountPct > 0 && opts.priceDisplay !== "free"
-        ? '<span class="cd-prod-discount-badge">-' + discountPct + '% OFF</span>'
+        ? '<span class="cd-prod-discount-badge">' + discountPct + '% OFF</span>'
         : '') +
       (opts.badgeText
         ? '<span class="cd-prod-custom-badge' +
@@ -1252,6 +1485,28 @@
   }
 
   // ─── Upsell ───────────────────────────────────────────────────
+  // Shared by shouldShowUpsell() (gates the card) and enforceUpsellTrigger()
+  // (auto-removes the line if it's already in the cart) — empty trigger
+  // list means always eligible (backward compatible).
+  function isUpsellTriggerMet(cartQty) {
+    var triggers = (state.settings && state.settings.upsellTriggerProducts) || [];
+    if (!triggers.length) return true;
+    return triggers.some(function (tp) {
+      var pid = String(tp.shopifyProductId || "").replace("gid://shopify/Product/", "");
+      var minQ = tp.minQuantity > 0 ? tp.minQuantity : 1;
+      return (cartQty[pid] || 0) >= minQ;
+    });
+  }
+
+  function cartQtyByProductId(cart) {
+    var cartQty = {};
+    (cart.items || []).forEach(function (item) {
+      var pid = String(item.product_id);
+      cartQty[pid] = (cartQty[pid] || 0) + (item.quantity || 0);
+    });
+    return cartQty;
+  }
+
   function shouldShowUpsell() {
     if (!state.settings || !state.settings.showUpsell) return false;
     if (!state.settings.upsellProduct) return false;
@@ -1262,24 +1517,26 @@
       .replace("gid://shopify/Product/", "");
     if (cartIds.indexOf(upId) !== -1) return false;
 
-    // Gate on trigger products, same rule as the Product Offers "products"
-    // trigger — empty list means always eligible (backward compatible).
-    var triggers = state.settings.upsellTriggerProducts || [];
-    if (triggers.length) {
-      var cartQty = {};
-      state.cart.items.forEach(function (item) {
-        var pid = String(item.product_id);
-        cartQty[pid] = (cartQty[pid] || 0) + (item.quantity || 0);
-      });
-      var matched = triggers.some(function (tp) {
-        var pid = String(tp.shopifyProductId || "").replace("gid://shopify/Product/", "");
-        var minQ = tp.minQuantity > 0 ? tp.minQuantity : 1;
-        return (cartQty[pid] || 0) >= minQ;
-      });
-      if (!matched) return false;
-    }
+    if (!isUpsellTriggerMet(cartQtyByProductId(state.cart))) return false;
 
     return true;
+  }
+
+  // The upsell product can end up in the cart without its trigger condition
+  // being met — added straight from its own product page, or its trigger
+  // product removed afterward — so this strips it back out. Runs every time
+  // fetchCart() refreshes, which covers both cases in practice.
+  function enforceUpsellTrigger(cart) {
+    var upsellProduct = state.settings && state.settings.upsellProduct;
+    if (!upsellProduct || !cart || !cart.items || !cart.items.length) return Promise.resolve();
+
+    var upId = String(upsellProduct.shopifyProductId || "").replace("gid://shopify/Product/", "");
+    var line = cart.items.filter(function (i) { return String(i.product_id) === upId; })[0];
+    if (!line) return Promise.resolve();
+
+    if (isUpsellTriggerMet(cartQtyByProductId(cart))) return Promise.resolve();
+
+    return removeItem(line.key);
   }
 
   function renderUpsell() {
@@ -1372,10 +1629,11 @@
   function renderFooter(cart) {
     if (!cart) return "";
 
-    var totalPrice = cart.total_price;
-    var originalTotal = cart.original_total_price || totalPrice;
-    var hasSavings = originalTotal > totalPrice;
-    var savings = originalTotal - totalPrice;
+    var freeAdjusted = getFreeAdjustedTotals(cart);
+    var totalPrice = freeAdjusted.totalPrice;
+    var originalTotal = freeAdjusted.originalTotal;
+    var hasSavings = freeAdjusted.hasSavings;
+    var savings = freeAdjusted.savings;
 
     var showPrepaid = state.settings && state.settings.showPrepaidBanner && state.settings.prepaidBannerText;
     var checkoutText = (state.settings && state.settings.checkoutButtonText) || "CHECKOUT";
@@ -1439,10 +1697,11 @@
   function renderPriceSummary(cart) {
     if (!cart) return "";
 
-    var totalPrice = cart.total_price;
-    var originalTotal = cart.original_total_price || totalPrice;
-    var hasSavings = originalTotal > totalPrice;
-    var savings = originalTotal - totalPrice;
+    var freeAdjusted = getFreeAdjustedTotals(cart);
+    var totalPrice = freeAdjusted.totalPrice;
+    var originalTotal = freeAdjusted.originalTotal;
+    var hasSavings = freeAdjusted.hasSavings;
+    var savings = freeAdjusted.savings;
 
     var checkoutText = (state.settings && state.settings.checkoutButtonText) || "CHECKOUT";
     var payMethods = state.settings && state.settings.paymentMethodsText;
@@ -1742,8 +2001,33 @@
     if (e.key === "Escape" && state.isOpen) closeDrawer();
   });
 
+  // The theme's own native cart drawer is permanently force-hidden above,
+  // but its own open/close JS still runs in the background whenever
+  // triggered (e.g. by an add-to-cart it observes) — including locking body
+  // scroll — even though its UI can never actually show. That lock is a
+  // CLASS on <body> (this theme's own convention: modal-show/modal-showing/
+  // search-open/body-no-scrollbar all map to overflow:hidden in its own
+  // CSS), not an inline style, so checking body.style.overflow directly
+  // never caught it. Watch computed overflow instead — that reflects the
+  // lock regardless of which mechanism applied it — and strip both the
+  // known classes and any inline override whenever it isn't actually us
+  // holding the lock.
+  var NATIVE_SCROLL_LOCK_CLASSES = ["modal-show", "modal-showing", "search-open", "body-no-scrollbar"];
+  function watchForStrayScrollLock() {
+    if (typeof MutationObserver === "undefined") return;
+    var observer = new MutationObserver(function () {
+      if (state.isOpen) return; // our own drawer legitimately owns the lock
+      var locked = getComputedStyle(document.body).overflow === "hidden";
+      if (!locked) return;
+      NATIVE_SCROLL_LOCK_CLASSES.forEach(function (cls) { document.body.classList.remove(cls); });
+      document.body.style.overflow = "";
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ["style", "class"] });
+  }
+
   // ─── Initialize ───────────────────────────────────────────────
   injectNativeCartHideCSS(); // Hide native cart drawer permanently
+  watchForStrayScrollLock();
   fetchSettings();
   interceptAddToCart();
 

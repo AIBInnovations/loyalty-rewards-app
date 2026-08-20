@@ -28,6 +28,8 @@ import {
   type IManualProduct,
   type IOfferRule,
   type ITriggerProduct,
+  type ICartOffer,
+  type CartOfferType,
 } from "../.server/models/cart-settings.model";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -50,6 +52,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const upsellProduct = data.upsellProduct ? JSON.parse(String(data.upsellProduct)) : null;
     const upsellTriggerProducts = JSON.parse(String(data.upsellTriggerProducts) || "[]");
     const offers = JSON.parse(String(data.offers) || "[]");
+    const cartOffers = JSON.parse(String(data.cartOffers) || "[]");
 
     await CartDrawerSettings.findOneAndUpdate(
       { shopId: session.shop },
@@ -71,6 +74,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           recommendationsBadgeAlign: data.recommendationsBadgeAlign === "left" ? "left" : "right",
           manualProducts,
           offers,
+          cartOffers,
           recommendationsCollectionId: String(data.recommendationsCollectionId || ""),
           recommendationsCollectionHandle: String(data.recommendationsCollectionHandle || ""),
           recommendationsCollectionTitle: String(data.recommendationsCollectionTitle || ""),
@@ -197,6 +201,8 @@ export default function CartSettingsPage() {
   );
   const [offers, setOffers] = useState<IOfferRule[]>(settings.offers || []);
   const [offersError, setOffersError] = useState("");
+  const [cartOffers, setCartOffers] = useState<ICartOffer[]>(settings.cartOffers || []);
+  const [cartOffersError, setCartOffersError] = useState("");
   const [recommendationsCollectionId, setRecommendationsCollectionId] = useState(
     settings.recommendationsCollectionId || "",
   );
@@ -334,6 +340,7 @@ export default function CartSettingsPage() {
     formData.set("recommendationsBadgeAlign", recommendationsBadgeAlign);
     formData.set("manualProducts", JSON.stringify(manualProducts));
     formData.set("offers", JSON.stringify(offers));
+    formData.set("cartOffers", JSON.stringify(cartOffers));
     formData.set("recommendationsCollectionId", recommendationsCollectionId);
     formData.set("recommendationsCollectionHandle", recommendationsCollectionHandle);
     formData.set("recommendationsCollectionTitle", recommendationsCollectionTitle);
@@ -385,7 +392,7 @@ export default function CartSettingsPage() {
     recommendationsCount, recommendationMode, recommendationsSlider,
     recommendationsAddToCartBg, recommendationsAddToCartText,
     recommendationsBadgeBg, recommendationsBadgeTextColor, recommendationsBadgeAlign, manualProducts,
-    offers,
+    offers, cartOffers,
     recommendationsCollectionId, recommendationsCollectionHandle,
     recommendationsCollectionTitle, recommendationsCollectionBadgeText, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor, showProgressBar,
@@ -692,6 +699,201 @@ export default function CartSettingsPage() {
     },
     [],
   );
+
+  // ─── Cart Drawer Offer ──────────────────────────────────────────
+  const DEFAULT_CART_OFFER: ICartOffer = {
+    id: "",
+    enabled: true,
+    type: "buyXGetY",
+    title: "",
+    discountValueType: "percentage",
+    discountValue: 0,
+    targetProducts: [],
+    targetCollectionId: "",
+    targetCollectionHandle: "",
+    targetCollectionTitle: "",
+    buyProducts: [],
+    buyCollectionId: "",
+    buyCollectionHandle: "",
+    buyCollectionTitle: "",
+    buyQuantity: 1,
+    getProducts: [],
+    getQuantity: 1,
+    getDiscountType: "free",
+    getDiscountValue: 0,
+    freebieMinCartAmount: 0,
+    freebieProducts: [],
+    bankOfferText: "",
+  };
+
+  const handleAddCartOffer = useCallback(() => {
+    setCartOffersError("");
+    setCartOffers((prev) => [
+      ...prev,
+      { ...DEFAULT_CART_OFFER, id: `cart-offer-${Date.now().toString(36)}` },
+    ]);
+  }, []);
+
+  const removeCartOffer = useCallback((offerId: string) => {
+    setCartOffers((prev) => prev.filter((o) => o.id !== offerId));
+  }, []);
+
+  const updateCartOffer = useCallback((offerId: string, patch: Partial<ICartOffer>) => {
+    setCartOffers((prev) => prev.map((o) => (o.id === offerId ? { ...o, ...patch } : o)));
+  }, []);
+
+  // Generic multi-select product browse — appends to whichever
+  // ITriggerProduct[] field (targetProducts / buyProducts) the caller names.
+  const handleBrowseCartOfferProducts = useCallback(
+    async (offerId: string, field: "targetProducts" | "buyProducts") => {
+      setCartOffersError("");
+      try {
+        const selected = await shopify.resourcePicker({ type: "product", multiple: true, action: "select" });
+        if (!selected || selected.length === 0) return;
+        setCartOffers((prev) =>
+          prev.map((o) => {
+            if (o.id !== offerId) return o;
+            const existing = o[field];
+            const already = new Set(existing.map((p) => p.shopifyProductId));
+            const picked: ITriggerProduct[] = [];
+            for (const product of selected as any[]) {
+              if (already.has(product.id) || picked.some((p) => p.shopifyProductId === product.id)) continue;
+              picked.push({
+                shopifyProductId: product.id,
+                title: product.title,
+                handle: product.handle,
+                imageUrl: product.images?.[0]?.originalSrc || product.images?.[0]?.url || "",
+                minQuantity: 1,
+              });
+            }
+            return picked.length ? { ...o, [field]: [...existing, ...picked] } : o;
+          }),
+        );
+      } catch (err) {
+        if (err instanceof Error && err.message) setCartOffersError(err.message);
+      }
+    },
+    [shopify],
+  );
+
+  const removeCartOfferProduct = useCallback(
+    (offerId: string, field: "targetProducts" | "buyProducts", shopifyProductId: string) => {
+      setCartOffers((prev) =>
+        prev.map((o) =>
+          o.id === offerId ? { ...o, [field]: o[field].filter((p) => p.shopifyProductId !== shopifyProductId) } : o,
+        ),
+      );
+    },
+    [],
+  );
+
+  const updateCartOfferProductQty = useCallback(
+    (offerId: string, field: "targetProducts" | "buyProducts", shopifyProductId: string, minQuantity: number) => {
+      setCartOffers((prev) =>
+        prev.map((o) =>
+          o.id === offerId
+            ? {
+                ...o,
+                [field]: o[field].map((p) =>
+                  p.shopifyProductId === shopifyProductId ? { ...p, minQuantity: Math.max(1, minQuantity || 1) } : p,
+                ),
+              }
+            : o,
+        ),
+      );
+    },
+    [],
+  );
+
+  // Reward-side product browse — needs price/variant data (IManualProduct),
+  // unlike the trigger-side ITriggerProduct browse above.
+  const handleBrowseCartOfferRewardProducts = useCallback(
+    async (offerId: string, field: "getProducts" | "freebieProducts") => {
+      setCartOffersError("");
+      try {
+        const selected = await shopify.resourcePicker({ type: "product", multiple: true, action: "select" });
+        if (!selected || selected.length === 0) return;
+        setCartOffers((prev) =>
+          prev.map((o) => {
+            if (o.id !== offerId) return o;
+            const existing = o[field];
+            const already = new Set(existing.map((p) => p.shopifyProductId));
+            const picked: IManualProduct[] = [];
+            for (const product of selected as any[]) {
+              if (already.has(product.id) || picked.some((p) => p.shopifyProductId === product.id)) continue;
+              const variant = product.variants?.[0];
+              picked.push({
+                shopifyProductId: product.id,
+                title: product.title,
+                handle: product.handle,
+                imageUrl: product.images?.[0]?.originalSrc || product.images?.[0]?.url || "",
+                price: Math.round(parseFloat(variant?.price || "0") * 100),
+                compareAtPrice: variant?.compareAtPrice
+                  ? Math.round(parseFloat(variant.compareAtPrice) * 100)
+                  : undefined,
+                variantId: variant?.id || "",
+                priceDisplay: field === "freebieProducts" ? "free" : "price",
+              });
+            }
+            return picked.length ? { ...o, [field]: [...existing, ...picked] } : o;
+          }),
+        );
+      } catch (err) {
+        if (err instanceof Error && err.message) setCartOffersError(err.message);
+      }
+    },
+    [shopify],
+  );
+
+  const removeCartOfferRewardProduct = useCallback(
+    (offerId: string, field: "getProducts" | "freebieProducts", shopifyProductId: string) => {
+      setCartOffers((prev) =>
+        prev.map((o) =>
+          o.id === offerId ? { ...o, [field]: o[field].filter((p) => p.shopifyProductId !== shopifyProductId) } : o,
+        ),
+      );
+    },
+    [],
+  );
+
+  // Single collection pick — prefix selects which pair of Collection*
+  // fields on the offer gets set (target* for amountOffProducts, buy* for
+  // buyXGetY).
+  const handleBrowseCartOfferCollection = useCallback(
+    async (offerId: string, prefix: "target" | "buy") => {
+      setCartOffersError("");
+      try {
+        const selected = await shopify.resourcePicker({ type: "collection", multiple: false, action: "select" });
+        const collection = (selected as any[])?.[0];
+        if (!collection) return;
+        setCartOffers((prev) =>
+          prev.map((o) =>
+            o.id === offerId
+              ? {
+                  ...o,
+                  [`${prefix}CollectionId`]: collection.id,
+                  [`${prefix}CollectionHandle`]: collection.handle,
+                  [`${prefix}CollectionTitle`]: collection.title,
+                }
+              : o,
+          ),
+        );
+      } catch (err) {
+        if (err instanceof Error && err.message) setCartOffersError(err.message);
+      }
+    },
+    [shopify],
+  );
+
+  const removeCartOfferCollection = useCallback((offerId: string, prefix: "target" | "buy") => {
+    setCartOffers((prev) =>
+      prev.map((o) =>
+        o.id === offerId
+          ? { ...o, [`${prefix}CollectionId`]: "", [`${prefix}CollectionHandle`]: "", [`${prefix}CollectionTitle`]: "" }
+          : o,
+      ),
+    );
+  }, []);
 
   const handleBrowseCollection = useCallback(async () => {
     setAddProductError("");
@@ -1419,6 +1621,299 @@ export default function CartSettingsPage() {
 
                 <Divider />
                 <Button onClick={handleAddOffer}>Add offer (pick trigger product)</Button>
+              </BlockStack>
+            </Card>
+          </Layout.AnnotatedSection>
+
+          <Layout.AnnotatedSection
+            title="Cart Drawer Offer"
+            description="Mirror an offer you've already set up elsewhere (a Shopify discount, or a platform like Shiprocket) so it's visible AND applied consistently inside the cart drawer, not just at checkout."
+          >
+            <Card>
+              <BlockStack gap="400">
+                {cartOffersError && (
+                  <Banner tone="critical" onDismiss={() => setCartOffersError("")}>
+                    {cartOffersError}
+                  </Banner>
+                )}
+
+                {cartOffers.length === 0 ? (
+                  <Text as="p" tone="subdued">No cart offers yet.</Text>
+                ) : (
+                  cartOffers.map((offer) => (
+                    <Card key={offer.id} background="bg-surface-secondary">
+                      <BlockStack gap="300">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <Checkbox
+                            label="Enabled"
+                            checked={offer.enabled}
+                            onChange={(v) => updateCartOffer(offer.id, { enabled: v })}
+                          />
+                          <Button tone="critical" size="slim" onClick={() => removeCartOffer(offer.id)}>
+                            Remove offer
+                          </Button>
+                        </InlineStack>
+
+                        <Select
+                          label="Offer Type"
+                          options={[
+                            { label: "Amount Off Products", value: "amountOffProducts" },
+                            { label: "Amount Off Cart", value: "amountOffCart" },
+                            { label: "Tiered Discount", value: "tiered" },
+                            { label: "Buy X Get Y", value: "buyXGetY" },
+                            { label: "Bundle", value: "bundle" },
+                            { label: "Upselling", value: "upselling" },
+                            { label: "Bank Offer", value: "bankOffer" },
+                            { label: "Freebie", value: "freebie" },
+                          ]}
+                          value={offer.type}
+                          onChange={(v) => updateCartOffer(offer.id, { type: v as CartOfferType })}
+                        />
+
+                        <TextField
+                          label="Offer Title (shown in cart drawer)"
+                          value={offer.title}
+                          onChange={(v) => updateCartOffer(offer.id, { title: v })}
+                          placeholder="e.g. Buy 1 Get 1 Free"
+                          autoComplete="off"
+                        />
+
+                        {(offer.type === "amountOffCart" || offer.type === "tiered") && (
+                          <Banner tone="info">
+                            Already covered by the Progress Tiers section above — add or edit thresholds there
+                            instead of duplicating them here.
+                          </Banner>
+                        )}
+
+                        {offer.type === "bundle" && (
+                          <Banner tone="info">
+                            Bundles are managed in Bundle Genie, not here — see the Bundle Genie section of the app.
+                          </Banner>
+                        )}
+
+                        {offer.type === "upselling" && (
+                          <Banner tone="info">
+                            Already covered by the Steal Deals section below — configure the upsell product and its
+                            trigger condition there instead of duplicating it here.
+                          </Banner>
+                        )}
+
+                        {offer.type === "bankOffer" && (
+                          <TextField
+                            label="Bank Offer Text"
+                            value={offer.bankOfferText}
+                            onChange={(v) => updateCartOffer(offer.id, { bankOfferText: v })}
+                            placeholder="e.g. 10% instant discount on HDFC Bank cards"
+                            autoComplete="off"
+                            multiline={2}
+                          />
+                        )}
+
+                        {offer.type === "amountOffProducts" && (
+                          <BlockStack gap="300">
+                            <InlineGrid columns={2} gap="300">
+                              <Select
+                                label="Discount Type"
+                                options={[
+                                  { label: "Percentage (%)", value: "percentage" },
+                                  { label: "Fixed Amount (₹)", value: "fixed_amount" },
+                                ]}
+                                value={offer.discountValueType}
+                                onChange={(v) =>
+                                  updateCartOffer(offer.id, {
+                                    discountValueType: v === "fixed_amount" ? "fixed_amount" : "percentage",
+                                  })
+                                }
+                              />
+                              <TextField
+                                label="Discount Value"
+                                type="number"
+                                min={0}
+                                value={String(offer.discountValue)}
+                                onChange={(v) => updateCartOffer(offer.id, { discountValue: Number(v) || 0 })}
+                                autoComplete="off"
+                              />
+                            </InlineGrid>
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">Applies to</Text>
+                            {offer.targetProducts.map((tp) => (
+                              <div
+                                key={tp.shopifyProductId}
+                                style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, border: "1px solid #e0e0e0", borderRadius: 8 }}
+                              >
+                                {tp.imageUrl && (
+                                  <img src={tp.imageUrl} alt={tp.title} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6 }} />
+                                )}
+                                <Text as="span" variant="bodyMd">{tp.title}</Text>
+                                <div style={{ marginLeft: "auto" }}>
+                                  <Button size="slim" tone="critical" onClick={() => removeCartOfferProduct(offer.id, "targetProducts", tp.shopifyProductId)}>
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            <Button onClick={() => handleBrowseCartOfferProducts(offer.id, "targetProducts")}>
+                              Browse products
+                            </Button>
+                            {offer.targetCollectionHandle ? (
+                              <InlineStack align="space-between" blockAlign="center">
+                                <Text as="span" variant="bodyMd" fontWeight="semibold">{offer.targetCollectionTitle}</Text>
+                                <Button size="slim" tone="critical" onClick={() => removeCartOfferCollection(offer.id, "target")}>Remove</Button>
+                              </InlineStack>
+                            ) : (
+                              <Button onClick={() => handleBrowseCartOfferCollection(offer.id, "target")}>
+                                Or pick a collection instead
+                              </Button>
+                            )}
+                          </BlockStack>
+                        )}
+
+                        {offer.type === "buyXGetY" && (
+                          <BlockStack gap="300">
+                            <Text as="h4" variant="headingSm">Buy</Text>
+                            {offer.buyProducts.map((tp) => (
+                              <div
+                                key={tp.shopifyProductId}
+                                style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, border: "1px solid #e0e0e0", borderRadius: 8 }}
+                              >
+                                {tp.imageUrl && (
+                                  <img src={tp.imageUrl} alt={tp.title} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6 }} />
+                                )}
+                                <Text as="span" variant="bodyMd">{tp.title}</Text>
+                                <div style={{ marginLeft: "auto", width: 90 }}>
+                                  <TextField
+                                    label="Qty" labelHidden type="number" min={1}
+                                    value={String(tp.minQuantity ?? 1)}
+                                    onChange={(v) => updateCartOfferProductQty(offer.id, "buyProducts", tp.shopifyProductId, Number(v))}
+                                    autoComplete="off" suffix="qty"
+                                  />
+                                </div>
+                                <Button size="slim" tone="critical" onClick={() => removeCartOfferProduct(offer.id, "buyProducts", tp.shopifyProductId)}>
+                                  Remove
+                                </Button>
+                              </div>
+                            ))}
+                            <Button onClick={() => handleBrowseCartOfferProducts(offer.id, "buyProducts")}>
+                              Browse buy products
+                            </Button>
+                            {offer.buyCollectionHandle ? (
+                              <InlineStack align="space-between" blockAlign="center">
+                                <Text as="span" variant="bodyMd" fontWeight="semibold">{offer.buyCollectionTitle}</Text>
+                                <Button size="slim" tone="critical" onClick={() => removeCartOfferCollection(offer.id, "buy")}>Remove</Button>
+                              </InlineStack>
+                            ) : (
+                              <Button onClick={() => handleBrowseCartOfferCollection(offer.id, "buy")}>
+                                Or pick a collection instead
+                              </Button>
+                            )}
+                            <TextField
+                              label="Quantity to buy"
+                              helpText="Any single product from the list/collection above reaching this quantity in the cart qualifies."
+                              type="number" min={1}
+                              value={String(offer.buyQuantity ?? 1)}
+                              onChange={(v) => updateCartOffer(offer.id, { buyQuantity: Math.max(1, Number(v) || 1) })}
+                              autoComplete="off"
+                            />
+
+                            <Divider />
+                            <Text as="h4" variant="headingSm">Get</Text>
+                            {offer.getProducts.map((p) => (
+                              <div
+                                key={p.shopifyProductId}
+                                style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, border: "1px solid #e0e0e0", borderRadius: 8 }}
+                              >
+                                {p.imageUrl && (
+                                  <img src={p.imageUrl} alt={p.title} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6 }} />
+                                )}
+                                <Text as="span" variant="bodyMd">{p.title}</Text>
+                                <div style={{ marginLeft: "auto" }}>
+                                  <Button size="slim" tone="critical" onClick={() => removeCartOfferRewardProduct(offer.id, "getProducts", p.shopifyProductId)}>
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            <Button onClick={() => handleBrowseCartOfferRewardProducts(offer.id, "getProducts")}>
+                              Browse reward products
+                            </Button>
+                            <InlineGrid columns={3} gap="300">
+                              <TextField
+                                label="Quantity free"
+                                type="number" min={1}
+                                value={String(offer.getQuantity ?? 1)}
+                                onChange={(v) => updateCartOffer(offer.id, { getQuantity: Math.max(1, Number(v) || 1) })}
+                                autoComplete="off"
+                              />
+                              <Select
+                                label="Reward Discount"
+                                options={[
+                                  { label: "Free", value: "free" },
+                                  { label: "Percentage (%)", value: "percentage" },
+                                  { label: "Fixed Amount (₹)", value: "fixed_amount" },
+                                ]}
+                                value={offer.getDiscountType}
+                                onChange={(v) =>
+                                  updateCartOffer(offer.id, {
+                                    getDiscountType: v === "percentage" || v === "fixed_amount" ? v : "free",
+                                  })
+                                }
+                              />
+                              {offer.getDiscountType !== "free" && (
+                                <TextField
+                                  label="Discount Value"
+                                  type="number" min={0}
+                                  value={String(offer.getDiscountValue)}
+                                  onChange={(v) => updateCartOffer(offer.id, { getDiscountValue: Number(v) || 0 })}
+                                  autoComplete="off"
+                                />
+                              )}
+                            </InlineGrid>
+                            <Text as="p" tone="subdued" variant="bodySm">
+                              Whichever of the reward products is actually in the cart gets this discount once the
+                              buy condition above is met.
+                            </Text>
+                          </BlockStack>
+                        )}
+
+                        {offer.type === "freebie" && (
+                          <BlockStack gap="300">
+                            <TextField
+                              label="Minimum Cart Amount (₹)"
+                              type="number" min={0}
+                              value={String((offer.freebieMinCartAmount || 0) / 100)}
+                              onChange={(v) =>
+                                updateCartOffer(offer.id, { freebieMinCartAmount: Math.round((Number(v) || 0) * 100) })
+                              }
+                              autoComplete="off"
+                              helpText="The gift shows as a recommendation once the cart reaches this amount — the customer still adds it themselves."
+                            />
+                            {offer.freebieProducts.map((p) => (
+                              <div
+                                key={p.shopifyProductId}
+                                style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, border: "1px solid #e0e0e0", borderRadius: 8 }}
+                              >
+                                {p.imageUrl && (
+                                  <img src={p.imageUrl} alt={p.title} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6 }} />
+                                )}
+                                <Text as="span" variant="bodyMd">{p.title}</Text>
+                                <div style={{ marginLeft: "auto" }}>
+                                  <Button size="slim" tone="critical" onClick={() => removeCartOfferRewardProduct(offer.id, "freebieProducts", p.shopifyProductId)}>
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            <Button onClick={() => handleBrowseCartOfferRewardProducts(offer.id, "freebieProducts")}>
+                              Browse gift products
+                            </Button>
+                          </BlockStack>
+                        )}
+                      </BlockStack>
+                    </Card>
+                  ))
+                )}
+
+                <Divider />
+                <Button onClick={handleAddCartOffer}>Add cart offer</Button>
               </BlockStack>
             </Card>
           </Layout.AnnotatedSection>
