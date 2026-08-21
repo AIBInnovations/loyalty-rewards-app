@@ -211,7 +211,14 @@
         var compareHtml = showCompareAt && p.compareAtPrice > p.price
           ? '<span class="bg-genie-item-compare">' + formatMoney(p.compareAtPrice * itemState[i].qty, currencySymbol) + "</span>"
           : "";
-        priceHtml = compareHtml + '<span class="bg-genie-item-price" id="bg-genie-item-price-' + i + '">' + formatMoney(p.price * itemState[i].qty, currencySymbol) + "</span>";
+        // Wrapped in one shared row so compare-at and price sit side by
+        // side on the same line, same as the Total Price row below —
+        // .bg-genie-item-body is a flex column, so without this wrapper
+        // each span became its own stacked line instead.
+        priceHtml = '<span class="bg-genie-item-price-row">' +
+          compareHtml +
+          '<span class="bg-genie-item-price" id="bg-genie-item-price-' + i + '">' + formatMoney(p.price * itemState[i].qty, currencySymbol) + "</span>" +
+        "</span>";
       }
       var checkboxHtml = showCheckbox
         ? '<input type="checkbox" class="bg-genie-item-check" data-index="' + i + '"' +

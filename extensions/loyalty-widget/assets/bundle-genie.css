@@ -163,6 +163,16 @@
   opacity: 1;
 }
 
+.bg-genie-item-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.bg-genie-layout--grid .bg-genie-item-price-row {
+  justify-content: center;
+}
+
 .bg-genie-item-compare {
   font-size: 12px;
   text-decoration: line-through;
