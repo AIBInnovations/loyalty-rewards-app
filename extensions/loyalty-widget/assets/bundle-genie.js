@@ -193,7 +193,19 @@
       if (addBtn) addBtn.disabled = !anyChecked;
     }
 
-    var itemsHtml = bundle.products.map(function (p, i) {
+    // The primary product (the page's own product, or the admin-configured
+    // one in single-select mode) always renders first, regardless of where
+    // it sits in the merchant's configured product order — everything else
+    // below still indexes into bundle.products/itemState by original index
+    // i, only the visual/DOM order changes here.
+    var displayOrder = bundle.products.map(function (_, i) { return i; });
+    if (primaryIndex > 0) {
+      displayOrder.splice(displayOrder.indexOf(primaryIndex), 1);
+      displayOrder.unshift(primaryIndex);
+    }
+
+    var itemsHtml = displayOrder.map(function (i) {
+      var p = bundle.products[i];
       var priceHtml = "";
       if (showPrice) {
         var compareHtml = showCompareAt && p.compareAtPrice > p.price
