@@ -133,6 +133,14 @@
      taller image outright, not that setting. */
   height: 140px;
   border-radius: 0;
+  /* The box is now wide (bleeds across the whole card) but only 140px
+     tall — a portrait photo fit with "contain" is height-constrained,
+     leaving grey letterbox gaps on the sides instead of filling the
+     width. "cover" crops instead, but against this wider box that's a
+     much smaller trim off the top/bottom than the old square 140x140
+     frame was, not a tight torso close-up. */
+  object-fit: cover;
+  background: transparent;
 }
 
 .bg-genie-item-title {
