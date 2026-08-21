@@ -54,52 +54,6 @@
   align-self: center;
 }
 
-/* Product count never changes the layout — always one row on desktop,
-   always stacked on mobile, matching the reference exactly. */
-@media (max-width: 640px) {
-  .bg-genie-layout--grid .bg-genie-items {
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .bg-genie-layout--grid .bg-genie-item {
-    flex-direction: row;
-    align-items: center;
-    text-align: left;
-    padding: 10px;
-  }
-
-  /* The 140px desktop image only fits three-across a full-width card —
-     stacked single-column on a phone it needs to shrink back down to a
-     compact thumbnail beside the text, matching the reference's row
-     layout. */
-  .bg-genie-layout--grid .bg-genie-item-img {
-    width: 72px;
-    height: var(--bg-genie-img-height, 72px);
-  }
-
-  .bg-genie-layout--grid .bg-genie-item-check {
-    top: 8px;
-    left: 8px;
-    width: 22px;
-    height: 22px;
-  }
-
-  .bg-genie-layout--grid .bg-genie-item-check:checked::after {
-    left: 7px;
-    top: 3px;
-    width: 5px;
-    height: 10px;
-  }
-
-  /* Horizontal divider between stacked rows instead of the desktop row's
-     inline "+" between columns. */
-  .bg-genie-layout--grid .bg-genie-plus-sep {
-    width: 100%;
-    margin: 0;
-  }
-}
-
 .bg-genie-item {
   position: relative;
   display: flex;
@@ -110,6 +64,10 @@
   background: var(--bg-genie-card-bg, #ffffff);
   border-radius: var(--bg-genie-card-radius, 10px);
   box-shadow: var(--bg-genie-card-shadow, 0 1px 4px rgba(0,0,0,0.08));
+  /* The fixed-size image below doesn't otherwise shrink with the column in
+     a 3-up row, so it was poking out past the card's rounded corners —
+     clip anything that still doesn't fit to the card boundary. */
+  overflow: hidden;
 }
 
 /* Grid cards get real breathing room around the (much larger) image and
@@ -154,7 +112,11 @@
 }
 
 .bg-genie-layout--grid .bg-genie-item-img {
-  width: 140px;
+  /* Shrinks with the flex column instead of staying rigidly 140px wide —
+     a fixed width doesn't respect a narrower 3-up column and overflows
+     the card's rounded corners. */
+  width: 100%;
+  max-width: 140px;
   height: var(--bg-genie-img-height, 140px);
   border-radius: 8px;
 }
@@ -320,4 +282,54 @@
   margin-top: 8px;
   font-size: 12px;
   color: #c0392b;
+}
+
+/* Product count never changes the layout — always one row on desktop,
+   always stacked on mobile, matching the reference exactly. Placed last so
+   these overrides actually win the cascade against the unconditional grid
+   rules above — a media query doesn't add specificity by itself, so
+   positioned earlier in the file it would have lost on source order. */
+@media (max-width: 640px) {
+  .bg-genie-layout--grid .bg-genie-items {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .bg-genie-layout--grid .bg-genie-item {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    padding: 10px;
+  }
+
+  /* The 140px desktop image only fits three-across a full-width card —
+     stacked single-column on a phone it needs to shrink back down to a
+     compact thumbnail beside the text, matching the reference's row
+     layout. */
+  .bg-genie-layout--grid .bg-genie-item-img {
+    width: 72px;
+    max-width: 72px;
+    height: var(--bg-genie-img-height, 72px);
+  }
+
+  .bg-genie-layout--grid .bg-genie-item-check {
+    top: 8px;
+    left: 8px;
+    width: 22px;
+    height: 22px;
+  }
+
+  .bg-genie-layout--grid .bg-genie-item-check:checked::after {
+    left: 7px;
+    top: 3px;
+    width: 5px;
+    height: 10px;
+  }
+
+  /* Horizontal divider between stacked rows instead of the desktop row's
+     inline "+" between columns. */
+  .bg-genie-layout--grid .bg-genie-plus-sep {
+    width: 100%;
+    margin: 0;
+  }
 }
