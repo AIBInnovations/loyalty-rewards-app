@@ -2012,14 +2012,18 @@
   // but its own open/close JS still runs in the background whenever
   // triggered (e.g. by an add-to-cart it observes) — including locking body
   // scroll — even though its UI can never actually show. That lock is a
-  // CLASS on <body> (this theme's own convention: modal-show/modal-showing/
-  // search-open/body-no-scrollbar all map to overflow:hidden in its own
-  // CSS), not an inline style, so checking body.style.overflow directly
-  // never caught it. Watch computed overflow instead — that reflects the
-  // lock regardless of which mechanism applied it — and strip both the
-  // known classes and any inline override whenever it isn't actually us
-  // holding the lock.
-  var NATIVE_SCROLL_LOCK_CLASSES = ["modal-show", "modal-showing", "search-open", "body-no-scrollbar"];
+  // CLASS on <body>, not an inline style, so checking body.style.overflow
+  // directly never caught it — and the exact class name is theme-specific
+  // (confirmed against two different themes' own source: one uses
+  // modal-show/modal-showing/search-open/body-no-scrollbar, Dawn uses a
+  // single overflow-hidden class for every lock — search modal, mobile
+  // menu, cart drawer, all of it). Watch computed overflow instead of any
+  // specific class — that reflects the lock regardless of which mechanism
+  // or theme applied it — and strip every known class plus any inline
+  // override whenever it isn't actually us holding the lock.
+  var NATIVE_SCROLL_LOCK_CLASSES = [
+    "modal-show", "modal-showing", "search-open", "body-no-scrollbar", "overflow-hidden",
+  ];
   function watchForStrayScrollLock() {
     if (typeof MutationObserver === "undefined") return;
     var observer = new MutationObserver(function () {
