@@ -126,7 +126,12 @@
   width: calc(100% + 24px);
   max-width: none;
   margin: -14px -12px 0;
-  height: var(--bg-genie-img-height, 140px);
+  /* Not var(--bg-genie-img-height, 140px) — that variable is set inline by
+     the widget's own JS to 44px/64px for the old compact list layout's
+     "image aspect ratio" setting, which unconditionally overrides any CSS
+     fallback here regardless of layout. The grid card needs its own much
+     taller image outright, not that setting. */
+  height: 140px;
   border-radius: 0;
 }
 
@@ -318,7 +323,8 @@
   .bg-genie-layout--grid .bg-genie-item-img {
     width: 72px;
     max-width: 72px;
-    height: var(--bg-genie-img-height, 72px);
+    margin: 0;
+    height: 72px;
   }
 
   .bg-genie-layout--grid .bg-genie-item-check {
