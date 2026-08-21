@@ -106,7 +106,12 @@
 .bg-genie-item-img {
   width: 44px;
   height: var(--bg-genie-img-height, 44px);
-  object-fit: cover;
+  /* "cover" crops to fill the box — fine for square product shots, but a
+     tall portrait/fashion photo in a square frame only shows a torso
+     close-up, cutting off the actual product. "contain" always shows the
+     whole image, letterboxed on whichever axis doesn't match. */
+  object-fit: contain;
+  background: #f5f5f5;
   border-radius: 6px;
   flex: none;
 }
