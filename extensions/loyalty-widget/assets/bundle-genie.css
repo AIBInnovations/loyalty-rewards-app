@@ -112,13 +112,17 @@
 }
 
 .bg-genie-layout--grid .bg-genie-item-img {
-  /* Shrinks with the flex column instead of staying rigidly 140px wide —
-     a fixed width doesn't respect a narrower 3-up column and overflows
-     the card's rounded corners. */
-  width: 100%;
-  max-width: 140px;
+  /* Bleeds to the card's own edges instead of sitting inset within the
+     card's padding — pulls back out by exactly the padding on each side
+     the card above applies (14px top, 12px sides), so it reads as part of
+     the card's top rather than a framed thumbnail. overflow:hidden on the
+     card clips it back to the card's own rounded corners, so no radius is
+     needed here. */
+  width: calc(100% + 24px);
+  max-width: none;
+  margin: -14px -12px 0;
   height: var(--bg-genie-img-height, 140px);
-  border-radius: 8px;
+  border-radius: 0;
 }
 
 .bg-genie-item-title {
