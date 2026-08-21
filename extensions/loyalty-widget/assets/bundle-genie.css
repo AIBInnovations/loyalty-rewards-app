@@ -32,13 +32,14 @@
 .bg-genie-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .bg-genie-layout--grid .bg-genie-items {
   flex-direction: row;
   flex-wrap: nowrap;
+  gap: 16px;
 }
 
 .bg-genie-layout--grid .bg-genie-item {
@@ -58,14 +59,43 @@
 @media (max-width: 640px) {
   .bg-genie-layout--grid .bg-genie-items {
     flex-direction: column;
+    gap: 10px;
   }
 
   .bg-genie-layout--grid .bg-genie-item {
     flex-direction: row;
+    align-items: center;
     text-align: left;
+    padding: 10px;
   }
 
+  /* The 140px desktop image only fits three-across a full-width card —
+     stacked single-column on a phone it needs to shrink back down to a
+     compact thumbnail beside the text, matching the reference's row
+     layout. */
+  .bg-genie-layout--grid .bg-genie-item-img {
+    width: 72px;
+    height: var(--bg-genie-img-height, 72px);
+  }
+
+  .bg-genie-layout--grid .bg-genie-item-check {
+    top: 8px;
+    left: 8px;
+    width: 22px;
+    height: 22px;
+  }
+
+  .bg-genie-layout--grid .bg-genie-item-check:checked::after {
+    left: 7px;
+    top: 3px;
+    width: 5px;
+    height: 10px;
+  }
+
+  /* Horizontal divider between stacked rows instead of the desktop row's
+     inline "+" between columns. */
   .bg-genie-layout--grid .bg-genie-plus-sep {
+    width: 100%;
     margin: 0;
   }
 }
@@ -78,8 +108,16 @@
   padding: 8px;
   border: 1px solid var(--bg-genie-card-border, #ececec);
   background: var(--bg-genie-card-bg, #ffffff);
-  border-radius: var(--bg-genie-card-radius, 8px);
+  border-radius: var(--bg-genie-card-radius, 10px);
   box-shadow: var(--bg-genie-card-shadow, 0 1px 4px rgba(0,0,0,0.08));
+}
+
+/* Grid cards get real breathing room around the (much larger) image and
+   text — the compact 8px padding is right for the narrow list layout, but
+   reads cramped once the image jumps to 140px. */
+.bg-genie-layout--grid .bg-genie-item {
+  padding: 14px 12px 16px;
+  gap: 10px;
 }
 
 .bg-genie-item-body {
@@ -87,20 +125,19 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .bg-genie-plus-sep {
   flex: none;
   width: 22px;
   height: 22px;
-  border-radius: 50%;
-  background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
-  color: #6b7280;
+  font-size: 24px;
+  font-weight: 300;
+  color: #9ca3af;
   align-self: center;
 }
 
@@ -117,8 +154,9 @@
 }
 
 .bg-genie-layout--grid .bg-genie-item-img {
-  width: 64px;
-  height: var(--bg-genie-img-height, 64px);
+  width: 140px;
+  height: var(--bg-genie-img-height, 140px);
+  border-radius: 8px;
 }
 
 .bg-genie-item-title {
@@ -126,8 +164,9 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -135,12 +174,13 @@
 }
 
 .bg-genie-item-price {
-  font-size: 12px;
-  opacity: 0.75;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 1;
 }
 
 .bg-genie-item-compare {
-  font-size: 11px;
+  font-size: 12px;
   text-decoration: line-through;
   opacity: 0.5;
   margin-right: 4px;
@@ -162,6 +202,16 @@
   cursor: pointer;
 }
 
+/* Follows the image's own top-left corner, which moved with the bigger
+   grid padding above — and a touch bigger to stay in proportion with the
+   140px image instead of looking lost in the corner. */
+.bg-genie-layout--grid .bg-genie-item-check {
+  top: 10px;
+  left: 10px;
+  width: 24px;
+  height: 24px;
+}
+
 .bg-genie-item-check:checked {
   background: #1a1a1a;
   border-color: #1a1a1a;
@@ -177,6 +227,13 @@
   border: solid #fff;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
+}
+
+.bg-genie-layout--grid .bg-genie-item-check:checked::after {
+  left: 8px;
+  top: 4px;
+  width: 6px;
+  height: 11px;
 }
 
 .bg-genie-qty {
