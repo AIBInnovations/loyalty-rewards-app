@@ -1,5 +1,6 @@
 {% comment %}
-  Pincode Delivery Estimator - App Embed Block
+  Pincode Delivery Estimator - App Block (positionable inside product
+  sections, e.g. Buy Buttons, via the theme editor's block picker).
   Input: customer enters pincode.
   Output: estimated delivery date range + COD availability.
   Calls /apps/loyalty/pincode?code=XXXXXX
@@ -23,7 +24,7 @@
 {% schema %}
 {
   "name": "Pincode Estimator",
-  "target": "body",
+  "target": "section",
   "settings": [
     {
       "type": "color",
