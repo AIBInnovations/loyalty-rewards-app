@@ -82,7 +82,20 @@
     }
 
     if (!placed) {
-      var cartForm = document.querySelector('form[action*="/cart/add"]');
+      // Some themes render other cart-add forms on the page too (e.g. a
+      // cart-drawer's own upsell carousel), which are hidden until opened
+      // but still match this selector — picking the first DOM match could
+      // silently stuff the widget inside one of those. Prefer the first
+      // form that's actually visible/rendered right now.
+      var cartFormCandidates = document.querySelectorAll('form[action*="/cart/add"]');
+      var cartForm = null;
+      for (var ci = 0; ci < cartFormCandidates.length; ci++) {
+        if (cartFormCandidates[ci].offsetParent !== null) {
+          cartForm = cartFormCandidates[ci];
+          break;
+        }
+      }
+      if (!cartForm) cartForm = cartFormCandidates[0];
       if (cartForm) {
         var addBtn =
           cartForm.querySelector('[name="add"]') ||
