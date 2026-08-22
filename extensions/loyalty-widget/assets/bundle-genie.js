@@ -27,18 +27,36 @@
     } catch (e) {}
   }
 
+  function withCommas(intStr) {
+    return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
   function formatMoney(cents, symbolOverride) {
     var amount = cents / 100;
-    if (symbolOverride) return symbolOverride + amount.toFixed(0);
+    if (symbolOverride) return symbolOverride + withCommas(Math.round(amount).toString());
     var format = moneyFormat;
     if (format.indexOf("{{amount_no_decimals}}") !== -1) {
-      return format.replace("{{amount_no_decimals}}", Math.round(amount).toString());
+      return format.replace("{{amount_no_decimals}}", withCommas(Math.round(amount).toString()));
     }
     if (format.indexOf("{{amount}}") !== -1) {
-      return format.replace("{{amount}}", amount.toFixed(2));
+      var fixed = amount.toFixed(2);
+      var dot = fixed.indexOf(".");
+      return format.replace("{{amount}}", withCommas(fixed.slice(0, dot)) + fixed.slice(dot));
     }
-    return "₹" + amount.toFixed(0);
+    return "₹" + withCommas(Math.round(amount).toString());
   }
+
+  var GIFT_ICON_SVG =
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="3" y="8" width="18" height="4"></rect><path d="M12 8v13"></path>' +
+    '<path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"></path>' +
+    '<path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8"></path>' +
+    '<path d="M16.5 8a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8"></path></svg>';
+
+  var TAG_ICON_SVG =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>' +
+    '<line x1="7" y1="7" x2="7.01" y2="7"></line></svg>';
 
   function shadowValue(shadow) {
     if (shadow === "soft") return "0 1px 4px rgba(0,0,0,0.10)";
@@ -191,7 +209,7 @@
         bannerEl.style.display = p.hasDiscount ? "flex" : "none";
         if (p.hasDiscount) {
           bannerEl.innerHTML =
-            '<span class="bg-genie-savings-banner-icon">🏷️</span>' +
+            '<span class="bg-genie-savings-banner-icon">' + TAG_ICON_SVG + "</span>" +
             "<span>Save " + formatMoney(savings, currencySymbol) + " (" + savingsPct + "%) on this bundle</span>";
         }
       }
@@ -208,7 +226,7 @@
           "</div>" +
           '<div class="bg-genie-summary-divider"></div>' +
           '<div class="bg-genie-summary-right">' +
-            '<span class="bg-genie-savings-icon">🏷️</span>' +
+            '<span class="bg-genie-savings-icon">' + TAG_ICON_SVG + "</span>" +
             "<div>" +
               '<div class="bg-genie-savings-pct">' + savingsPct + "% Total Savings</div>" +
               '<div class="bg-genie-savings-note">Great choice!</div>' +
@@ -289,7 +307,7 @@
     widget.innerHTML =
       '<div class="bg-genie-heading">' +
         '<h3 class="bg-genie-title">' + esc(bundle.title) + "</h3>" +
-        '<span class="bg-genie-title-icon">🎁</span>' +
+        '<span class="bg-genie-title-icon">' + GIFT_ICON_SVG + "</span>" +
       "</div>" +
       (bundle.description ? '<p class="bg-genie-desc">' + esc(bundle.description) + "</p>" : "") +
       '<div class="bg-genie-savings-banner" id="bg-genie-savings-banner"></div>' +

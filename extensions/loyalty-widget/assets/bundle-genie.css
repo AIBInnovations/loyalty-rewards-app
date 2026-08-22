@@ -35,10 +35,10 @@
   height: 40px;
   border-radius: 50%;
   background: #f6efe4;
+  color: #1a1a1a;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
 }
 
 .bg-genie-desc {
@@ -64,7 +64,8 @@
 }
 
 .bg-genie-savings-banner-icon {
-  font-size: 14px;
+  display: flex;
+  align-items: center;
 }
 
 .bg-genie-items {
@@ -381,10 +382,10 @@
   height: 32px;
   border-radius: 50%;
   background: #eef7ec;
+  color: #2f7a3c;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
 }
 
 .bg-genie-savings-pct {
