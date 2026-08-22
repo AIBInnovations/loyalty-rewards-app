@@ -7,6 +7,7 @@ import { PlatformShop, upsertPlatformShop } from "../.server/models/platform-sho
 import { recordAuditLog } from "../.server/models/audit-log.model";
 import { ProductCache } from "../.server/models/product-cache.model";
 import { OrderCache } from "../.server/models/order-cache.model";
+import { PincodeSettings } from "../.server/models/pincode-settings.model";
 import {
   handleOrderPaid,
   handleOrderCancelled,
@@ -196,6 +197,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               lastWebhookAt: new Date(),
             },
           },
+        );
+        // Invalidate the live Shiprocket session token so no unsafe token
+        // survives the uninstall — email/password are left as-is (same
+        // non-destructive policy as everything else on this webhook) so a
+        // merchant who reinstalls doesn't have to reconnect from scratch.
+        await PincodeSettings.updateOne(
+          { shopId: shop },
+          { $set: { shiprocketConnected: false, shiprocketTokenEncrypted: "", shiprocketTokenExpiresAt: null } },
         );
         await recordAuditLog({
           actorType: "webhook",

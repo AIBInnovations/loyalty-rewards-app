@@ -1,5 +1,5 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useNavigation, useSubmit } from "@remix-run/react";
+import { useLoaderData, useNavigation, useSubmit, useFetcher } from "@remix-run/react";
 import {
   Page, Layout, Card, BlockStack, Text, TextField, Button,
   InlineStack, Badge, Divider, Banner, Select, Checkbox, InlineGrid,
@@ -9,18 +9,61 @@ import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { PincodeSettings, getOrCreatePincodeSettings } from "../.server/models/pincode-settings.model";
 import { PINCODE_ZONES } from "../pincode-zones";
+import { encryptShiprocketSecret } from "../.server/services/shiprocket.service";
+import { testShiprocketConnection } from "../.server/services/eta-engine.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   await connectDB();
   const s = await getOrCreatePincodeSettings(session.shop);
-  return json({ settings: JSON.parse(JSON.stringify(s)) });
+  const json_ = JSON.parse(JSON.stringify(s));
+  // Never send the encrypted password/token blobs to the client — the UI
+  // only needs to know a password is already on file, not its value.
+  delete json_.shiprocketPasswordEncrypted;
+  delete json_.shiprocketTokenEncrypted;
+  return json({ settings: json_, hasShiprocketPassword: Boolean(s.shiprocketPasswordEncrypted) });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   await connectDB();
   const fd = await request.formData();
+
+  if (fd.get("intent") === "test-shiprocket-connection") {
+    // Save whatever credentials/pickup pincode are currently in the form
+    // first, so "Test Connection" always tests what the merchant is
+    // actually looking at rather than whatever was last persisted.
+    const email = String(fd.get("shiprocketEmail") || "").trim();
+    const newPassword = String(fd.get("shiprocketPassword") || "");
+    const pickupPincode = String(fd.get("pickupPincode") || "").trim().slice(0, 6);
+    await PincodeSettings.findOneAndUpdate(
+      { shopId: session.shop },
+      {
+        $set: {
+          shiprocketEmail: email,
+          pickupPincode,
+          ...(newPassword ? { shiprocketPasswordEncrypted: encryptShiprocketSecret(newPassword) } : {}),
+        },
+      },
+      { upsert: true },
+    );
+    const result = await testShiprocketConnection(session.shop, admin);
+    return json(result);
+  }
+
+  // A blank password field means "leave the stored one alone" — the admin
+  // UI never receives the real value back, so an empty submit is not
+  // meaningfully different from "unchanged", not "clear it".
+  const newPassword = String(fd.get("shiprocketPassword") || "");
+  const passwordUpdate = newPassword
+    ? { shiprocketPasswordEncrypted: encryptShiprocketSecret(newPassword) }
+    : {};
+
+  const workingDaysRaw = String(fd.get("workingDays") || "");
+  const workingDays = workingDaysRaw
+    ? workingDaysRaw.split(",").map((d) => parseInt(d, 10)).filter((d) => Number.isFinite(d) && d >= 0 && d <= 6)
+    : [1, 2, 3, 4, 5, 6];
+
   await PincodeSettings.findOneAndUpdate(
     { shopId: session.shop },
     {
@@ -42,6 +85,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               o.minDays >= 0 && o.maxDays >= o.minDays,
           );
         })(),
+        etaMode:        fd.get("etaMode") === "shiprocket" ? "shiprocket" : "manual",
+        pickupPincode:  String(fd.get("pickupPincode") || "").trim().slice(0, 6),
+        handlingDays:   Math.min(14, Math.max(0, parseInt(String(fd.get("handlingDays") || "1"), 10) || 0)),
+        cutoffHour:     Math.min(23, Math.max(0, parseInt(String(fd.get("cutoffHour") || "18"), 10) || 0)),
+        workingDays,
+        shiprocketEmail: String(fd.get("shiprocketEmail") || "").trim().slice(0, 120),
+        ...passwordUpdate,
         headingText:     String(fd.get("headingText") || "").slice(0, 60) || "📦 Check Delivery & COD",
         bgColor:         String(fd.get("bgColor") || "").slice(0, 20),
         buttonColor:     String(fd.get("buttonColor") || "").slice(0, 20),
@@ -57,10 +107,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function PincodeSettingsPage() {
-  const { settings: s } = useLoaderData<typeof loader>();
+  const { settings: s, hasShiprocketPassword } = useLoaderData<typeof loader>();
   const nav    = useNavigation();
   const submit = useSubmit();
   const saving = nav.state === "submitting";
+  const testFetcher = useFetcher<{ success: boolean; message: string }>();
+  const testing = testFetcher.state !== "idle";
 
   const [enabled, setEnabled]   = useState(s.enabled);
   const [minDays, setMinDays]   = useState(String(s.defaultMinDays));
@@ -75,6 +127,19 @@ export default function PincodeSettingsPage() {
   const [buttonSize, setButtonSize] = useState(s.buttonSize || "medium");
   const [sectionWidth, setSectionWidth] = useState(s.sectionWidth || "");
   const [sectionHeight, setSectionHeight] = useState(s.sectionHeight || "");
+
+  const [etaMode, setEtaMode] = useState<"manual" | "shiprocket">(s.etaMode || "manual");
+  const [pickupPincode, setPickupPincode] = useState(s.pickupPincode || "");
+  const [handlingDays, setHandlingDays] = useState(String(s.handlingDays ?? 1));
+  const [cutoffHour, setCutoffHour] = useState(String(s.cutoffHour ?? 18));
+  const [workingDays, setWorkingDays] = useState<number[]>(s.workingDays?.length ? s.workingDays : [1, 2, 3, 4, 5, 6]);
+  const [shiprocketEmail, setShiprocketEmail] = useState(s.shiprocketEmail || "");
+  const [shiprocketPassword, setShiprocketPassword] = useState("");
+
+  const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const toggleWorkingDay = useCallback((day: number) => {
+    setWorkingDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()));
+  }, []);
 
   // One row per fixed PIN-code zone (state group). The zone's pincode
   // range is fixed by India Post prefixes — merchant only sets the days.
@@ -105,6 +170,13 @@ export default function PincodeSettingsPage() {
     fd.set("noCodPincodes",          noCod);
     fd.set("nonServiceablePincodes", noService);
     fd.set("stateDeliveryDays", JSON.stringify(buildStateDeliveryDays()));
+    fd.set("etaMode", etaMode);
+    fd.set("pickupPincode", pickupPincode);
+    fd.set("handlingDays", handlingDays);
+    fd.set("cutoffHour", cutoffHour);
+    fd.set("workingDays", workingDays.join(","));
+    fd.set("shiprocketEmail", shiprocketEmail);
+    fd.set("shiprocketPassword", shiprocketPassword);
     fd.set("headingText", headingText);
     fd.set("bgColor", bgColor);
     fd.set("buttonColor", buttonColor);
@@ -113,10 +185,28 @@ export default function PincodeSettingsPage() {
     fd.set("sectionWidth", sectionWidth);
     fd.set("sectionHeight", sectionHeight);
     submit(fd, { method: "POST" });
+    // The password field is intentionally cleared after every save — it's
+    // never sent back by the loader, so keeping stale text in the input
+    // would misleadingly suggest it still needs saving.
+    if (shiprocketPassword) setShiprocketPassword("");
   }, [
     enabled, minDays, maxDays, cod, noCod, noService, buildStateDeliveryDays, submit,
+    etaMode, pickupPincode, handlingDays, cutoffHour, workingDays, shiprocketEmail, shiprocketPassword,
     headingText, bgColor, buttonColor, buttonTextColor, buttonSize, sectionWidth, sectionHeight,
   ]);
+
+  const testConnection = useCallback(() => {
+    const fd = new FormData();
+    fd.set("intent", "test-shiprocket-connection");
+    fd.set("shiprocketEmail", shiprocketEmail);
+    fd.set("shiprocketPassword", shiprocketPassword);
+    fd.set("pickupPincode", pickupPincode);
+    // useFetcher (not raw fetch) so this also revalidates the route
+    // loader — the Connected/Not Connected badge below reads s.shiprocketConnected,
+    // which needs to reflect the just-updated DB state.
+    testFetcher.submit(fd, { method: "POST" });
+    if (shiprocketPassword) setShiprocketPassword("");
+  }, [shiprocketEmail, shiprocketPassword, pickupPincode, testFetcher]);
 
   return (
     <Page title="Pincode Delivery Estimator" backAction={{ url: "/app" }}>
@@ -135,6 +225,116 @@ export default function PincodeSettingsPage() {
                 </Banner>
               </BlockStack>
             </Card>
+
+            <Card>
+              <BlockStack gap="400">
+                <Text variant="headingMd" as="h2">Estimated Delivery Mode</Text>
+                <Select
+                  label="Delivery estimate source"
+                  options={[
+                    { label: "Manual (rules below)", value: "manual" },
+                    { label: "Shiprocket (automatic courier ETA)", value: "shiprocket" },
+                  ]}
+                  value={etaMode}
+                  onChange={(v) => { setEtaMode(v === "shiprocket" ? "shiprocket" : "manual"); save(); }}
+                  helpText="Shiprocket mode automatically falls back to the manual rules below if Shiprocket is unreachable or a pincode has no courier coverage — the widget always shows an answer."
+                />
+              </BlockStack>
+            </Card>
+
+            {etaMode === "shiprocket" && (
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between">
+                    <Text variant="headingMd" as="h2">Shiprocket Integration</Text>
+                    <Badge tone={s.shiprocketConnected ? "success" : "attention"}>
+                      {s.shiprocketConnected ? "Connected" : "Not Connected"}
+                    </Badge>
+                  </InlineStack>
+
+                  {s.shiprocketLastError && (
+                    <Banner tone="critical">{s.shiprocketLastError}</Banner>
+                  )}
+                  {testFetcher.data && (
+                    <Banner tone={testFetcher.data.success ? "success" : "critical"}>{testFetcher.data.message}</Banner>
+                  )}
+
+                  <InlineGrid columns={2} gap="300">
+                    <TextField
+                      label="Shiprocket Email"
+                      value={shiprocketEmail}
+                      onChange={setShiprocketEmail}
+                      onBlur={save}
+                      autoComplete="off"
+                      type="email"
+                    />
+                    <TextField
+                      label="Shiprocket Password"
+                      value={shiprocketPassword}
+                      onChange={setShiprocketPassword}
+                      onBlur={save}
+                      autoComplete="off"
+                      type="password"
+                      placeholder={hasShiprocketPassword ? "•••••••• (saved — leave blank to keep)" : ""}
+                      helpText={hasShiprocketPassword ? "A password is already saved. Leave blank to keep it." : undefined}
+                    />
+                  </InlineGrid>
+
+                  <TextField
+                    label="Pickup Pincode"
+                    value={pickupPincode}
+                    onChange={setPickupPincode}
+                    onBlur={save}
+                    autoComplete="off"
+                    maxLength={6}
+                    helpText="Your warehouse/origin pincode, used to check courier serviceability to the customer's pincode."
+                  />
+
+                  <InlineStack align="start">
+                    <Button onClick={testConnection} loading={testing}>Test Connection</Button>
+                  </InlineStack>
+
+                  <Divider />
+
+                  <Text variant="headingSm" as="h3">Handling &amp; Cut-off</Text>
+                  <InlineGrid columns={2} gap="300">
+                    <TextField
+                      label="Handling Time (days)"
+                      type="number"
+                      value={handlingDays}
+                      onChange={setHandlingDays}
+                      onBlur={save}
+                      autoComplete="off"
+                      min="0"
+                      helpText="Processing days added before the courier's own transit time."
+                    />
+                    <TextField
+                      label="Order Cut-off Hour (0–23)"
+                      type="number"
+                      value={cutoffHour}
+                      onChange={setCutoffHour}
+                      onBlur={save}
+                      autoComplete="off"
+                      min="0"
+                      max="23"
+                      helpText="Orders placed after this hour (in your store's timezone) count as next working day."
+                    />
+                  </InlineGrid>
+
+                  <Text as="p" variant="bodyMd">Working Days</Text>
+                  <InlineStack gap="300">
+                    {WEEKDAY_LABELS.map((label, day) => (
+                      <Checkbox
+                        key={day}
+                        label={label}
+                        checked={workingDays.includes(day)}
+                        onChange={() => { toggleWorkingDay(day); save(); }}
+                      />
+                    ))}
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+            )}
 
             <Card>
               <BlockStack gap="400">
