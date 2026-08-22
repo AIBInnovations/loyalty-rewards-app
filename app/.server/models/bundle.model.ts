@@ -121,6 +121,21 @@ export interface IBundleStyle {
   enableQuantitySelector: boolean;
   quantityMin: number; // 0 = no bundle-wide override, use each product's own minQuantity
   quantityMax: number; // 0 = no bundle-wide override, use each product's own maxQuantity
+
+  // Title gift-icon badge next to the heading
+  showTitleIcon: boolean;
+  titleIconBgColor: string;
+  titleIconColor: string;
+
+  // Savings banner (below subtitle), per-item "% OFF" badge, "You Save"
+  // pill, and the total-savings side panel all share one accent color pair
+  // so a merchant only has to set it in one place.
+  showSavingsBanner: boolean;
+  savingsAccentBgColor: string;
+  savingsAccentTextColor: string;
+
+  // "Secure Checkout / Easy Returns" row under the CTA button
+  showTrustBadges: boolean;
 }
 
 /**
@@ -260,6 +275,16 @@ const bundleStyleSchema = new Schema<IBundleStyle>(
     enableQuantitySelector: { type: Boolean, default: false },
     quantityMin: { type: Number, default: 0 },
     quantityMax: { type: Number, default: 0 },
+
+    showTitleIcon: { type: Boolean, default: true },
+    titleIconBgColor: { type: String, default: "" },
+    titleIconColor: { type: String, default: "" },
+
+    showSavingsBanner: { type: Boolean, default: true },
+    savingsAccentBgColor: { type: String, default: "" },
+    savingsAccentTextColor: { type: String, default: "" },
+
+    showTrustBadges: { type: Boolean, default: true },
   },
   { _id: false },
 );

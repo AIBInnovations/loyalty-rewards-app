@@ -24,6 +24,9 @@ const DEFAULT_STYLE: IBundleStyle = {
   visibilityMode: "all", primaryProductId: "",
   showCheckbox: false, uncheckByDefault: false, selectionMode: "multi",
   enableQuantitySelector: false, quantityMin: 0, quantityMax: 0,
+  showTitleIcon: true, titleIconBgColor: "", titleIconColor: "",
+  showSavingsBanner: true, savingsAccentBgColor: "", savingsAccentTextColor: "",
+  showTrustBadges: true,
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -372,6 +375,24 @@ export default function BundleGenieCustomize() {
                     <ColorField label="Hover text color" value={style.ctaHoverTextColor} onChange={(v) => set("ctaHoverTextColor", v)} />
                   </>
                 )}
+              </Section>
+
+              <Section title="Savings & badges" subtitle="Title icon, savings banner, and trust badges" open={openSection === "savings"} onToggle={() => toggle("savings")}>
+                <Checkbox label="Show gift icon next to the title" checked={style.showTitleIcon} onChange={(v) => set("showTitleIcon", v)} />
+                {style.showTitleIcon && (
+                  <>
+                    <ColorField label="Title icon background color" value={style.titleIconBgColor} onChange={(v) => set("titleIconBgColor", v)} />
+                    <ColorField label="Title icon color" value={style.titleIconColor} onChange={(v) => set("titleIconColor", v)} />
+                  </>
+                )}
+                <Checkbox label="Show savings banner (only appears when the bundle has a discount)" checked={style.showSavingsBanner} onChange={(v) => set("showSavingsBanner", v)} />
+                <Text as="p" tone="subdued">
+                  Applies to the savings banner, each product's "% OFF" badge, the "You Save" pill,
+                  and the total-savings panel — one accent color used everywhere.
+                </Text>
+                <ColorField label="Savings accent background color" value={style.savingsAccentBgColor} onChange={(v) => set("savingsAccentBgColor", v)} />
+                <ColorField label="Savings accent text color" value={style.savingsAccentTextColor} onChange={(v) => set("savingsAccentTextColor", v)} />
+                <Checkbox label="Show Secure Checkout / Easy Returns row under the button" checked={style.showTrustBadges} onChange={(v) => set("showTrustBadges", v)} />
               </Section>
 
               <Section title="Discounts" subtitle="Naming for the automatic discount this campaign creates" open={openSection === "discounts"} onToggle={() => toggle("discounts")}>

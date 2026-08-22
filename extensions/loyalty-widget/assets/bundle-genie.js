@@ -105,6 +105,14 @@
     vars += "--bg-genie-cta-shadow:" + shadowValue(s.ctaShadow) + ";";
     if (s.ctaHoverEnabled && s.ctaHoverBgColor) vars += "--bg-genie-cta-hover-bg:" + s.ctaHoverBgColor + ";";
     if (s.ctaHoverEnabled && s.ctaHoverTextColor) vars += "--bg-genie-cta-hover-text:" + s.ctaHoverTextColor + ";";
+    if (s.titleIconBgColor) vars += "--bg-genie-title-icon-bg:" + s.titleIconBgColor + ";";
+    if (s.titleIconColor) vars += "--bg-genie-title-icon-color:" + s.titleIconColor + ";";
+    if (s.savingsAccentBgColor) vars += "--bg-genie-savings-bg:" + s.savingsAccentBgColor + ";";
+    if (s.savingsAccentTextColor) vars += "--bg-genie-savings-text:" + s.savingsAccentTextColor + ";";
+
+    var showTitleIcon = s.showTitleIcon !== false;
+    var showSavingsBanner = s.showSavingsBanner !== false;
+    var showTrustBadges = s.showTrustBadges !== false;
 
     injectCustomCss(s.customCss);
 
@@ -307,19 +315,21 @@
     widget.innerHTML =
       '<div class="bg-genie-heading">' +
         '<h3 class="bg-genie-title">' + esc(bundle.title) + "</h3>" +
-        '<span class="bg-genie-title-icon">' + GIFT_ICON_SVG + "</span>" +
+        (showTitleIcon ? '<span class="bg-genie-title-icon">' + GIFT_ICON_SVG + "</span>" : "") +
       "</div>" +
       (bundle.description ? '<p class="bg-genie-desc">' + esc(bundle.description) + "</p>" : "") +
-      '<div class="bg-genie-savings-banner" id="bg-genie-savings-banner"></div>' +
+      (showSavingsBanner ? '<div class="bg-genie-savings-banner" id="bg-genie-savings-banner"></div>' : "") +
       '<div class="bg-genie-items">' + itemsHtml + "</div>" +
       '<div class="bg-genie-price-row" id="bg-genie-price-row"></div>' +
       '<button type="button" class="bg-genie-add-btn" id="bg-genie-add-btn">' + ctaLabel + "</button>" +
       (s.showPaymentIcons ? '<div class="bg-genie-payment-icons">Visa &bull; Mastercard &bull; UPI &bull; RuPay</div>' : "") +
-      '<div class="bg-genie-trust-row">' +
-        '<span class="bg-genie-trust-item">🛡️ Secure Checkout</span>' +
-        '<span class="bg-genie-trust-divider"></span>' +
-        '<span class="bg-genie-trust-item">↩️ Easy Returns</span>' +
-      "</div>" +
+      (showTrustBadges
+        ? '<div class="bg-genie-trust-row">' +
+            '<span class="bg-genie-trust-item">🛡️ Secure Checkout</span>' +
+            '<span class="bg-genie-trust-divider"></span>' +
+            '<span class="bg-genie-trust-item">↩️ Easy Returns</span>' +
+          "</div>"
+        : "") +
       '<div class="bg-genie-error" id="bg-genie-error" style="display:none;"></div>';
 
     // Placed right after the product form's Add to Cart button, same
