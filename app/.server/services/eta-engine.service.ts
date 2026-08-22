@@ -3,6 +3,7 @@
 // checkout extension, GoKwik, headless). Everything here is server-only;
 // the storefront only ever receives the normalized result below.
 
+import { encryptSecret, decryptSecret } from "../crypto.server";
 import { PincodeSettings, type IPincodeSettings } from "../models/pincode-settings.model";
 import { getZoneForPincode } from "../../pincode-zones";
 import {
@@ -13,6 +14,8 @@ import {
   shiprocketLogin,
   TOKEN_LIFETIME_MS,
 } from "./shiprocket.service";
+import { checkDelhiveryServiceability } from "./delhivery.service";
+import { checkBluedartServiceability } from "./bluedart.service";
 
 export interface ETAResult {
   deliverable: boolean;
@@ -20,10 +23,10 @@ export interface ETAResult {
   minDays: number;
   maxDays: number;
   state: string;
-  /** "manual" | "shiprocket" — which engine actually produced this result,
-      so the admin can tell at a glance whether Shiprocket mode is really
-      taking effect or silently falling back. Not shown to the customer. */
-  source: "manual" | "shiprocket";
+  /** Which engine actually produced this result, so the admin can tell at
+      a glance whether the chosen provider is really taking effect or
+      silently falling back. Not shown to the customer. */
+  source: "manual" | "shiprocket" | "delhivery" | "bluedart";
 }
 
 // In-memory serviceability cache — same Map+sweep shape as the app-proxy
@@ -166,6 +169,75 @@ async function calculateShiprocketETA(
   }
 }
 
+/** Delhivery-backed calculation. Delhivery's pincode API confirms
+    deliverable/COD authoritatively but doesn't return a transit-day
+    estimate (that needs their shipment/invoice flow, not a simple pincode
+    lookup) — so the day count still comes from the manual zone/default
+    fields even in Delhivery mode, matching what's actually available from
+    their API rather than fabricating a number. Never throws. */
+async function calculateDelhiveryETA(settings: IPincodeSettings, pincode: string): Promise<ETAResult | null> {
+  if (!settings.delhiveryApiTokenEncrypted) return null;
+
+  try {
+    const token = decryptSecret(settings.delhiveryApiTokenEncrypted);
+    const result = await checkDelhiveryServiceability(token, pincode);
+
+    if (!result.serviceable) {
+      return { deliverable: false, cod: false, minDays: 0, maxDays: 0, state: "", source: "delhivery" };
+    }
+
+    const manual = calculateManualETA(settings, pincode);
+    await PincodeSettings.updateOne({ _id: settings._id }, { $set: { delhiveryConnected: true, delhiveryLastError: "" } });
+
+    return {
+      deliverable: true,
+      cod: result.codAvailable,
+      minDays: manual.minDays,
+      maxDays: manual.maxDays,
+      state: manual.state,
+      source: "delhivery",
+    };
+  } catch (err) {
+    await PincodeSettings.updateOne(
+      { _id: settings._id },
+      { $set: { delhiveryLastError: err instanceof Error ? err.message : "Delhivery request failed" } },
+    ).catch(() => {});
+    return null;
+  }
+}
+
+/** Bluedart-backed calculation. See bluedart.service.ts's header comment —
+    lower confidence in the exact response shape than the other two
+    providers, so this leans on the same fallback-to-manual safety net even
+    more heavily. Never throws. */
+async function calculateBluedartETA(settings: IPincodeSettings, pincode: string): Promise<ETAResult | null> {
+  if (!settings.bluedartLoginId || !settings.bluedartLicenseKeyEncrypted || !settings.pickupPincode) return null;
+
+  try {
+    const licenseKey = decryptSecret(settings.bluedartLicenseKeyEncrypted);
+    const result = await checkBluedartServiceability(settings.bluedartLoginId, licenseKey, {
+      pickupPincode: settings.pickupPincode,
+      deliveryPincode: pincode,
+    });
+
+    if (!result.serviceable || result.etaDays === null) {
+      return { deliverable: false, cod: false, minDays: 0, maxDays: 0, state: "", source: "bluedart" };
+    }
+
+    const { minDays, maxDays } = addHandlingDays(settings, result.etaDays);
+    const zone = getZoneForPincode(pincode);
+    await PincodeSettings.updateOne({ _id: settings._id }, { $set: { bluedartConnected: true, bluedartLastError: "" } });
+
+    return { deliverable: true, cod: true, minDays, maxDays, state: zone?.label || "", source: "bluedart" };
+  } catch (err) {
+    await PincodeSettings.updateOne(
+      { _id: settings._id },
+      { $set: { bluedartLastError: err instanceof Error ? err.message : "Bluedart request failed" } },
+    ).catch(() => {});
+    return null;
+  }
+}
+
 /** The one entry point every consumer (today: the product-page widget;
     future: cart, checkout extension, GoKwik) should call. */
 export async function calculateETA(shop: string, pincode: string): Promise<ETAResult> {
@@ -174,17 +246,16 @@ export async function calculateETA(shop: string, pincode: string): Promise<ETARe
     return { deliverable: true, cod: true, minDays: 3, maxDays: 7, state: "", source: "manual" };
   }
 
-  const mode = settings.etaMode === "shiprocket" ? "shiprocket" : "manual";
+  const mode = settings.etaMode || "manual";
   const key = cacheKey(shop, pincode, mode);
   const cached = serviceabilityCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.result;
 
-  let result: ETAResult;
-  if (mode === "shiprocket") {
-    result = (await calculateShiprocketETA(settings, pincode)) || calculateManualETA(settings, pincode);
-  } else {
-    result = calculateManualETA(settings, pincode);
-  }
+  let result: ETAResult | null = null;
+  if (mode === "shiprocket") result = await calculateShiprocketETA(settings, pincode);
+  else if (mode === "delhivery") result = await calculateDelhiveryETA(settings, pincode);
+  else if (mode === "bluedart") result = await calculateBluedartETA(settings, pincode);
+  result = result || calculateManualETA(settings, pincode);
 
   if (Math.random() < 0.02) sweepCache(); // opportunistic, matches the rate-limiter's own sweep style
   serviceabilityCache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS });
@@ -253,6 +324,56 @@ export async function testShiprocketConnection(
       { shopId: shop },
       { $set: { shiprocketConnected: false, shiprocketLastError: message } },
     );
+    return { success: false, message };
+  }
+}
+
+export async function testDelhiveryConnection(
+  shop: string,
+  admin: MinimalAdminAPI,
+): Promise<{ success: boolean; message: string }> {
+  const settings = await PincodeSettings.findOne({ shopId: shop });
+  if (!settings) return { success: false, message: "Settings not found." };
+  if (!settings.delhiveryApiTokenEncrypted) {
+    return { success: false, message: "Enter a Delhivery API token first." };
+  }
+
+  try {
+    const { testDelhiveryToken } = await import("./delhivery.service");
+    const token = decryptSecret(settings.delhiveryApiTokenEncrypted);
+    await testDelhiveryToken(token, settings.pickupPincode || "110001");
+
+    await PincodeSettings.updateOne({ shopId: shop }, { $set: { delhiveryConnected: true, delhiveryLastError: "" } });
+    await syncShopTimezone(shop, admin);
+    return { success: true, message: "Connected to Delhivery." };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not connect to Delhivery.";
+    await PincodeSettings.updateOne({ shopId: shop }, { $set: { delhiveryConnected: false, delhiveryLastError: message } });
+    return { success: false, message };
+  }
+}
+
+export async function testBluedartAccountConnection(
+  shop: string,
+  admin: MinimalAdminAPI,
+): Promise<{ success: boolean; message: string }> {
+  const settings = await PincodeSettings.findOne({ shopId: shop });
+  if (!settings) return { success: false, message: "Settings not found." };
+  if (!settings.bluedartLoginId || !settings.bluedartLicenseKeyEncrypted) {
+    return { success: false, message: "Enter a Bluedart LoginID and LicenseKey first." };
+  }
+
+  try {
+    const { testBluedartConnection } = await import("./bluedart.service");
+    const licenseKey = decryptSecret(settings.bluedartLicenseKeyEncrypted);
+    await testBluedartConnection(settings.bluedartLoginId, licenseKey, settings.pickupPincode);
+
+    await PincodeSettings.updateOne({ shopId: shop }, { $set: { bluedartConnected: true, bluedartLastError: "" } });
+    await syncShopTimezone(shop, admin);
+    return { success: true, message: "Connected to Bluedart." };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not connect to Bluedart.";
+    await PincodeSettings.updateOne({ shopId: shop }, { $set: { bluedartConnected: false, bluedartLastError: message } });
     return { success: false, message };
   }
 }
