@@ -38,6 +38,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     title: bundle.title,
     description: bundle.description || "",
     products: bundle.draftProducts || [],
+    discountType: bundle.draftDiscountType || "none",
+    discountValue: bundle.draftDiscountValue || 0,
     style: { ...DEFAULT_STYLE, ...(bundle.style || {}) },
   });
 };
@@ -141,9 +143,49 @@ function shadowCss(shadow: string): string {
   return "none";
 }
 
-function PreviewPanel({ title, description, products, style }: { title: string; description: string; products: IBundleProduct[]; style: IBundleStyle }) {
+function GiftIcon({ color }: { color: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="8" width="18" height="4" />
+      <path d="M12 8v13" />
+      <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" />
+      <path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8" />
+      <path d="M16.5 8a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8" />
+    </svg>
+  );
+}
+
+function TagIcon({ color, size = 14 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" />
+    </svg>
+  );
+}
+
+function PreviewPanel({
+  title, description, products, style, discountType, discountValue,
+}: {
+  title: string; description: string; products: IBundleProduct[]; style: IBundleStyle;
+  discountType: string; discountValue: number;
+}) {
   const money = (cents: number) => (style.currencySymbol || "₹") + (cents / 100).toFixed(0);
   const isVertical = style.cardLayoutStyle === "vertical" || (style.cardLayoutStyle === "auto" && style.layout === "list");
+
+  const subtotal = products.reduce((sum, p) => sum + p.price, 0);
+  let finalPrice = subtotal;
+  let hasDiscount = discountType !== "none" && products.length > 0;
+  if (hasDiscount) {
+    if (discountType === "percentage") finalPrice = Math.round(subtotal * (1 - discountValue / 100));
+    else if (discountType === "fixed_amount") finalPrice = Math.max(0, subtotal - discountValue);
+    else if (discountType === "fixed_price") finalPrice = Math.min(subtotal, discountValue);
+    else hasDiscount = false;
+  }
+  const savings = subtotal - finalPrice;
+  const savingsPct = hasDiscount && subtotal > 0 ? Math.round((savings / subtotal) * 100) : 0;
+  const savingsBg = style.savingsAccentBgColor || "#eef7ec";
+  const savingsText = style.savingsAccentTextColor || "#2f7a3c";
 
   return (
     <Card padding="0">
@@ -154,52 +196,105 @@ function PreviewPanel({ title, description, products, style }: { title: string; 
         <Text as="span" tone="subdued" variant="bodySm">Bundle Preview</Text>
       </div>
       <div style={{ padding: 20, background: style.sectionBgColor || "#fafafa", textAlign: style.infoAlignment, fontFamily: style.fontFamily || undefined }}>
-        <div
-          style={{
-            fontSize: style.titleFontSize, fontWeight: 700,
-            color: style.titleTextColor || "#1a1a1a", background: style.titleBgColor || "transparent",
-            padding: style.titleBgColor ? 8 : 0, borderRadius: 8,
-          }}
-        >
-          {title || "Campaign title"}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: style.infoAlignment === "center" ? "center" : style.infoAlignment === "right" ? "flex-end" : "flex-start" }}>
+          <div
+            style={{
+              fontSize: style.titleFontSize, fontWeight: 700, fontFamily: "Georgia, 'Times New Roman', serif",
+              color: style.titleTextColor || "#1a1a1a", background: style.titleBgColor || "transparent",
+              padding: style.titleBgColor ? 8 : 0, borderRadius: 8,
+            }}
+          >
+            {title || "Campaign title"}
+          </div>
+          {style.showTitleIcon && (
+            <span style={{ flex: "none", width: 40, height: 40, borderRadius: "50%", background: style.titleIconBgColor || "#eef7ec", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <GiftIcon color={style.titleIconColor || "#1a1a1a"} />
+            </span>
+          )}
         </div>
         {description && (
-          <div style={{ fontSize: style.subtitleFontSize, color: style.secondaryColor || "#6b7280", marginTop: 4 }}>
+          <div style={{ fontSize: style.subtitleFontSize, color: style.secondaryColor || "#6b7280", marginTop: 2 }}>
             {description}
           </div>
         )}
+        {style.showSavingsBanner && hasDiscount && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 10, padding: "10px 16px", background: savingsBg, color: savingsText, border: "1px solid rgba(0,0,0,0.06)", borderRadius: 999, fontSize: 13, fontWeight: 600 }}>
+            <TagIcon color={savingsText} />
+            <span>Save {money(savings)} ({savingsPct}%) on this bundle</span>
+          </div>
+        )}
         <div style={{ marginTop: 14, display: "flex", flexDirection: isVertical ? "column" : "row", flexWrap: "wrap", gap: 12 }}>
-          {products.map((p) => (
-            <div
-              key={p.shopifyProductId}
-              style={{
-                display: "flex", gap: 10, alignItems: isVertical ? "flex-start" : "center", flexDirection: isVertical ? "column" : "row",
-                background: style.cardBgColor || "#ffffff",
-                border: `1px solid ${style.cardBorderColor || "#e5e7eb"}`,
-                borderRadius: style.cardBorderRadius, padding: 10,
-                boxShadow: shadowCss(style.cardShadow), flex: isVertical ? undefined : "1 1 200px",
-              }}
-            >
-              {p.imageUrl && (
-                <img
-                  src={p.imageUrl} alt={p.title}
-                  style={{ width: isVertical ? "100%" : 48, height: style.imageAspectRatio === "portrait" ? 64 : 48, objectFit: "cover", borderRadius: 6 }}
-                />
-              )}
-              <div style={{ minWidth: 0 }}>
-                <Text as="p" variant="bodySm" fontWeight="semibold" truncate>{p.title}</Text>
-                {style.showPrice && (
-                  <InlineStack gap="100">
-                    {style.showCompareAtPrice && p.compareAtPrice ? (
-                      <Text as="span" tone="subdued" textDecorationLine="line-through">{money(p.compareAtPrice)}</Text>
-                    ) : null}
-                    <Text as="span">{money(p.price)}</Text>
-                  </InlineStack>
+          {products.map((p) => {
+            const showCompare = style.showCompareAtPrice && !!p.compareAtPrice && p.compareAtPrice > p.price;
+            const pctOff = showCompare ? Math.round((1 - p.price / (p.compareAtPrice as number)) * 100) : 0;
+            return (
+              <div
+                key={p.shopifyProductId}
+                style={{
+                  display: "flex", gap: 10, alignItems: isVertical ? "flex-start" : "center", flexDirection: isVertical ? "column" : "row",
+                  background: style.cardBgColor || "#ffffff",
+                  border: `1px solid ${style.cardBorderColor || "#e5e7eb"}`,
+                  borderRadius: style.cardBorderRadius, padding: 10,
+                  boxShadow: shadowCss(style.cardShadow), flex: isVertical ? undefined : "1 1 200px",
+                }}
+              >
+                {p.imageUrl && (
+                  <img
+                    src={p.imageUrl} alt={p.title}
+                    style={{ width: isVertical ? "100%" : 48, height: style.imageAspectRatio === "portrait" ? 64 : 48, objectFit: "cover", borderRadius: 6 }}
+                  />
                 )}
+                <div style={{ minWidth: 0 }}>
+                  <Text as="p" variant="bodySm" fontWeight="semibold" truncate>{p.title}</Text>
+                  {style.showPrice && (
+                    <BlockStack gap="050">
+                      {showCompare && (
+                        <Text as="span" tone="subdued" textDecorationLine="line-through">{money(p.compareAtPrice as number)}</Text>
+                      )}
+                      {showCompare && (
+                        <span style={{ display: "inline-block", width: "fit-content", background: savingsBg, color: savingsText, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999 }}>
+                          {pctOff}% OFF
+                        </span>
+                      )}
+                      <Text as="span">{money(p.price)}</Text>
+                    </BlockStack>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {products.length > 0 && (
+          hasDiscount ? (
+            <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 16px", border: "1px solid #ececec", borderRadius: 12 }}>
+              <BlockStack gap="100">
+                <Text as="span" tone="subdued" variant="bodySm">Total Price</Text>
+                <Text as="span" variant="headingLg">{money(finalPrice)}</Text>
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" tone="subdued" textDecorationLine="line-through">{money(subtotal)}</Text>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: savingsText, background: savingsBg, padding: "2px 10px", borderRadius: 999 }}>You Save {money(savings)}</span>
+                </InlineStack>
+              </BlockStack>
+              <div style={{ width: 1, alignSelf: "stretch", background: "#e5e7eb" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ flex: "none", width: 32, height: 32, borderRadius: "50%", background: savingsBg, color: savingsText, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <TagIcon color={savingsText} />
+                </span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: savingsText }}>{savingsPct}% Total Savings</div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>Great choice!</div>
+                </div>
               </div>
             </div>
-          ))}
-        </div>
+          ) : (
+            <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 16px", border: "1px solid #ececec", borderRadius: 12 }}>
+              <Text as="span" tone="subdued" variant="bodySm">Total Price</Text>
+              <Text as="span" variant="headingLg">{money(subtotal)}</Text>
+            </div>
+          )
+        )}
+
         <button
           type="button"
           disabled
@@ -219,13 +314,20 @@ function PreviewPanel({ title, description, products, style }: { title: string; 
             <Text as="span" tone="subdued" variant="bodySm">Visa • Mastercard • UPI • RuPay</Text>
           </div>
         )}
+        {style.showTrustBadges && (
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, fontSize: 12, color: "#6b7280" }}>
+            <span>🛡️ Secure Checkout</span>
+            <span style={{ width: 1, height: 12, background: "#d1d5db" }} />
+            <span>↩️ Easy Returns</span>
+          </div>
+        )}
       </div>
     </Card>
   );
 }
 
 export default function BundleGenieCustomize() {
-  const { title, description, products, style: initialStyle } = useLoaderData<typeof loader>();
+  const { title, description, products, discountType, discountValue, style: initialStyle } = useLoaderData<typeof loader>();
   const { id } = useParams();
   const submit = useSubmit();
   const navigation = useNavigation();
@@ -441,7 +543,7 @@ export default function BundleGenieCustomize() {
           </div>
 
           <div style={{ flex: "1 1 320px", minWidth: 280, position: "sticky", top: 16 }}>
-            <PreviewPanel title={title} description={description} products={products} style={style} />
+            <PreviewPanel title={title} description={description} products={products} style={style} discountType={discountType} discountValue={discountValue} />
             {!description && (
               <div style={{ marginTop: 8 }}>
                 <Text as="p" tone="subdued" variant="bodySm">
