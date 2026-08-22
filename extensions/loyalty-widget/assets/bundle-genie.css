@@ -138,18 +138,16 @@
 }
 
 .bg-genie-layout--grid .bg-genie-plus-sep {
-  /* Floats as a white circle over the seam between two cards, roughly at
-     the product image's vertical centre, matching the reference's "+"
-     bubble instead of a plain inline character. */
+  /* A white circle sitting between the two cards, vertically centred on
+     the row via align-self: center (inherited from the base rule above) —
+     no negative margins or fixed offsets, so it stays correctly centred
+     no matter how tall a given card's title/price text makes it. */
   width: 32px;
   height: 32px;
-  font-size: 20px;
+  font-size: 18px;
   background: #fff;
   border-radius: 50%;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  margin: 60px -16px 0;
-  position: relative;
-  z-index: 2;
 }
 
 .bg-genie-item-img {
