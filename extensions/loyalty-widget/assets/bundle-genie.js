@@ -193,13 +193,32 @@
       if (addBtn) addBtn.disabled = !anyChecked;
     }
 
-    var itemsHtml = bundle.products.map(function (p, i) {
+    // The primary product (the page's own product, or the admin-configured
+    // one in single-select mode) always renders first, regardless of where
+    // it sits in the merchant's configured product order — everything else
+    // below still indexes into bundle.products/itemState by original index
+    // i, only the visual/DOM order changes here.
+    var displayOrder = bundle.products.map(function (_, i) { return i; });
+    if (primaryIndex > 0) {
+      displayOrder.splice(displayOrder.indexOf(primaryIndex), 1);
+      displayOrder.unshift(primaryIndex);
+    }
+
+    var itemsHtml = displayOrder.map(function (i) {
+      var p = bundle.products[i];
       var priceHtml = "";
       if (showPrice) {
         var compareHtml = showCompareAt && p.compareAtPrice > p.price
           ? '<span class="bg-genie-item-compare">' + formatMoney(p.compareAtPrice * itemState[i].qty, currencySymbol) + "</span>"
           : "";
-        priceHtml = compareHtml + '<span class="bg-genie-item-price" id="bg-genie-item-price-' + i + '">' + formatMoney(p.price * itemState[i].qty, currencySymbol) + "</span>";
+        // Wrapped in one shared row so compare-at and price sit side by
+        // side on the same line, same as the Total Price row below —
+        // .bg-genie-item-body is a flex column, so without this wrapper
+        // each span became its own stacked line instead.
+        priceHtml = '<span class="bg-genie-item-price-row">' +
+          compareHtml +
+          '<span class="bg-genie-item-price" id="bg-genie-item-price-' + i + '">' + formatMoney(p.price * itemState[i].qty, currencySymbol) + "</span>" +
+        "</span>";
       }
       var checkboxHtml = showCheckbox
         ? '<input type="checkbox" class="bg-genie-item-check" data-index="' + i + '"' +

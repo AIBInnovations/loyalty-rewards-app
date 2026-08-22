@@ -37,7 +37,7 @@ import { Subscriber } from "../.server/models/subscriber.model";
 import { createRedemptionDiscount, createSpinWheelDiscount } from "../.server/services/discount.service";
 import { generateDiscountCode } from "../.server/utils/codes";
 import { PincodeSettings } from "../.server/models/pincode-settings.model";
-import { getZoneForPincode } from "../pincode-zones";
+import { calculateETA } from "../.server/services/eta-engine.service";
 import { sendWheelPrizeEmail } from "../.server/utils/email";
 import { UpsellSettings } from "../.server/models/upsell-settings.model";
 import { UGCSettings } from "../.server/models/ugc-settings.model";
@@ -272,6 +272,11 @@ export const loader = async ({ request, params: routeParams }: LoaderFunctionArg
   }
 
   if (path === "pincode") {
+    // Shiprocket-mode lookups hit a real external API — worth rate limiting
+    // even though the ETA engine's own cache absorbs most repeat calls.
+    if (!checkRateLimit(`pincode:${shop}`, 60)) {
+      return json({ error: "Rate limited" }, { status: 429 });
+    }
     return (await accessGate("pincode", shop, shopifyCustomerId)) || handlePincodeCheck(params, shop);
   }
 
@@ -1470,32 +1475,12 @@ async function handlePincodeCheck(params: URLSearchParams, shop: string) {
   }
 
   const noStore = { headers: { "Cache-Control": "no-store" } };
-  const settings = await PincodeSettings.findOne({ shopId: shop }).lean();
-  if (!settings?.enabled) {
-    // Default: all deliverable, COD available, 3-7 days
-    return json({ deliverable: true, cod: true, minDays: 3, maxDays: 7 }, noStore);
-  }
-
-  if (settings.nonServiceablePincodes.includes(code)) {
-    return json({ deliverable: false, cod: false, minDays: 0, maxDays: 0 }, noStore);
-  }
-
-  const cod = settings.noCodPincodes.includes(code)
-    ? false
-    : settings.codPincodes.length === 0 || settings.codPincodes.includes(code);
-
-  const zone = getZoneForPincode(code);
-  const zoneOverride = zone
-    ? (settings.stateDeliveryDays || []).find((o) => o.zoneKey === zone.key)
-    : undefined;
-
-  return json({
-    deliverable: true,
-    cod,
-    minDays: zoneOverride ? zoneOverride.minDays : settings.defaultMinDays,
-    maxDays: zoneOverride ? zoneOverride.maxDays : settings.defaultMaxDays,
-    state: zone?.label || "",
-  }, noStore);
+  // Delegates to the shared ETA engine (manual fields, or a merchant's
+  // connected Shiprocket account with an automatic fallback to those same
+  // manual fields on any Shiprocket failure) — same response shape as
+  // before plus "source", which the widget simply ignores.
+  const result = await calculateETA(shop, code);
+  return json(result, noStore);
 }
 
 async function handleGetPincodeSettings(shop: string) {

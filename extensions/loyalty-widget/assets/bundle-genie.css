@@ -32,13 +32,14 @@
 .bg-genie-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .bg-genie-layout--grid .bg-genie-items {
   flex-direction: row;
   flex-wrap: nowrap;
+  gap: 16px;
 }
 
 .bg-genie-layout--grid .bg-genie-item {
@@ -53,23 +54,6 @@
   align-self: center;
 }
 
-/* Product count never changes the layout — always one row on desktop,
-   always stacked on mobile, matching the reference exactly. */
-@media (max-width: 640px) {
-  .bg-genie-layout--grid .bg-genie-items {
-    flex-direction: column;
-  }
-
-  .bg-genie-layout--grid .bg-genie-item {
-    flex-direction: row;
-    text-align: left;
-  }
-
-  .bg-genie-layout--grid .bg-genie-plus-sep {
-    margin: 0;
-  }
-}
-
 .bg-genie-item {
   position: relative;
   display: flex;
@@ -78,8 +62,20 @@
   padding: 8px;
   border: 1px solid var(--bg-genie-card-border, #ececec);
   background: var(--bg-genie-card-bg, #ffffff);
-  border-radius: var(--bg-genie-card-radius, 8px);
+  border-radius: var(--bg-genie-card-radius, 10px);
   box-shadow: var(--bg-genie-card-shadow, 0 1px 4px rgba(0,0,0,0.08));
+  /* The fixed-size image below doesn't otherwise shrink with the column in
+     a 3-up row, so it was poking out past the card's rounded corners —
+     clip anything that still doesn't fit to the card boundary. */
+  overflow: hidden;
+}
+
+/* Grid cards get real breathing room around the (much larger) image and
+   text — the compact 8px padding is right for the narrow list layout, but
+   reads cramped once the image jumps to 140px. */
+.bg-genie-layout--grid .bg-genie-item {
+  padding: 14px 12px 16px;
+  gap: 10px;
 }
 
 .bg-genie-item-body {
@@ -87,21 +83,19 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .bg-genie-plus-sep {
   flex: none;
   width: 22px;
   height: 22px;
-  border-radius: 50%;
-  border: 1px solid #d1d5db;
-  background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  color: #6b7280;
+  font-size: 24px;
+  font-weight: 300;
+  color: #9ca3af;
   align-self: center;
 }
 
@@ -112,14 +106,41 @@
 .bg-genie-item-img {
   width: 44px;
   height: var(--bg-genie-img-height, 44px);
-  object-fit: cover;
+  /* "cover" crops to fill the box — fine for square product shots, but a
+     tall portrait/fashion photo in a square frame only shows a torso
+     close-up, cutting off the actual product. "contain" always shows the
+     whole image, letterboxed on whichever axis doesn't match. */
+  object-fit: contain;
+  background: #f5f5f5;
   border-radius: 6px;
   flex: none;
 }
 
 .bg-genie-layout--grid .bg-genie-item-img {
-  width: 64px;
-  height: var(--bg-genie-img-height, 64px);
+  /* Bleeds to the card's own edges instead of sitting inset within the
+     card's padding — pulls back out by exactly the padding on each side
+     the card above applies (14px top, 12px sides), so it reads as part of
+     the card's top rather than a framed thumbnail. overflow:hidden on the
+     card clips it back to the card's own rounded corners, so no radius is
+     needed here. */
+  width: calc(100% + 24px);
+  max-width: none;
+  margin: -14px -12px 0;
+  /* Not var(--bg-genie-img-height, 140px) — that variable is set inline by
+     the widget's own JS to 44px/64px for the old compact list layout's
+     "image aspect ratio" setting, which unconditionally overrides any CSS
+     fallback here regardless of layout. The grid card needs its own much
+     taller image outright, not that setting. */
+  height: 140px;
+  border-radius: 0;
+  /* The box is now wide (bleeds across the whole card) but only 140px
+     tall — a portrait photo fit with "contain" is height-constrained,
+     leaving grey letterbox gaps on the sides instead of filling the
+     width. "cover" crops instead, but against this wider box that's a
+     much smaller trim off the top/bottom than the old square 140x140
+     frame was, not a tight torso close-up. */
+  object-fit: cover;
+  background: transparent;
 }
 
 .bg-genie-item-title {
@@ -127,8 +148,9 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -136,12 +158,23 @@
 }
 
 .bg-genie-item-price {
-  font-size: 12px;
-  opacity: 0.75;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 1;
+}
+
+.bg-genie-item-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.bg-genie-layout--grid .bg-genie-item-price-row {
+  justify-content: center;
 }
 
 .bg-genie-item-compare {
-  font-size: 11px;
+  font-size: 12px;
   text-decoration: line-through;
   opacity: 0.5;
   margin-right: 4px;
@@ -163,6 +196,16 @@
   cursor: pointer;
 }
 
+/* Follows the image's own top-left corner, which moved with the bigger
+   grid padding above — and a touch bigger to stay in proportion with the
+   140px image instead of looking lost in the corner. */
+.bg-genie-layout--grid .bg-genie-item-check {
+  top: 10px;
+  left: 10px;
+  width: 24px;
+  height: 24px;
+}
+
 .bg-genie-item-check:checked {
   background: #1a1a1a;
   border-color: #1a1a1a;
@@ -178,6 +221,13 @@
   border: solid #fff;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
+}
+
+.bg-genie-layout--grid .bg-genie-item-check:checked::after {
+  left: 8px;
+  top: 4px;
+  width: 6px;
+  height: 11px;
 }
 
 .bg-genie-qty {
@@ -264,4 +314,55 @@
   margin-top: 8px;
   font-size: 12px;
   color: #c0392b;
+}
+
+/* Product count never changes the layout — always one row on desktop,
+   always stacked on mobile, matching the reference exactly. Placed last so
+   these overrides actually win the cascade against the unconditional grid
+   rules above — a media query doesn't add specificity by itself, so
+   positioned earlier in the file it would have lost on source order. */
+@media (max-width: 640px) {
+  .bg-genie-layout--grid .bg-genie-items {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .bg-genie-layout--grid .bg-genie-item {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    padding: 10px;
+  }
+
+  /* The 140px desktop image only fits three-across a full-width card —
+     stacked single-column on a phone it needs to shrink back down to a
+     compact thumbnail beside the text, matching the reference's row
+     layout. */
+  .bg-genie-layout--grid .bg-genie-item-img {
+    width: 72px;
+    max-width: 72px;
+    margin: 0;
+    height: 72px;
+  }
+
+  .bg-genie-layout--grid .bg-genie-item-check {
+    top: 8px;
+    left: 8px;
+    width: 22px;
+    height: 22px;
+  }
+
+  .bg-genie-layout--grid .bg-genie-item-check:checked::after {
+    left: 7px;
+    top: 3px;
+    width: 5px;
+    height: 10px;
+  }
+
+  /* Horizontal divider between stacked rows instead of the desktop row's
+     inline "+" between columns. */
+  .bg-genie-layout--grid .bg-genie-plus-sep {
+    width: 100%;
+    margin: 0;
+  }
 }

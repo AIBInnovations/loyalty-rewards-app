@@ -1094,48 +1094,56 @@
   // Products marked "Show Free" are a "buy one, get the cheaper one free"
   // pool — not every marked product is free at once. Only the cheapest one
   // actually present in the cart, among at least two, gets the free
-  // treatment; whichever is pricier always shows its real price. Needs the
-  // live cart (not just settings) to know which are present and compare.
-  // Also folds in any enabled "Cart Drawer Offer" of type buyXGetY whose
-  // reward is "free" — its buy condition gates which reward variants count
-  // as eligible at all.
-  function getFreeDisplayVariantId(cart) {
+  // treatment; whichever is pricier always shows its real price.
+  //
+  // Separately, each enabled "Cart Drawer Offer" of type buyXGetY with a
+  // free reward marks its own cheapest matching "get" product free once its
+  // buy condition is met — that one needs no pairing/second item, unlike
+  // the ad-hoc pool above, since the offer already names its reward
+  // products explicitly. Returns a { [variantId]: true } map so multiple
+  // offers (or the ad-hoc pool plus an offer) can each mark their own item
+  // free at once, rather than a single winner.
+  function getFreeDisplayVariantIds(cart) {
     var settings = state.settings;
-    if (!settings || !cart || !cart.items || !cart.items.length) return null;
+    var freeIds = {};
+    if (!settings || !cart || !cart.items || !cart.items.length) return freeIds;
 
-    var eligibleIds = {};
+    var adHocEligibleIds = {};
     (settings.manualProducts || []).forEach(function (p) {
       if (p.priceDisplay === "free" && p.variantId) {
-        eligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+        adHocEligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
       }
     });
     (settings.offers || []).forEach(function (offer) {
       (offer.recommendedProducts || []).forEach(function (p) {
         if (p.priceDisplay === "free" && p.variantId) {
-          eligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+          adHocEligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
         }
       });
     });
+    var adHocEligibleItems = cart.items.filter(function (item) { return adHocEligibleIds[String(item.variant_id)]; });
+    if (adHocEligibleItems.length >= 2) {
+      var cheapestAdHoc = adHocEligibleItems[0];
+      adHocEligibleItems.forEach(function (item) { if (item.price < cheapestAdHoc.price) cheapestAdHoc = item; });
+      freeIds[String(cheapestAdHoc.variant_id)] = true;
+    }
 
     var qtyByProduct = cartQtyByProductId(cart);
     (settings.cartOffers || []).forEach(function (offer) {
       if (!offer.enabled || offer.type !== "buyXGetY" || offer.getDiscountType !== "free") return;
       if (!isBuyXGetYConditionMet(offer, qtyByProduct)) return;
+      var getIds = {};
       (offer.getProducts || []).forEach(function (p) {
-        if (p.variantId) eligibleIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
+        if (p.variantId) getIds[String(p.variantId).replace("gid://shopify/ProductVariant/", "")] = true;
       });
+      var eligible = cart.items.filter(function (item) { return getIds[String(item.variant_id)]; });
+      if (!eligible.length) return;
+      var cheapestGet = eligible[0];
+      eligible.forEach(function (item) { if (item.price < cheapestGet.price) cheapestGet = item; });
+      freeIds[String(cheapestGet.variant_id)] = true;
     });
 
-    var eligibleItems = cart.items.filter(function (item) {
-      return eligibleIds[String(item.variant_id)];
-    });
-    if (eligibleItems.length < 2) return null;
-
-    var cheapest = eligibleItems[0];
-    eligibleItems.forEach(function (item) {
-      if (item.price < cheapest.price) cheapest = item;
-    });
-    return String(cheapest.variant_id);
+    return freeIds;
   }
 
   // Non-free line discounts from Cart Drawer Offers: amountOffProducts
@@ -1209,18 +1217,17 @@
   // shown in the drawer stay consistent with what each line item displays.
   function getFreeAdjustedTotals(cart) {
     var originalTotal = cart.original_total_price || cart.total_price;
-    var freeDisplayVariantId = getFreeDisplayVariantId(cart);
+    var freeDisplayVariantIds = getFreeDisplayVariantIds(cart);
     var freeItemAmount = 0;
-    if (freeDisplayVariantId) {
-      var freeItem = cart.items.filter(function (i) { return String(i.variant_id) === freeDisplayVariantId; })[0];
-      if (freeItem) freeItemAmount = freeItem.final_line_price;
-    }
+    cart.items.forEach(function (item) {
+      if (freeDisplayVariantIds[String(item.variant_id)]) freeItemAmount += item.final_line_price;
+    });
 
     var lineDiscounts = getCartOfferLineDiscounts(cart);
     var lineDiscountAmount = 0;
     cart.items.forEach(function (item) {
       var vid = String(item.variant_id);
-      if (vid === freeDisplayVariantId) return; // already counted above
+      if (freeDisplayVariantIds[vid]) return; // already counted above
       var discount = lineDiscounts[vid];
       if (!discount) return;
       lineDiscountAmount += item.final_line_price - applyLineDiscount(item.final_line_price, discount);
@@ -1238,11 +1245,11 @@
   function renderItems(cart) {
     if (!cart || !cart.items || !cart.items.length) return renderEmpty();
 
-    var freeDisplayVariantId = getFreeDisplayVariantId(cart);
+    var freeDisplayVariantIds = getFreeDisplayVariantIds(cart);
     var lineDiscounts = getCartOfferLineDiscounts(cart);
     var html = '<div class="cd-items">';
     cart.items.forEach(function (item) {
-      var isFreeDisplay = freeDisplayVariantId !== null && String(item.variant_id) === freeDisplayVariantId;
+      var isFreeDisplay = !!freeDisplayVariantIds[String(item.variant_id)];
       var lineDiscount = !isFreeDisplay ? lineDiscounts[String(item.variant_id)] : null;
 
       // Three independent sources of a "was" price: a cart-level discount
@@ -2005,14 +2012,18 @@
   // but its own open/close JS still runs in the background whenever
   // triggered (e.g. by an add-to-cart it observes) — including locking body
   // scroll — even though its UI can never actually show. That lock is a
-  // CLASS on <body> (this theme's own convention: modal-show/modal-showing/
-  // search-open/body-no-scrollbar all map to overflow:hidden in its own
-  // CSS), not an inline style, so checking body.style.overflow directly
-  // never caught it. Watch computed overflow instead — that reflects the
-  // lock regardless of which mechanism applied it — and strip both the
-  // known classes and any inline override whenever it isn't actually us
-  // holding the lock.
-  var NATIVE_SCROLL_LOCK_CLASSES = ["modal-show", "modal-showing", "search-open", "body-no-scrollbar"];
+  // CLASS on <body>, not an inline style, so checking body.style.overflow
+  // directly never caught it — and the exact class name is theme-specific
+  // (confirmed against two different themes' own source: one uses
+  // modal-show/modal-showing/search-open/body-no-scrollbar, Dawn uses a
+  // single overflow-hidden class for every lock — search modal, mobile
+  // menu, cart drawer, all of it). Watch computed overflow instead of any
+  // specific class — that reflects the lock regardless of which mechanism
+  // or theme applied it — and strip every known class plus any inline
+  // override whenever it isn't actually us holding the lock.
+  var NATIVE_SCROLL_LOCK_CLASSES = [
+    "modal-show", "modal-showing", "search-open", "body-no-scrollbar", "overflow-hidden",
+  ];
   function watchForStrayScrollLock() {
     if (typeof MutationObserver === "undefined") return;
     var observer = new MutationObserver(function () {
