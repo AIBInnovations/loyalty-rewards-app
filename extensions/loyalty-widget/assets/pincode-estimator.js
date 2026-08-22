@@ -67,40 +67,10 @@
       '</div>' +
       '<div class="pe-result" id="pe-result"></div>';
 
-    // Try to place the widget inside the product form column (right side of the
-    // product image), in this priority order:
-    //   1. Right below the Wishlist button (if present)
-    //   2. Right before the Add-to-Cart button
-    //   3. Appended inside the product form
-    //   4. Fallback: next to the embed's own root element
-    var placed = false;
-
-    var wlBtn = document.querySelector("[data-wl-button]");
-    if (wlBtn && wlBtn.parentNode) {
-      wlBtn.parentNode.insertBefore(widget, wlBtn.nextSibling);
-      placed = true;
-    }
-
-    if (!placed) {
-      var cartForm = document.querySelector('form[action*="/cart/add"]');
-      if (cartForm) {
-        var addBtn =
-          cartForm.querySelector('[name="add"]') ||
-          cartForm.querySelector('button[type="submit"]');
-        if (addBtn && addBtn.parentNode) {
-          // Insert above the Add to Cart button so the widget sits in the
-          // product form column, matching the reference layout.
-          addBtn.parentNode.insertBefore(widget, addBtn);
-        } else {
-          cartForm.appendChild(widget);
-        }
-        placed = true;
-      }
-    }
-
-    if (!placed) {
-      root.parentNode.insertBefore(widget, root.nextSibling);
-    }
+    // This is now a positionable app block — the merchant places #pincode-
+    // estimator exactly where they want it via the theme editor's block
+    // picker, so render the widget in place rather than guessing a spot.
+    root.appendChild(widget);
 
     var input   = document.getElementById("pe-input");
     var btn     = document.getElementById("pe-check-btn");

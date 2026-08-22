@@ -27,18 +27,36 @@
     } catch (e) {}
   }
 
+  function withCommas(intStr) {
+    return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
   function formatMoney(cents, symbolOverride) {
     var amount = cents / 100;
-    if (symbolOverride) return symbolOverride + amount.toFixed(0);
+    if (symbolOverride) return symbolOverride + withCommas(Math.round(amount).toString());
     var format = moneyFormat;
     if (format.indexOf("{{amount_no_decimals}}") !== -1) {
-      return format.replace("{{amount_no_decimals}}", Math.round(amount).toString());
+      return format.replace("{{amount_no_decimals}}", withCommas(Math.round(amount).toString()));
     }
     if (format.indexOf("{{amount}}") !== -1) {
-      return format.replace("{{amount}}", amount.toFixed(2));
+      var fixed = amount.toFixed(2);
+      var dot = fixed.indexOf(".");
+      return format.replace("{{amount}}", withCommas(fixed.slice(0, dot)) + fixed.slice(dot));
     }
-    return "₹" + amount.toFixed(0);
+    return "₹" + withCommas(Math.round(amount).toString());
   }
+
+  var GIFT_ICON_SVG =
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="3" y="8" width="18" height="4"></rect><path d="M12 8v13"></path>' +
+    '<path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"></path>' +
+    '<path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8"></path>' +
+    '<path d="M16.5 8a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8"></path></svg>';
+
+  var TAG_ICON_SVG =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>' +
+    '<line x1="7" y1="7" x2="7.01" y2="7"></line></svg>';
 
   function shadowValue(shadow) {
     if (shadow === "soft") return "0 1px 4px rgba(0,0,0,0.10)";
@@ -71,7 +89,7 @@
     if (s.secondaryColor) vars += "--bg-genie-secondary:" + s.secondaryColor + ";";
     if (s.sectionBgColor) vars += "--bg-genie-section-bg:" + s.sectionBgColor + ";";
     vars += "--bg-genie-align:" + (s.infoAlignment || "left") + ";";
-    vars += "--bg-genie-title-size:" + (s.titleFontSize || 22) + "px;";
+    vars += "--bg-genie-title-size:" + (s.titleFontSize || 30) + "px;";
     vars += "--bg-genie-subtitle-size:" + (s.subtitleFontSize || 18) + "px;";
     if (s.titleBgColor) vars += "--bg-genie-title-bg:" + s.titleBgColor + ";";
     if (s.titleTextColor) vars += "--bg-genie-title-text:" + s.titleTextColor + ";";
@@ -87,6 +105,14 @@
     vars += "--bg-genie-cta-shadow:" + shadowValue(s.ctaShadow) + ";";
     if (s.ctaHoverEnabled && s.ctaHoverBgColor) vars += "--bg-genie-cta-hover-bg:" + s.ctaHoverBgColor + ";";
     if (s.ctaHoverEnabled && s.ctaHoverTextColor) vars += "--bg-genie-cta-hover-text:" + s.ctaHoverTextColor + ";";
+    if (s.titleIconBgColor) vars += "--bg-genie-title-icon-bg:" + s.titleIconBgColor + ";";
+    if (s.titleIconColor) vars += "--bg-genie-title-icon-color:" + s.titleIconColor + ";";
+    if (s.savingsAccentBgColor) vars += "--bg-genie-savings-bg:" + s.savingsAccentBgColor + ";";
+    if (s.savingsAccentTextColor) vars += "--bg-genie-savings-text:" + s.savingsAccentTextColor + ";";
+
+    var showTitleIcon = s.showTitleIcon !== false;
+    var showSavingsBanner = s.showSavingsBanner !== false;
+    var showTrustBadges = s.showTrustBadges !== false;
 
     injectCustomCss(s.customCss);
 
@@ -181,13 +207,45 @@
 
     function renderPriceRow() {
       var priceEl = widget.querySelector("#bg-genie-price-row");
+      var bannerEl = widget.querySelector("#bg-genie-savings-banner");
       if (!priceEl) return;
       var p = computePrice();
-      var label = '<span class="bg-genie-price-label">Total Price:</span>';
-      priceEl.innerHTML = label + (p.hasDiscount
-        ? '<span class="bg-genie-price-compare">' + formatMoney(p.subtotal, currencySymbol) + "</span>" +
-          '<span class="bg-genie-price-final">' + formatMoney(p.finalPrice, currencySymbol) + "</span>"
-        : '<span class="bg-genie-price-final">' + formatMoney(p.subtotal, currencySymbol) + "</span>");
+      var savings = p.subtotal - p.finalPrice;
+      var savingsPct = p.hasDiscount && p.subtotal > 0 ? Math.round((savings / p.subtotal) * 100) : 0;
+
+      if (bannerEl) {
+        bannerEl.style.display = p.hasDiscount ? "flex" : "none";
+        if (p.hasDiscount) {
+          bannerEl.innerHTML =
+            '<span class="bg-genie-savings-banner-icon">' + TAG_ICON_SVG + "</span>" +
+            "<span>Save " + formatMoney(savings, currencySymbol) + " (" + savingsPct + "%) on this bundle</span>";
+        }
+      }
+
+      if (p.hasDiscount) {
+        priceEl.innerHTML =
+          '<div class="bg-genie-summary-left">' +
+            '<span class="bg-genie-price-label">Total Price</span>' +
+            '<span class="bg-genie-price-final">' + formatMoney(p.finalPrice, currencySymbol) + "</span>" +
+            '<div class="bg-genie-save-row">' +
+              '<span class="bg-genie-price-compare">' + formatMoney(p.subtotal, currencySymbol) + "</span>" +
+              '<span class="bg-genie-save-badge">You Save ' + formatMoney(savings, currencySymbol) + "</span>" +
+            "</div>" +
+          "</div>" +
+          '<div class="bg-genie-summary-divider"></div>' +
+          '<div class="bg-genie-summary-right">' +
+            '<span class="bg-genie-savings-icon">' + TAG_ICON_SVG + "</span>" +
+            "<div>" +
+              '<div class="bg-genie-savings-pct">' + savingsPct + "% Total Savings</div>" +
+              '<div class="bg-genie-savings-note">Great choice!</div>' +
+            "</div>" +
+          "</div>";
+      } else {
+        priceEl.innerHTML =
+          '<span class="bg-genie-price-label">Total Price</span>' +
+          '<span class="bg-genie-price-final">' + formatMoney(p.subtotal, currencySymbol) + "</span>";
+      }
+
       var anyChecked = itemState.some(function (st) { return st.checked; });
       var addBtn = widget.querySelector("#bg-genie-add-btn");
       if (addBtn) addBtn.disabled = !anyChecked;
@@ -208,17 +266,20 @@
       var p = bundle.products[i];
       var priceHtml = "";
       if (showPrice) {
-        var compareHtml = showCompareAt && p.compareAtPrice > p.price
+        var hasCompare = showCompareAt && p.compareAtPrice > p.price;
+        var compareHtml = hasCompare
           ? '<span class="bg-genie-item-compare">' + formatMoney(p.compareAtPrice * itemState[i].qty, currencySymbol) + "</span>"
           : "";
-        // Wrapped in one shared row so compare-at and price sit side by
-        // side on the same line, same as the Total Price row below —
-        // .bg-genie-item-body is a flex column, so without this wrapper
-        // each span became its own stacked line instead.
-        priceHtml = '<span class="bg-genie-item-price-row">' +
+        var pctOff = hasCompare ? Math.round((1 - p.price / p.compareAtPrice) * 100) : 0;
+        var badgeHtml = hasCompare ? '<span class="bg-genie-item-badge">' + pctOff + "% OFF</span>" : "";
+        // Compare-at, discount badge and final price stack vertically —
+        // matching the reference card layout (strikethrough, then a green
+        // "% OFF" pill, then the bold final price beneath).
+        priceHtml = '<div class="bg-genie-item-price-block">' +
           compareHtml +
+          badgeHtml +
           '<span class="bg-genie-item-price" id="bg-genie-item-price-' + i + '">' + formatMoney(p.price * itemState[i].qty, currencySymbol) + "</span>" +
-        "</span>";
+        "</div>";
       }
       var checkboxHtml = showCheckbox
         ? '<input type="checkbox" class="bg-genie-item-check" data-index="' + i + '"' +
@@ -252,12 +313,23 @@
     var ctaLabel = esc(s.ctaText || "Add Bundle to Cart");
 
     widget.innerHTML =
-      '<h3 class="bg-genie-title">' + esc(bundle.title) + "</h3>" +
+      '<div class="bg-genie-heading">' +
+        '<h3 class="bg-genie-title">' + esc(bundle.title) + "</h3>" +
+        (showTitleIcon ? '<span class="bg-genie-title-icon">' + GIFT_ICON_SVG + "</span>" : "") +
+      "</div>" +
       (bundle.description ? '<p class="bg-genie-desc">' + esc(bundle.description) + "</p>" : "") +
+      (showSavingsBanner ? '<div class="bg-genie-savings-banner" id="bg-genie-savings-banner"></div>' : "") +
       '<div class="bg-genie-items">' + itemsHtml + "</div>" +
       '<div class="bg-genie-price-row" id="bg-genie-price-row"></div>' +
       '<button type="button" class="bg-genie-add-btn" id="bg-genie-add-btn">' + ctaLabel + "</button>" +
       (s.showPaymentIcons ? '<div class="bg-genie-payment-icons">Visa &bull; Mastercard &bull; UPI &bull; RuPay</div>' : "") +
+      (showTrustBadges
+        ? '<div class="bg-genie-trust-row">' +
+            '<span class="bg-genie-trust-item">🛡️ Secure Checkout</span>' +
+            '<span class="bg-genie-trust-divider"></span>' +
+            '<span class="bg-genie-trust-item">↩️ Easy Returns</span>' +
+          "</div>"
+        : "") +
       '<div class="bg-genie-error" id="bg-genie-error" style="display:none;"></div>';
 
     // Placed right after the product form's Add to Cart button, same
