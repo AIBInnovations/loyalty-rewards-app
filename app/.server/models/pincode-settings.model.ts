@@ -21,13 +21,13 @@ export interface IPincodeSettings extends Document {
   // of one blanket estimate for every deliverable pincode.
   stateDeliveryDays: IStateDeliveryDays[];
 
-  // ── Hybrid ETA (manual vs Shiprocket-automatic) ──────────────────────
+  // ── Hybrid ETA (manual vs a connected courier's automatic ETA) ────────
   // "manual" (default, existing behaviour) uses the fields above as-is.
-  // "shiprocket" calls the merchant's own connected Shiprocket account for
-  // real courier serviceability/ETA, falling back to the manual fields
-  // above whenever Shiprocket is unreachable, unconnected, or errors —
-  // the storefront must never be left without an answer.
-  etaMode: "manual" | "shiprocket";
+  // Every other mode calls the merchant's own connected courier account
+  // for real serviceability/ETA, falling back to the manual fields above
+  // whenever that provider is unreachable, unconnected, or errors — the
+  // storefront must never be left without an answer.
+  etaMode: "manual" | "shiprocket" | "delhivery" | "bluedart";
   // Origin pincode used for Shiprocket serviceability calls — this app has
   // no Shopify Location integration yet, so this is the one merchant-set
   // pickup point (see eta-engine.server.ts for the fallback chain).
@@ -58,6 +58,21 @@ export interface IPincodeSettings extends Document {
   // Last connection/auth error, shown in the admin UI — cleared on the
   // next successful call.
   shiprocketLastError: string;
+
+  // Delhivery One API — auth is a single static API token (no login/session
+  // like Shiprocket), so there's no expiry/refresh fields to track.
+  delhiveryApiTokenEncrypted: string;
+  delhiveryConnected: boolean;
+  delhiveryLastError: string;
+
+  // Bluedart — auth is a LoginID + LicenseKey pair (both static, no token
+  // exchange). Bluedart's API access is typically provisioned manually per
+  // account, so "connected" here just reflects the last successful call,
+  // not an active session.
+  bluedartLoginId: string;
+  bluedartLicenseKeyEncrypted: string;
+  bluedartConnected: boolean;
+  bluedartLastError: string;
 
   // Widget appearance — set from the app's own settings page (not the theme
   // editor), applied by pincode-estimator.js at runtime.
@@ -93,7 +108,7 @@ const pincodeSettingsSchema = new Schema<IPincodeSettings>(
       default: [],
     },
 
-    etaMode:            { type: String, enum: ["manual", "shiprocket"], default: "manual" },
+    etaMode:            { type: String, enum: ["manual", "shiprocket", "delhivery", "bluedart"], default: "manual" },
     pickupPincode:      { type: String, default: "", maxlength: 6 },
     handlingDays:       { type: Number, default: 1, min: 0, max: 14 },
     cutoffHour:         { type: Number, default: 18, min: 0, max: 23 },
@@ -106,6 +121,15 @@ const pincodeSettingsSchema = new Schema<IPincodeSettings>(
     shiprocketTokenExpiresAt:     { type: Date, default: null },
     shiprocketConnected:          { type: Boolean, default: false },
     shiprocketLastError:          { type: String, default: "" },
+
+    delhiveryApiTokenEncrypted: { type: String, default: "" },
+    delhiveryConnected:         { type: Boolean, default: false },
+    delhiveryLastError:         { type: String, default: "" },
+
+    bluedartLoginId:              { type: String, default: "" },
+    bluedartLicenseKeyEncrypted:  { type: String, default: "" },
+    bluedartConnected:            { type: Boolean, default: false },
+    bluedartLastError:            { type: String, default: "" },
 
     headingText:     { type: String, default: "📦 Check Delivery & COD", maxlength: 60 },
     bgColor:         { type: String, default: "" },

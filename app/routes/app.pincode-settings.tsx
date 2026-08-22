@@ -9,8 +9,13 @@ import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { PincodeSettings, getOrCreatePincodeSettings } from "../.server/models/pincode-settings.model";
 import { PINCODE_ZONES } from "../pincode-zones";
+import { encryptSecret } from "../.server/crypto.server";
 import { encryptShiprocketSecret } from "../.server/services/shiprocket.service";
-import { testShiprocketConnection } from "../.server/services/eta-engine.service";
+import {
+  testShiprocketConnection,
+  testDelhiveryConnection,
+  testBluedartAccountConnection,
+} from "../.server/services/eta-engine.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -18,10 +23,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const s = await getOrCreatePincodeSettings(session.shop);
   const json_ = JSON.parse(JSON.stringify(s));
   // Never send the encrypted password/token blobs to the client — the UI
-  // only needs to know a password is already on file, not its value.
+  // only needs to know a value is already on file, not what it is.
   delete json_.shiprocketPasswordEncrypted;
   delete json_.shiprocketTokenEncrypted;
-  return json({ settings: json_, hasShiprocketPassword: Boolean(s.shiprocketPasswordEncrypted) });
+  delete json_.delhiveryApiTokenEncrypted;
+  delete json_.bluedartLicenseKeyEncrypted;
+  return json({
+    settings: json_,
+    hasShiprocketPassword: Boolean(s.shiprocketPasswordEncrypted),
+    hasDelhiveryToken: Boolean(s.delhiveryApiTokenEncrypted),
+    hasBluedartLicenseKey: Boolean(s.bluedartLicenseKeyEncrypted),
+  });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -51,12 +63,51 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json(result);
   }
 
-  // A blank password field means "leave the stored one alone" — the admin
-  // UI never receives the real value back, so an empty submit is not
-  // meaningfully different from "unchanged", not "clear it".
+  if (fd.get("intent") === "test-delhivery-connection") {
+    const newToken = String(fd.get("delhiveryApiToken") || "");
+    const pickupPincode = String(fd.get("pickupPincode") || "").trim().slice(0, 6);
+    await PincodeSettings.findOneAndUpdate(
+      { shopId: session.shop },
+      { $set: { pickupPincode, ...(newToken ? { delhiveryApiTokenEncrypted: encryptSecret(newToken) } : {}) } },
+      { upsert: true },
+    );
+    const result = await testDelhiveryConnection(session.shop, admin);
+    return json(result);
+  }
+
+  if (fd.get("intent") === "test-bluedart-connection") {
+    const loginId = String(fd.get("bluedartLoginId") || "").trim();
+    const newLicenseKey = String(fd.get("bluedartLicenseKey") || "");
+    const pickupPincode = String(fd.get("pickupPincode") || "").trim().slice(0, 6);
+    await PincodeSettings.findOneAndUpdate(
+      { shopId: session.shop },
+      {
+        $set: {
+          bluedartLoginId: loginId,
+          pickupPincode,
+          ...(newLicenseKey ? { bluedartLicenseKeyEncrypted: encryptSecret(newLicenseKey) } : {}),
+        },
+      },
+      { upsert: true },
+    );
+    const result = await testBluedartAccountConnection(session.shop, admin);
+    return json(result);
+  }
+
+  // A blank password/token/key field means "leave the stored one alone" —
+  // the admin UI never receives the real value back, so an empty submit is
+  // not meaningfully different from "unchanged", not "clear it".
   const newPassword = String(fd.get("shiprocketPassword") || "");
   const passwordUpdate = newPassword
     ? { shiprocketPasswordEncrypted: encryptShiprocketSecret(newPassword) }
+    : {};
+  const newDelhiveryToken = String(fd.get("delhiveryApiToken") || "");
+  const delhiveryUpdate = newDelhiveryToken
+    ? { delhiveryApiTokenEncrypted: encryptSecret(newDelhiveryToken) }
+    : {};
+  const newBluedartKey = String(fd.get("bluedartLicenseKey") || "");
+  const bluedartUpdate = newBluedartKey
+    ? { bluedartLicenseKeyEncrypted: encryptSecret(newBluedartKey) }
     : {};
 
   const workingDaysRaw = String(fd.get("workingDays") || "");
@@ -85,13 +136,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               o.minDays >= 0 && o.maxDays >= o.minDays,
           );
         })(),
-        etaMode:        fd.get("etaMode") === "shiprocket" ? "shiprocket" : "manual",
+        etaMode: ["shiprocket", "delhivery", "bluedart"].includes(String(fd.get("etaMode")))
+          ? (fd.get("etaMode") as string)
+          : "manual",
         pickupPincode:  String(fd.get("pickupPincode") || "").trim().slice(0, 6),
         handlingDays:   Math.min(14, Math.max(0, parseInt(String(fd.get("handlingDays") || "1"), 10) || 0)),
         cutoffHour:     Math.min(23, Math.max(0, parseInt(String(fd.get("cutoffHour") || "18"), 10) || 0)),
         workingDays,
         shiprocketEmail: String(fd.get("shiprocketEmail") || "").trim().slice(0, 120),
         ...passwordUpdate,
+        ...delhiveryUpdate,
+        bluedartLoginId: String(fd.get("bluedartLoginId") || "").trim().slice(0, 120),
+        ...bluedartUpdate,
         headingText:     String(fd.get("headingText") || "").slice(0, 60) || "📦 Check Delivery & COD",
         bgColor:         String(fd.get("bgColor") || "").slice(0, 20),
         buttonColor:     String(fd.get("buttonColor") || "").slice(0, 20),
@@ -107,7 +163,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function PincodeSettingsPage() {
-  const { settings: s, hasShiprocketPassword } = useLoaderData<typeof loader>();
+  const { settings: s, hasShiprocketPassword, hasDelhiveryToken, hasBluedartLicenseKey } = useLoaderData<typeof loader>();
   const nav    = useNavigation();
   const submit = useSubmit();
   const saving = nav.state === "submitting";
@@ -128,13 +184,16 @@ export default function PincodeSettingsPage() {
   const [sectionWidth, setSectionWidth] = useState(s.sectionWidth || "");
   const [sectionHeight, setSectionHeight] = useState(s.sectionHeight || "");
 
-  const [etaMode, setEtaMode] = useState<"manual" | "shiprocket">(s.etaMode || "manual");
+  const [etaMode, setEtaMode] = useState<"manual" | "shiprocket" | "delhivery" | "bluedart">(s.etaMode || "manual");
   const [pickupPincode, setPickupPincode] = useState(s.pickupPincode || "");
   const [handlingDays, setHandlingDays] = useState(String(s.handlingDays ?? 1));
   const [cutoffHour, setCutoffHour] = useState(String(s.cutoffHour ?? 18));
   const [workingDays, setWorkingDays] = useState<number[]>(s.workingDays?.length ? s.workingDays : [1, 2, 3, 4, 5, 6]);
   const [shiprocketEmail, setShiprocketEmail] = useState(s.shiprocketEmail || "");
   const [shiprocketPassword, setShiprocketPassword] = useState("");
+  const [delhiveryApiToken, setDelhiveryApiToken] = useState("");
+  const [bluedartLoginId, setBluedartLoginId] = useState(s.bluedartLoginId || "");
+  const [bluedartLicenseKey, setBluedartLicenseKey] = useState("");
 
   const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const toggleWorkingDay = useCallback((day: number) => {
@@ -177,6 +236,9 @@ export default function PincodeSettingsPage() {
     fd.set("workingDays", workingDays.join(","));
     fd.set("shiprocketEmail", shiprocketEmail);
     fd.set("shiprocketPassword", shiprocketPassword);
+    fd.set("delhiveryApiToken", delhiveryApiToken);
+    fd.set("bluedartLoginId", bluedartLoginId);
+    fd.set("bluedartLicenseKey", bluedartLicenseKey);
     fd.set("headingText", headingText);
     fd.set("bgColor", bgColor);
     fd.set("buttonColor", buttonColor);
@@ -185,28 +247,50 @@ export default function PincodeSettingsPage() {
     fd.set("sectionWidth", sectionWidth);
     fd.set("sectionHeight", sectionHeight);
     submit(fd, { method: "POST" });
-    // The password field is intentionally cleared after every save — it's
-    // never sent back by the loader, so keeping stale text in the input
-    // would misleadingly suggest it still needs saving.
+    // Secret fields are intentionally cleared after every save — they're
+    // never sent back by the loader, so keeping stale text in the inputs
+    // would misleadingly suggest they still need saving.
     if (shiprocketPassword) setShiprocketPassword("");
+    if (delhiveryApiToken) setDelhiveryApiToken("");
+    if (bluedartLicenseKey) setBluedartLicenseKey("");
   }, [
     enabled, minDays, maxDays, cod, noCod, noService, buildStateDeliveryDays, submit,
     etaMode, pickupPincode, handlingDays, cutoffHour, workingDays, shiprocketEmail, shiprocketPassword,
+    delhiveryApiToken, bluedartLoginId, bluedartLicenseKey,
     headingText, bgColor, buttonColor, buttonTextColor, buttonSize, sectionWidth, sectionHeight,
   ]);
 
-  const testConnection = useCallback(() => {
+  const testShiprocket = useCallback(() => {
     const fd = new FormData();
     fd.set("intent", "test-shiprocket-connection");
     fd.set("shiprocketEmail", shiprocketEmail);
     fd.set("shiprocketPassword", shiprocketPassword);
     fd.set("pickupPincode", pickupPincode);
     // useFetcher (not raw fetch) so this also revalidates the route
-    // loader — the Connected/Not Connected badge below reads s.shiprocketConnected,
-    // which needs to reflect the just-updated DB state.
+    // loader — the Connected/Not Connected badge below reads
+    // s.shiprocketConnected, which needs to reflect the just-updated DB state.
     testFetcher.submit(fd, { method: "POST" });
     if (shiprocketPassword) setShiprocketPassword("");
   }, [shiprocketEmail, shiprocketPassword, pickupPincode, testFetcher]);
+
+  const testDelhivery = useCallback(() => {
+    const fd = new FormData();
+    fd.set("intent", "test-delhivery-connection");
+    fd.set("delhiveryApiToken", delhiveryApiToken);
+    fd.set("pickupPincode", pickupPincode);
+    testFetcher.submit(fd, { method: "POST" });
+    if (delhiveryApiToken) setDelhiveryApiToken("");
+  }, [delhiveryApiToken, pickupPincode, testFetcher]);
+
+  const testBluedart = useCallback(() => {
+    const fd = new FormData();
+    fd.set("intent", "test-bluedart-connection");
+    fd.set("bluedartLoginId", bluedartLoginId);
+    fd.set("bluedartLicenseKey", bluedartLicenseKey);
+    fd.set("pickupPincode", pickupPincode);
+    testFetcher.submit(fd, { method: "POST" });
+    if (bluedartLicenseKey) setBluedartLicenseKey("");
+  }, [bluedartLoginId, bluedartLicenseKey, pickupPincode, testFetcher]);
 
   return (
     <Page title="Pincode Delivery Estimator" backAction={{ url: "/app" }}>
@@ -234,10 +318,15 @@ export default function PincodeSettingsPage() {
                   options={[
                     { label: "Manual (rules below)", value: "manual" },
                     { label: "Shiprocket (automatic courier ETA)", value: "shiprocket" },
+                    { label: "Delhivery (automatic serviceability)", value: "delhivery" },
+                    { label: "Bluedart (automatic courier ETA)", value: "bluedart" },
                   ]}
                   value={etaMode}
-                  onChange={(v) => { setEtaMode(v === "shiprocket" ? "shiprocket" : "manual"); save(); }}
-                  helpText="Shiprocket mode automatically falls back to the manual rules below if Shiprocket is unreachable or a pincode has no courier coverage — the widget always shows an answer."
+                  onChange={(v) => {
+                    setEtaMode(["shiprocket", "delhivery", "bluedart"].includes(v) ? (v as typeof etaMode) : "manual");
+                    save();
+                  }}
+                  helpText="Every automatic mode falls back to the manual rules below if the provider is unreachable or a pincode has no coverage — the widget always shows an answer."
                 />
               </BlockStack>
             </Card>
@@ -280,6 +369,101 @@ export default function PincodeSettingsPage() {
                     />
                   </InlineGrid>
 
+                  <InlineStack align="start">
+                    <Button onClick={testShiprocket} loading={testing}>Test Connection</Button>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+            )}
+
+            {etaMode === "delhivery" && (
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between">
+                    <Text variant="headingMd" as="h2">Delhivery Integration</Text>
+                    <Badge tone={s.delhiveryConnected ? "success" : "attention"}>
+                      {s.delhiveryConnected ? "Connected" : "Not Connected"}
+                    </Badge>
+                  </InlineStack>
+
+                  {s.delhiveryLastError && (
+                    <Banner tone="critical">{s.delhiveryLastError}</Banner>
+                  )}
+                  {testFetcher.data && (
+                    <Banner tone={testFetcher.data.success ? "success" : "critical"}>{testFetcher.data.message}</Banner>
+                  )}
+                  <Banner tone="info">
+                    Delhivery's serviceability check confirms deliverability and COD availability directly —
+                    the estimated day count still comes from the manual rules below, since Delhivery's pincode
+                    API doesn't return a transit-time estimate.
+                  </Banner>
+
+                  <TextField
+                    label="Delhivery API Token"
+                    value={delhiveryApiToken}
+                    onChange={setDelhiveryApiToken}
+                    onBlur={save}
+                    autoComplete="off"
+                    type="password"
+                    placeholder={hasDelhiveryToken ? "•••••••• (saved — leave blank to keep)" : ""}
+                    helpText={hasDelhiveryToken ? "A token is already saved. Leave blank to keep it." : "From your Delhivery One dashboard's API settings."}
+                  />
+
+                  <InlineStack align="start">
+                    <Button onClick={testDelhivery} loading={testing}>Test Connection</Button>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+            )}
+
+            {etaMode === "bluedart" && (
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between">
+                    <Text variant="headingMd" as="h2">Bluedart Integration</Text>
+                    <Badge tone={s.bluedartConnected ? "success" : "attention"}>
+                      {s.bluedartConnected ? "Connected" : "Not Connected"}
+                    </Badge>
+                  </InlineStack>
+
+                  {s.bluedartLastError && (
+                    <Banner tone="critical">{s.bluedartLastError}</Banner>
+                  )}
+                  {testFetcher.data && (
+                    <Banner tone={testFetcher.data.success ? "success" : "critical"}>{testFetcher.data.message}</Banner>
+                  )}
+
+                  <InlineGrid columns={2} gap="300">
+                    <TextField
+                      label="Bluedart LoginID"
+                      value={bluedartLoginId}
+                      onChange={setBluedartLoginId}
+                      onBlur={save}
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="Bluedart LicenseKey"
+                      value={bluedartLicenseKey}
+                      onChange={setBluedartLicenseKey}
+                      onBlur={save}
+                      autoComplete="off"
+                      type="password"
+                      placeholder={hasBluedartLicenseKey ? "•••••••• (saved — leave blank to keep)" : ""}
+                      helpText={hasBluedartLicenseKey ? "A key is already saved. Leave blank to keep it." : undefined}
+                    />
+                  </InlineGrid>
+
+                  <InlineStack align="start">
+                    <Button onClick={testBluedart} loading={testing}>Test Connection</Button>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+            )}
+
+            {etaMode !== "manual" && (
+              <Card>
+                <BlockStack gap="400">
+                  <Text variant="headingMd" as="h2">Pickup &amp; Handling</Text>
                   <TextField
                     label="Pickup Pincode"
                     value={pickupPincode}
@@ -290,48 +474,48 @@ export default function PincodeSettingsPage() {
                     helpText="Your warehouse/origin pincode, used to check courier serviceability to the customer's pincode."
                   />
 
-                  <InlineStack align="start">
-                    <Button onClick={testConnection} loading={testing}>Test Connection</Button>
-                  </InlineStack>
+                  {etaMode !== "delhivery" && (
+                    <>
+                      <Divider />
 
-                  <Divider />
+                      <Text variant="headingSm" as="h3">Handling &amp; Cut-off</Text>
+                      <InlineGrid columns={2} gap="300">
+                        <TextField
+                          label="Handling Time (days)"
+                          type="number"
+                          value={handlingDays}
+                          onChange={setHandlingDays}
+                          onBlur={save}
+                          autoComplete="off"
+                          min="0"
+                          helpText="Processing days added before the courier's own transit time."
+                        />
+                        <TextField
+                          label="Order Cut-off Hour (0–23)"
+                          type="number"
+                          value={cutoffHour}
+                          onChange={setCutoffHour}
+                          onBlur={save}
+                          autoComplete="off"
+                          min="0"
+                          max="23"
+                          helpText="Orders placed after this hour (in your store's timezone) count as next working day."
+                        />
+                      </InlineGrid>
 
-                  <Text variant="headingSm" as="h3">Handling &amp; Cut-off</Text>
-                  <InlineGrid columns={2} gap="300">
-                    <TextField
-                      label="Handling Time (days)"
-                      type="number"
-                      value={handlingDays}
-                      onChange={setHandlingDays}
-                      onBlur={save}
-                      autoComplete="off"
-                      min="0"
-                      helpText="Processing days added before the courier's own transit time."
-                    />
-                    <TextField
-                      label="Order Cut-off Hour (0–23)"
-                      type="number"
-                      value={cutoffHour}
-                      onChange={setCutoffHour}
-                      onBlur={save}
-                      autoComplete="off"
-                      min="0"
-                      max="23"
-                      helpText="Orders placed after this hour (in your store's timezone) count as next working day."
-                    />
-                  </InlineGrid>
-
-                  <Text as="p" variant="bodyMd">Working Days</Text>
-                  <InlineStack gap="300">
-                    {WEEKDAY_LABELS.map((label, day) => (
-                      <Checkbox
-                        key={day}
-                        label={label}
-                        checked={workingDays.includes(day)}
-                        onChange={() => { toggleWorkingDay(day); save(); }}
-                      />
-                    ))}
-                  </InlineStack>
+                      <Text as="p" variant="bodyMd">Working Days</Text>
+                      <InlineStack gap="300">
+                        {WEEKDAY_LABELS.map((label, day) => (
+                          <Checkbox
+                            key={day}
+                            label={label}
+                            checked={workingDays.includes(day)}
+                            onChange={() => { toggleWorkingDay(day); save(); }}
+                          />
+                        ))}
+                      </InlineStack>
+                    </>
+                  )}
                 </BlockStack>
               </Card>
             )}
