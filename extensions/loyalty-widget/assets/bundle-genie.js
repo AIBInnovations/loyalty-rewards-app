@@ -71,7 +71,7 @@
     if (s.secondaryColor) vars += "--bg-genie-secondary:" + s.secondaryColor + ";";
     if (s.sectionBgColor) vars += "--bg-genie-section-bg:" + s.sectionBgColor + ";";
     vars += "--bg-genie-align:" + (s.infoAlignment || "left") + ";";
-    vars += "--bg-genie-title-size:" + (s.titleFontSize || 22) + "px;";
+    vars += "--bg-genie-title-size:" + (s.titleFontSize || 30) + "px;";
     vars += "--bg-genie-subtitle-size:" + (s.subtitleFontSize || 18) + "px;";
     if (s.titleBgColor) vars += "--bg-genie-title-bg:" + s.titleBgColor + ";";
     if (s.titleTextColor) vars += "--bg-genie-title-text:" + s.titleTextColor + ";";
@@ -181,13 +181,45 @@
 
     function renderPriceRow() {
       var priceEl = widget.querySelector("#bg-genie-price-row");
+      var bannerEl = widget.querySelector("#bg-genie-savings-banner");
       if (!priceEl) return;
       var p = computePrice();
-      var label = '<span class="bg-genie-price-label">Total Price:</span>';
-      priceEl.innerHTML = label + (p.hasDiscount
-        ? '<span class="bg-genie-price-compare">' + formatMoney(p.subtotal, currencySymbol) + "</span>" +
-          '<span class="bg-genie-price-final">' + formatMoney(p.finalPrice, currencySymbol) + "</span>"
-        : '<span class="bg-genie-price-final">' + formatMoney(p.subtotal, currencySymbol) + "</span>");
+      var savings = p.subtotal - p.finalPrice;
+      var savingsPct = p.hasDiscount && p.subtotal > 0 ? Math.round((savings / p.subtotal) * 100) : 0;
+
+      if (bannerEl) {
+        bannerEl.style.display = p.hasDiscount ? "flex" : "none";
+        if (p.hasDiscount) {
+          bannerEl.innerHTML =
+            '<span class="bg-genie-savings-banner-icon">🏷️</span>' +
+            "<span>Save " + formatMoney(savings, currencySymbol) + " (" + savingsPct + "%) on this bundle</span>";
+        }
+      }
+
+      if (p.hasDiscount) {
+        priceEl.innerHTML =
+          '<div class="bg-genie-summary-left">' +
+            '<span class="bg-genie-price-label">Total Price</span>' +
+            '<span class="bg-genie-price-final">' + formatMoney(p.finalPrice, currencySymbol) + "</span>" +
+            '<div class="bg-genie-save-row">' +
+              '<span class="bg-genie-price-compare">' + formatMoney(p.subtotal, currencySymbol) + "</span>" +
+              '<span class="bg-genie-save-badge">You Save ' + formatMoney(savings, currencySymbol) + "</span>" +
+            "</div>" +
+          "</div>" +
+          '<div class="bg-genie-summary-divider"></div>' +
+          '<div class="bg-genie-summary-right">' +
+            '<span class="bg-genie-savings-icon">🏷️</span>' +
+            "<div>" +
+              '<div class="bg-genie-savings-pct">' + savingsPct + "% Total Savings</div>" +
+              '<div class="bg-genie-savings-note">Great choice!</div>' +
+            "</div>" +
+          "</div>";
+      } else {
+        priceEl.innerHTML =
+          '<span class="bg-genie-price-label">Total Price</span>' +
+          '<span class="bg-genie-price-final">' + formatMoney(p.subtotal, currencySymbol) + "</span>";
+      }
+
       var anyChecked = itemState.some(function (st) { return st.checked; });
       var addBtn = widget.querySelector("#bg-genie-add-btn");
       if (addBtn) addBtn.disabled = !anyChecked;
@@ -208,17 +240,20 @@
       var p = bundle.products[i];
       var priceHtml = "";
       if (showPrice) {
-        var compareHtml = showCompareAt && p.compareAtPrice > p.price
+        var hasCompare = showCompareAt && p.compareAtPrice > p.price;
+        var compareHtml = hasCompare
           ? '<span class="bg-genie-item-compare">' + formatMoney(p.compareAtPrice * itemState[i].qty, currencySymbol) + "</span>"
           : "";
-        // Wrapped in one shared row so compare-at and price sit side by
-        // side on the same line, same as the Total Price row below —
-        // .bg-genie-item-body is a flex column, so without this wrapper
-        // each span became its own stacked line instead.
-        priceHtml = '<span class="bg-genie-item-price-row">' +
+        var pctOff = hasCompare ? Math.round((1 - p.price / p.compareAtPrice) * 100) : 0;
+        var badgeHtml = hasCompare ? '<span class="bg-genie-item-badge">' + pctOff + "% OFF</span>" : "";
+        // Compare-at, discount badge and final price stack vertically —
+        // matching the reference card layout (strikethrough, then a green
+        // "% OFF" pill, then the bold final price beneath).
+        priceHtml = '<div class="bg-genie-item-price-block">' +
           compareHtml +
+          badgeHtml +
           '<span class="bg-genie-item-price" id="bg-genie-item-price-' + i + '">' + formatMoney(p.price * itemState[i].qty, currencySymbol) + "</span>" +
-        "</span>";
+        "</div>";
       }
       var checkboxHtml = showCheckbox
         ? '<input type="checkbox" class="bg-genie-item-check" data-index="' + i + '"' +
@@ -252,12 +287,21 @@
     var ctaLabel = esc(s.ctaText || "Add Bundle to Cart");
 
     widget.innerHTML =
-      '<h3 class="bg-genie-title">' + esc(bundle.title) + "</h3>" +
+      '<div class="bg-genie-heading">' +
+        '<h3 class="bg-genie-title">' + esc(bundle.title) + "</h3>" +
+        '<span class="bg-genie-title-icon">🎁</span>' +
+      "</div>" +
       (bundle.description ? '<p class="bg-genie-desc">' + esc(bundle.description) + "</p>" : "") +
+      '<div class="bg-genie-savings-banner" id="bg-genie-savings-banner"></div>' +
       '<div class="bg-genie-items">' + itemsHtml + "</div>" +
       '<div class="bg-genie-price-row" id="bg-genie-price-row"></div>' +
       '<button type="button" class="bg-genie-add-btn" id="bg-genie-add-btn">' + ctaLabel + "</button>" +
       (s.showPaymentIcons ? '<div class="bg-genie-payment-icons">Visa &bull; Mastercard &bull; UPI &bull; RuPay</div>' : "") +
+      '<div class="bg-genie-trust-row">' +
+        '<span class="bg-genie-trust-item">🛡️ Secure Checkout</span>' +
+        '<span class="bg-genie-trust-divider"></span>' +
+        '<span class="bg-genie-trust-item">↩️ Easy Returns</span>' +
+      "</div>" +
       '<div class="bg-genie-error" id="bg-genie-error" style="display:none;"></div>';
 
     // Placed right after the product form's Add to Cart button, same

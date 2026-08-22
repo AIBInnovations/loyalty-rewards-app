@@ -11,22 +11,60 @@
   text-align: var(--bg-genie-align, left);
 }
 
+.bg-genie-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+
 .bg-genie-title {
-  margin: 0 0 4px;
-  font-size: var(--bg-genie-title-size, 16px);
+  margin: 0;
+  font-size: var(--bg-genie-title-size, 30px);
   font-weight: 700;
-  font-family: var(--bg-genie-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-family: Georgia, "Times New Roman", serif;
   color: var(--bg-genie-title-text, inherit);
   background: var(--bg-genie-title-bg, transparent);
   padding: 4px 6px;
   border-radius: 6px;
 }
 
+.bg-genie-title-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f6efe4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
 .bg-genie-desc {
   margin: 0 0 12px;
-  font-size: var(--bg-genie-subtitle-size, 13px);
-  color: var(--bg-genie-secondary, inherit);
-  opacity: 0.75;
+  font-size: var(--bg-genie-subtitle-size, 16px);
+  color: var(--bg-genie-secondary, #6b7280);
+  opacity: 0.9;
+}
+
+.bg-genie-savings-banner {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 16px;
+  padding: 10px 16px;
+  background: #eef7ec;
+  color: #2f7a3c;
+  border: 1px solid #cde9cf;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.bg-genie-savings-banner-icon {
+  font-size: 14px;
 }
 
 .bg-genie-items {
@@ -100,7 +138,18 @@
 }
 
 .bg-genie-layout--grid .bg-genie-plus-sep {
-  margin: 0 -2px;
+  /* Floats as a white circle over the seam between two cards, roughly at
+     the product image's vertical centre, matching the reference's "+"
+     bubble instead of a plain inline character. */
+  width: 32px;
+  height: 32px;
+  font-size: 20px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  margin: 60px -16px 0;
+  position: relative;
+  z-index: 2;
 }
 
 .bg-genie-item-img {
@@ -163,21 +212,31 @@
   opacity: 1;
 }
 
-.bg-genie-item-price-row {
+.bg-genie-item-price-block {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
 }
 
-.bg-genie-layout--grid .bg-genie-item-price-row {
-  justify-content: center;
+.bg-genie-layout--grid .bg-genie-item-price-block {
+  align-items: center;
 }
 
 .bg-genie-item-compare {
   font-size: 12px;
   text-decoration: line-through;
   opacity: 0.5;
-  margin-right: 4px;
+}
+
+.bg-genie-item-badge {
+  display: inline-block;
+  background: #eef7ec;
+  color: #2f7a3c;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
 }
 
 .bg-genie-item-check {
@@ -256,16 +315,25 @@
 
 .bg-genie-price-row {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 16px;
   margin-bottom: 12px;
-  justify-content: var(--bg-genie-align, flex-start);
+  padding: 14px 16px;
+  border: 1px solid #ececec;
+  border-radius: 12px;
+  justify-content: space-between;
+}
+
+.bg-genie-summary-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .bg-genie-price-label {
-  font-size: 14px;
-  font-weight: 600;
-  margin-right: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
 }
 
 .bg-genie-price-compare {
@@ -275,8 +343,61 @@
 }
 
 .bg-genie-price-final {
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 700;
+}
+
+.bg-genie-save-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bg-genie-save-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2f7a3c;
+  background: #eef7ec;
+  padding: 2px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.bg-genie-summary-divider {
+  width: 1px;
+  align-self: stretch;
+  background: #e5e7eb;
+  flex: none;
+}
+
+.bg-genie-summary-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.bg-genie-savings-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #eef7ec;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.bg-genie-savings-pct {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2f7a3c;
+}
+
+.bg-genie-savings-note {
+  font-size: 12px;
+  color: #6b7280;
 }
 
 .bg-genie-add-btn {
@@ -314,6 +435,28 @@
   margin-top: 8px;
   font-size: 12px;
   color: #c0392b;
+}
+
+.bg-genie-trust-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.bg-genie-trust-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bg-genie-trust-divider {
+  width: 1px;
+  height: 12px;
+  background: #d1d5db;
 }
 
 /* Product count never changes the layout — always one row on desktop,
@@ -360,9 +503,15 @@
   }
 
   /* Horizontal divider between stacked rows instead of the desktop row's
-     inline "+" between columns. */
+     floating "+" circle between columns — the circle's positioning and
+     shadow are desktop-only, reset back to a plain flat divider here. */
   .bg-genie-layout--grid .bg-genie-plus-sep {
     width: 100%;
+    height: auto;
     margin: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    position: static;
   }
 }
