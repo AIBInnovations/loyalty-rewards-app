@@ -21,8 +21,7 @@ api_version = "2025-01"
     "orders/paid",
     "orders/cancelled",
     "refunds/create",
-    "customers/create",
-    "customers/update",
+
     "checkouts/create",
     "checkouts/update",
     "products/create",
@@ -43,7 +42,7 @@ api_version = "2025-01"
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 # read_checkouts is required by the abandoned-cart poller and the
 # checkouts/create|update handlers in app/routes/webhooks.tsx.
-scopes = "read_discounts,read_orders,read_products,write_discounts"
+scopes = "read_checkouts,read_discounts,read_orders,read_products,write_discounts"
 
 [auth]
 redirect_urls = [
