@@ -1,6 +1,6 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "539db39b9b944e7c9f794f52122735a0"
+client_id = "93181fc4971e75b2c37a5ddc70265578"
 name = "Vynexa"
 application_url = "https://vynexa-app.onrender.com"
 embedded = true
