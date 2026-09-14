@@ -946,7 +946,7 @@ async function handleGetCartSettings(shop: string) {
     upsellDiscountType: settings.upsellDiscountType || "percentage",
     upsellDiscount: settings.upsellDiscount,
     upsellDiscountAmount: settings.upsellDiscountAmount || 0,
-    upsellProduct: settings.upsellProduct || null,
+    upsellProducts: settings.upsellProducts || [],
     upsellTriggerProducts: settings.upsellTriggerProducts || [],
     fontFamily: settings.fontFamily || "",
     fontSize: settings.fontSize || 0,
