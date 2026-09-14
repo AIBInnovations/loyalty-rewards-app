@@ -49,7 +49,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const tiers = JSON.parse(String(data.tiers) || "[]");
     const manualProducts = JSON.parse(String(data.manualProducts) || "[]");
-    const upsellProduct = data.upsellProduct ? JSON.parse(String(data.upsellProduct)) : null;
+    const upsellProducts = JSON.parse(String(data.upsellProducts) || "[]");
     const upsellTriggerProducts = JSON.parse(String(data.upsellTriggerProducts) || "[]");
     const offers = JSON.parse(String(data.offers) || "[]");
     const cartOffers = JSON.parse(String(data.cartOffers) || "[]");
@@ -112,7 +112,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             : "percentage",
           upsellDiscount: Math.min(70, Math.max(0, Number(data.upsellDiscount) || 10)),
           upsellDiscountAmount: Math.max(0, Number(data.upsellDiscountAmount) || 0),
-          upsellProduct,
+          upsellProducts,
           upsellTriggerProducts,
           fontFamily: String(data.fontFamily || "").slice(0, 120),
           fontSize: Math.min(24, Math.max(0, Number(data.fontSize) || 0)),
@@ -275,7 +275,7 @@ export default function CartSettingsPage() {
   const [upsellDiscountAmount, setUpsellDiscountAmount] = useState(
     String((settings.upsellDiscountAmount || 0) / 100),
   );
-  const [upsellProduct, setUpsellProduct] = useState<IManualProduct | null>(settings.upsellProduct || null);
+  const [upsellProducts, setUpsellProducts] = useState<IManualProduct[]>(settings.upsellProducts || []);
   const [upsellProductUrl, setUpsellProductUrl] = useState("");
   const [addUpsellProductError, setAddUpsellProductError] = useState("");
   const [addingUpsellProduct, setAddingUpsellProduct] = useState(false);
@@ -370,7 +370,7 @@ export default function CartSettingsPage() {
     formData.set("upsellDiscountType", upsellDiscountType);
     formData.set("upsellDiscount", upsellDiscount);
     formData.set("upsellDiscountAmount", String(Math.round(Number(upsellDiscountAmount) * 100)));
-    formData.set("upsellProduct", upsellProduct ? JSON.stringify(upsellProduct) : "");
+    formData.set("upsellProducts", JSON.stringify(upsellProducts));
     formData.set("upsellTriggerProducts", JSON.stringify(upsellTriggerProducts));
     formData.set("fontFamily", fontFamily);
     formData.set("fontSize", fontSize);
@@ -397,7 +397,7 @@ export default function CartSettingsPage() {
     recommendationsCollectionTitle, recommendationsCollectionBadgeText, showSavings,
     checkoutButtonText, prepaidBannerText, showPrepaidBanner, primaryColor, showProgressBar,
     tiers, showUpsell, upsellHeadline, upsellDiscountType, upsellDiscount, upsellDiscountAmount,
-    upsellProduct, upsellTriggerProducts,
+    upsellProducts, upsellTriggerProducts,
     shippingBannerText, announcementTexts, announcementDelay, announcementTextColor, announcementBgColor,
     progressBannerText, progressExtraLineText, progressExtraLineMinAmount,
     paymentMethodsText, couponEnabled, couponCode,
@@ -934,20 +934,59 @@ export default function CartSettingsPage() {
     return body;
   }, [shopify]);
 
-  const handleAddUpsellProduct = useCallback(async () => {
+  const handleBrowseUpsellProducts = useCallback(async () => {
+    setAddUpsellProductError("");
+    try {
+      const selected = await shopify.resourcePicker({
+        type: "product",
+        multiple: true,
+        action: "select",
+      });
+      if (!selected || selected.length === 0) return;
+
+      setUpsellProducts((prev) => {
+        const already = new Set(prev.map((p) => p.shopifyProductId));
+        const picked: IManualProduct[] = [];
+        for (const product of selected as any[]) {
+          if (already.has(product.id) || picked.some((p) => p.shopifyProductId === product.id)) continue;
+          const variant = product.variants?.[0];
+          picked.push({
+            shopifyProductId: product.id,
+            title: product.title,
+            handle: product.handle,
+            imageUrl: product.images?.[0]?.originalSrc || product.images?.[0]?.url || "",
+            price: Math.round(Number(variant?.price || 0) * 100),
+            compareAtPrice: variant?.compareAtPrice ? Math.round(Number(variant.compareAtPrice) * 100) : undefined,
+            variantId: variant?.id || "",
+          });
+        }
+        return picked.length ? [...prev, ...picked] : prev;
+      });
+    } catch (err) {
+      if (err instanceof Error && err.message) setAddUpsellProductError(err.message);
+    }
+  }, [shopify]);
+
+  const handleAddUpsellProductByHandle = useCallback(async () => {
     if (!upsellProductUrl.trim()) return;
     setAddingUpsellProduct(true);
     setAddUpsellProductError("");
     try {
       const product = await lookupProductByHandle(upsellProductUrl);
-      setUpsellProduct({
-        shopifyProductId: product.id,
-        title: product.title,
-        handle: product.handle,
-        imageUrl: product.imageUrl,
-        price: product.price,
-        compareAtPrice: product.compareAtPrice,
-        variantId: product.variantId,
+      setUpsellProducts((prev) => {
+        if (prev.some((p) => p.shopifyProductId === product.id)) return prev;
+        return [
+          ...prev,
+          {
+            shopifyProductId: product.id,
+            title: product.title,
+            handle: product.handle,
+            imageUrl: product.imageUrl,
+            price: product.price,
+            compareAtPrice: product.compareAtPrice,
+            variantId: product.variantId,
+          },
+        ];
       });
       setUpsellProductUrl("");
     } catch (err) {
@@ -957,6 +996,10 @@ export default function CartSettingsPage() {
     }
     setAddingUpsellProduct(false);
   }, [upsellProductUrl, lookupProductByHandle]);
+
+  const removeUpsellProduct = useCallback((shopifyProductId: string) => {
+    setUpsellProducts((prev) => prev.filter((p) => p.shopifyProductId !== shopifyProductId));
+  }, []);
 
   const handleBrowseUpsellTriggerProducts = useCallback(async () => {
     setUpsellTriggerError("");
@@ -1977,75 +2020,79 @@ export default function CartSettingsPage() {
                       </Text>
                     )}
                     <Divider />
-                    <Text as="h3" variant="headingSm">Upsell Product</Text>
-                    {upsellProduct ? (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "12px",
-                          padding: "8px",
-                          border: "1px solid #e0e0e0",
-                          borderRadius: "8px",
-                        }}
-                      >
-                        {upsellProduct.imageUrl && (
-                          <img
-                            src={upsellProduct.imageUrl}
-                            alt={upsellProduct.title}
-                            style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px" }}
-                          />
-                        )}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <Text as="p" variant="bodyMd" fontWeight="semibold">{upsellProduct.title}</Text>
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            {upsellDiscountType === "none" ? (
-                              <>₹{(upsellProduct.price / 100).toFixed(0)} (no discount)</>
-                            ) : upsellDiscountType === "amount" ? (
-                              <>
-                                ₹{(upsellProduct.price / 100).toFixed(0)}
-                                {" → "}₹{Math.max(0, Math.round(upsellProduct.price / 100 - Number(upsellDiscountAmount || 0)))}
-                                {" "}(₹{upsellDiscountAmount || 0} off)
-                              </>
-                            ) : (
-                              <>
-                                ₹{(upsellProduct.price / 100).toFixed(0)}
-                                {" → "}₹{Math.round(upsellProduct.price / 100 * (1 - Number(upsellDiscount) / 100))}
-                                {" "}({upsellDiscount}% off)
-                              </>
-                            )}
-                          </Text>
-                        </div>
-                        <Button size="slim" tone="critical" onClick={() => setUpsellProduct(null)}>
-                          Remove
-                        </Button>
-                      </div>
-                    ) : (
-                      <Text as="p" variant="bodySm" tone="subdued">No product selected.</Text>
-                    )}
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Enter a product handle or URL to set the upsell product.
-                    </Text>
+                    <Text as="h3" variant="headingSm">Upsell Products</Text>
                     {addUpsellProductError && (
                       <Banner tone="critical" onDismiss={() => setAddUpsellProductError("")}>
                         {addUpsellProductError}
                       </Banner>
                     )}
-                    <InlineStack gap="200" blockAlign="end">
-                      <div style={{ flex: 1 }}>
-                        <TextField
-                          label="Product Handle or URL"
-                          value={upsellProductUrl}
-                          onChange={(v) => { setUpsellProductUrl(v); setAddUpsellProductError(""); }}
-                          placeholder="e.g., my-awesome-product"
-                          autoComplete="off"
-                          labelHidden
-                        />
-                      </div>
-                      <Button onClick={handleAddUpsellProduct} loading={addingUpsellProduct}>
-                        {upsellProduct ? "Replace Product" : "Add Product"}
+                    <BlockStack gap="200">
+                      {upsellProducts.length === 0 && (
+                        <Text as="p" variant="bodySm" tone="subdued">No products selected.</Text>
+                      )}
+                      {upsellProducts.map((up) => (
+                        <div
+                          key={up.shopifyProductId}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            padding: "8px",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: "8px",
+                          }}
+                        >
+                          {up.imageUrl && (
+                            <img
+                              src={up.imageUrl}
+                              alt={up.title}
+                              style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px" }}
+                            />
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">{up.title}</Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {upsellDiscountType === "none" ? (
+                                <>₹{(up.price / 100).toFixed(0)} (no discount)</>
+                              ) : upsellDiscountType === "amount" ? (
+                                <>
+                                  ₹{(up.price / 100).toFixed(0)}
+                                  {" → "}₹{Math.max(0, Math.round(up.price / 100 - Number(upsellDiscountAmount || 0)))}
+                                  {" "}(₹{upsellDiscountAmount || 0} off)
+                                </>
+                              ) : (
+                                <>
+                                  ₹{(up.price / 100).toFixed(0)}
+                                  {" → "}₹{Math.round(up.price / 100 * (1 - Number(upsellDiscount) / 100))}
+                                  {" "}({upsellDiscount}% off)
+                                </>
+                              )}
+                            </Text>
+                          </div>
+                          <Button size="slim" tone="critical" onClick={() => removeUpsellProduct(up.shopifyProductId)}>
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                      <Button onClick={handleBrowseUpsellProducts}>
+                        Browse products
                       </Button>
-                    </InlineStack>
+                      <InlineStack gap="200" blockAlign="end">
+                        <div style={{ flex: 1 }}>
+                          <TextField
+                            label="Product Handle or URL"
+                            value={upsellProductUrl}
+                            onChange={(v) => { setUpsellProductUrl(v); setAddUpsellProductError(""); }}
+                            placeholder="e.g., my-awesome-product"
+                            autoComplete="off"
+                            labelHidden
+                          />
+                        </div>
+                        <Button onClick={handleAddUpsellProductByHandle} loading={addingUpsellProduct}>
+                          Add by handle
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
 
                     <Divider />
                     <Text as="h3" variant="headingSm">Show only when cart contains</Text>

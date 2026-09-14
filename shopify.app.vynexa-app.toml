@@ -1,8 +1,8 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "c5bacf4ba2d0b6272ad545bf2507f50c"
+client_id = "93181fc4971e75b2c37a5ddc70265578"
 name = "Vynexa App"
-application_url = "https://vynexa-app-1.onrender.com"
+application_url = "https://loyalty-rewards-app-0ho3.onrender.com/"
 embedded = true
 
 [build]
@@ -26,7 +26,7 @@ scopes = "read_customers,read_discounts,read_orders,read_products,write_customer
 
 [auth]
 redirect_urls = [
-  "https://vynexa-app-1.onrender.com/auth/callback"
+  "https://loyalty-rewards-app-0ho3.onrender.com//auth/callback"
 ]
 
 [app_proxy]
@@ -34,7 +34,7 @@ redirect_urls = [
 # widget JS has "/apps/loyalty/..." hardcoded in its fetch calls, so a
 # different value here would 404 every storefront request for shops
 # installed through this app.
-url = "https://vynexa-app-1.onrender.com/api/proxy"
+url = "https://loyalty-rewards-app-0ho3.onrender.com/api/proxy"
 subpath = "loyalty"
 prefix = "apps"
 

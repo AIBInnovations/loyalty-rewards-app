@@ -820,11 +820,13 @@ svg[fill="none"] polyline[stroke] {
   gap: 10px;
 }
 
-/* Single Steal Deals card — was reusing the 3-column recs grid, which
-   only gave it 1/3 of the row's width. */
+/* Steal Deals cards — was reusing the 3-column recs grid, which only gave
+   a single card 1/3 of the row's width. auto-fit stretches to fill the row
+   when there's one card, and splits into columns as more are added. */
 .cd-upsell-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
 }
 
 /* Horizontal scroll alternative — one row, swipeable, snaps card-to-card. */

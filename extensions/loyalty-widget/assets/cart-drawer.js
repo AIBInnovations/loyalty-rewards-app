@@ -748,7 +748,8 @@
     var backendShowProgress = !state.settings || state.settings.showProgressBar !== false;
     var hasProgress = itemCount > 0 && config.showProgress && backendShowProgress &&
       !state.activeOfferHideProgressBar && state.tiers.length > 0;
-    var hasUpsell = shouldShowUpsell();
+    var upsellProducts = shouldShowUpsell();
+    var hasUpsell = upsellProducts.length > 0;
     var hasRecs = itemCount > 0 && config.showRecommendations && state.recommendations.length > 0;
 
     var shippingBannerHtml = renderShippingBanner();
@@ -768,7 +769,7 @@
         (itemCount > 0 ? renderBankOffers() : "") +
         (itemCount > 0 ? renderCoupon() : "") +
         (itemCount > 0 && hasUpsell ? '<div class="cd-section-divider"></div>' : "") +
-        (hasUpsell ? renderUpsell() : "") +
+        (hasUpsell ? renderUpsell(upsellProducts) : "") +
         (hasRecs ? renderRecommendations() : "") +
       '</div>' +
       (itemCount > 0 ? renderFooter(cart) : "") +
@@ -1515,54 +1516,68 @@
   }
 
   function shouldShowUpsell() {
-    if (!state.settings || !state.settings.showUpsell) return false;
-    if (!state.settings.upsellProduct) return false;
-    if (!state.cart || !state.cart.items || !state.cart.items.length) return false;
-    // Hide if product already in cart
+    if (!state.settings || !state.settings.showUpsell) return [];
+    var upsellProducts = state.settings.upsellProducts || [];
+    if (!upsellProducts.length) return [];
+    if (!state.cart || !state.cart.items || !state.cart.items.length) return [];
+
+    if (!isUpsellTriggerMet(cartQtyByProductId(state.cart))) return [];
+
+    // Hide any upsell product already in the cart.
     var cartIds = state.cart.items.map(function(i) { return String(i.product_id); });
-    var upId = String(state.settings.upsellProduct.shopifyProductId || "")
-      .replace("gid://shopify/Product/", "");
-    if (cartIds.indexOf(upId) !== -1) return false;
-
-    if (!isUpsellTriggerMet(cartQtyByProductId(state.cart))) return false;
-
-    return true;
+    return upsellProducts.filter(function (p) {
+      var upId = String(p.shopifyProductId || "").replace("gid://shopify/Product/", "");
+      return cartIds.indexOf(upId) === -1;
+    });
   }
 
-  // The upsell product can end up in the cart without its trigger condition
-  // being met — added straight from its own product page, or its trigger
-  // product removed afterward — so this strips it back out. Runs every time
-  // fetchCart() refreshes, which covers both cases in practice.
+  // Upsell products can end up in the cart without the trigger condition
+  // being met — added straight from their own product page, or the trigger
+  // product removed afterward — so this strips them back out. Runs every
+  // time fetchCart() refreshes, which covers both cases in practice.
   function enforceUpsellTrigger(cart) {
-    var upsellProduct = state.settings && state.settings.upsellProduct;
-    if (!upsellProduct || !cart || !cart.items || !cart.items.length) return Promise.resolve();
-
-    var upId = String(upsellProduct.shopifyProductId || "").replace("gid://shopify/Product/", "");
-    var line = cart.items.filter(function (i) { return String(i.product_id) === upId; })[0];
-    if (!line) return Promise.resolve();
+    var upsellProducts = (state.settings && state.settings.upsellProducts) || [];
+    if (!upsellProducts.length || !cart || !cart.items || !cart.items.length) return Promise.resolve();
 
     if (isUpsellTriggerMet(cartQtyByProductId(cart))) return Promise.resolve();
 
-    return removeItem(line.key);
+    var removals = [];
+    upsellProducts.forEach(function (p) {
+      var upId = String(p.shopifyProductId || "").replace("gid://shopify/Product/", "");
+      var line = cart.items.filter(function (i) { return String(i.product_id) === upId; })[0];
+      if (line) removals.push(removeItem(line.key));
+    });
+    return removals.length ? Promise.all(removals) : Promise.resolve();
   }
 
-  function renderUpsell() {
-    var p = state.settings.upsellProduct;
+  function renderUpsell(products) {
     var discountType = state.settings.upsellDiscountType || "percentage";
     var headline = state.settings.upsellHeadline || "Steal Deals";
-    var originalPrice = p.price || 0;
-    var discountedPrice = originalPrice;
-    if (discountType === "amount") {
-      var discountAmount = Number(state.settings.upsellDiscountAmount) || 0;
-      discountedPrice = Math.max(0, originalPrice - discountAmount);
-    } else if (discountType === "percentage") {
-      var discount = Number(state.settings.upsellDiscount) || 0;
-      discountedPrice = Math.round(originalPrice * (1 - discount / 100));
-    }
-    var variantId = String(p.variantId || "").replace("gid://shopify/ProductVariant/", "");
+
     // renderProductCard() already resizes the image itself — resizing here
     // too stacked two suffixes into one filename (e.g. "..._160x160_300x300.jpg"),
     // which doesn't exist on Shopify's CDN and 404s.
+    var cardsHtml = products.map(function (p) {
+      var originalPrice = p.price || 0;
+      var discountedPrice = originalPrice;
+      if (discountType === "amount") {
+        var discountAmount = Number(state.settings.upsellDiscountAmount) || 0;
+        discountedPrice = Math.max(0, originalPrice - discountAmount);
+      } else if (discountType === "percentage") {
+        var discount = Number(state.settings.upsellDiscount) || 0;
+        discountedPrice = Math.round(originalPrice * (1 - discount / 100));
+      }
+      var variantId = String(p.variantId || "").replace("gid://shopify/ProductVariant/", "");
+      return renderProductCard({
+        title: p.title,
+        image: p.imageUrl || "",
+        price: discountedPrice,
+        comparePrice: discountedPrice < originalPrice ? originalPrice : 0,
+        variantId: variantId,
+        action: "add-upsell",
+        roundAdd: true,
+      });
+    }).join("");
 
     return '<section class="cd-upsell-section">' +
       '<div class="cd-upsell-heading-row">' +
@@ -1574,17 +1589,7 @@
           'UNLOCKED' +
         '</span>' +
       '</div>' +
-      '<div class="cd-upsell-grid">' +
-        renderProductCard({
-          title: p.title,
-          image: p.imageUrl || "",
-          price: discountedPrice,
-          comparePrice: discountedPrice < originalPrice ? originalPrice : 0,
-          variantId: variantId,
-          action: "add-upsell",
-          roundAdd: true,
-        }) +
-      '</div>' +
+      '<div class="cd-upsell-grid">' + cardsHtml + '</div>' +
     '</section>';
   }
 
