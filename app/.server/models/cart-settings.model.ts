@@ -200,7 +200,7 @@ export interface ICartDrawerSettings extends Document {
   /** Fixed discount, in paise (matches IManualProduct.price's unit) — only
       used when upsellDiscountType is "amount". */
   upsellDiscountAmount: number;
-  upsellProduct: IManualProduct | null;
+  upsellProducts: IManualProduct[];
   /** Gates the Steal Deals section on cart contents, same rule as
       IOfferRule's "products" trigger — empty means always eligible
       (backward compatible), non-empty requires at least one listed
@@ -453,17 +453,17 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     upsellDiscountType: { type: String, enum: ["percentage", "amount", "none"], default: "percentage" },
     upsellDiscount: { type: Number, default: 10, min: 0, max: 70 },
     upsellDiscountAmount: { type: Number, default: 0, min: 0 },
-    upsellProduct: {
-      type: {
-        shopifyProductId: { type: String },
+    upsellProducts: {
+      type: [{
+        shopifyProductId: { type: String, required: true },
         title: { type: String },
         handle: { type: String },
         imageUrl: { type: String },
         price: { type: Number },
         compareAtPrice: { type: Number },
         variantId: { type: String },
-      },
-      default: null,
+      }],
+      default: [],
     },
     upsellTriggerProducts: {
       type: [{
