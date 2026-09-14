@@ -2,7 +2,7 @@
 
 client_id = "93181fc4971e75b2c37a5ddc70265578"
 name = "Loyalty and Rewards App"
-application_url = "https://loyalty-rewards-app-gxb7.onrender.com"
+application_url = "https://loyalty-rewards-app-0ho3.onrender.com/"
 embedded = true
 
 [build]
@@ -46,11 +46,11 @@ scopes = "read_checkouts,read_discounts,read_orders,read_products,write_discount
 
 [auth]
 redirect_urls = [
-  "https://loyalty-rewards-app-gxb7.onrender.com/auth/callback"
+  "https://loyalty-rewards-app-0ho3.onrender.com/auth/callback"
 ]
 
 [app_proxy]
-url = "https://loyalty-rewards-app-gxb7.onrender.com/api/proxy"
+url = "https://loyalty-rewards-app-0ho3.onrender.com/api/proxy"
 subpath = "loyalty"
 prefix = "apps"
 
