@@ -2050,15 +2050,23 @@
   var NATIVE_SCROLL_LOCK_CLASSES = [
     "modal-show", "modal-showing", "search-open", "body-no-scrollbar", "overflow-hidden",
   ];
+  function clearStrayScrollLock() {
+    if (state.isOpen) return; // our own drawer legitimately owns the lock
+    var locked = getComputedStyle(document.body).overflow === "hidden";
+    if (!locked) return;
+    NATIVE_SCROLL_LOCK_CLASSES.forEach(function (cls) { document.body.classList.remove(cls); });
+    document.body.style.overflow = "";
+  }
+
   function watchForStrayScrollLock() {
+    // A lock already present by the time this runs (e.g. the theme's own
+    // script ran before this deferred one and locked scroll on page load)
+    // would never get caught by the observer below — it only reports
+    // mutations that happen AFTER observe() starts, not the state at the
+    // time it was attached. Check once immediately too.
+    clearStrayScrollLock();
     if (typeof MutationObserver === "undefined") return;
-    var observer = new MutationObserver(function () {
-      if (state.isOpen) return; // our own drawer legitimately owns the lock
-      var locked = getComputedStyle(document.body).overflow === "hidden";
-      if (!locked) return;
-      NATIVE_SCROLL_LOCK_CLASSES.forEach(function (cls) { document.body.classList.remove(cls); });
-      document.body.style.overflow = "";
-    });
+    var observer = new MutationObserver(clearStrayScrollLock);
     observer.observe(document.body, { attributes: true, attributeFilter: ["style", "class"] });
   }
 
