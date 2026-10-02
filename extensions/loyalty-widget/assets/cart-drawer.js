@@ -2059,12 +2059,14 @@
   }
 
   function watchForStrayScrollLock() {
-    // A lock already present by the time this runs (e.g. the theme's own
-    // script ran before this deferred one and locked scroll on page load)
-    // would never get caught by the observer below — it only reports
-    // mutations that happen AFTER observe() starts, not the state at the
-    // time it was attached. Check once immediately too.
-    clearStrayScrollLock();
+    // Deliberately reactive-only (no immediate check at attach time) — an
+    // eager check here can race a legitimate page-load popup (newsletter,
+    // age-gate) that's supposed to lock scroll while it's shown. Stripping
+    // its lock the instant it appears, before the user has done anything,
+    // risks a fight with the popup's own re-assertion logic if it has any.
+    // Reacting only to subsequent mutations still cleans up a stray native
+    // cart-drawer lock from an actual add-to-cart, just not one already
+    // present before this script ran.
     if (typeof MutationObserver === "undefined") return;
     var observer = new MutationObserver(clearStrayScrollLock);
     observer.observe(document.body, { attributes: true, attributeFilter: ["style", "class"] });
