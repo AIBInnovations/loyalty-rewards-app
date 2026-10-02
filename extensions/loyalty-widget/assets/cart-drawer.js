@@ -11,7 +11,7 @@
   if (!container) return;
 
   // Inside the Shopify Theme Editor's live preview, this script's global
-  // fetch/XHR/form interception (below) can mistake the editor's own
+  // fetch/form interception (below) can mistake the editor's own
   // background cart calls for a real add-to-cart, auto-opening the drawer
   // and locking document.body's scroll with no way to close it from inside
   // the editor iframe — leaving the whole customizer stuck unable to
@@ -19,6 +19,12 @@
   // there's nothing useful to preview here anyway — skip it entirely in
   // design mode.
   if (window.Shopify && window.Shopify.designMode) return;
+
+  // Wraps the entire widget so a failure anywhere during init logs clearly
+  // instead of silently stopping mid-way with nothing in the console —
+  // makes a real bug visible instead of looking like a hang with no clue
+  // where it happened.
+  try {
 
   // ─── Config from data attributes ──────────────────────────────
   var config = {
@@ -1985,36 +1991,14 @@
       return result;
     };
 
-    // Also intercept XMLHttpRequest
-    var origOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function (method, url) {
-      this._cdUrl = url;
-      return origOpen.apply(this, arguments);
-    };
-    var origSend = XMLHttpRequest.prototype.send;
-    XMLHttpRequest.prototype.send = function () {
-      var self = this;
-      this.addEventListener("load", function () {
-        if (self._cdUrl && /\/cart\/(add|update|change)/.test(self._cdUrl)) {
-          var isAdd = /\/cart\/add/.test(self._cdUrl);
-          if (isAdd && (self.status < 200 || self.status >= 300)) {
-            var reason = self.status;
-            try { reason = JSON.parse(self.responseText).description || reason; } catch (e) {}
-            console.warn("Cart drawer: theme's add-to-cart was rejected by Shopify", reason);
-            return;
-          }
-          setTimeout(function () {
-            fetchCart().then(function () {
-              if (isAdd) {
-                fetchRecommendations();
-                openDrawer();
-              }
-            });
-          }, 300);
-        }
-      });
-      return origSend.apply(this, arguments);
-    };
+    // Deliberately NOT also monkey-patching XMLHttpRequest.prototype here —
+    // globally rewriting open/send affects every script on the page using
+    // XHR (trackers, pixels, third-party checkout/payment widgets included),
+    // not just the theme's own add-to-cart calls. fetch() alone already
+    // covers every modern theme's AJAX cart, and the plain <form> submit
+    // listener above covers non-AJAX ones; XHR-based add-to-cart is rare
+    // enough now that it's not worth the blast radius of patching it
+    // globally for every other script too.
 
     // Intercept cart icon clicks to open drawer instead
     document.addEventListener("click", function (e) {
@@ -2097,4 +2081,8 @@
   // Expose openDrawer globally for theme integration
   window.openCartDrawer = openDrawer;
   window.closeCartDrawer = closeDrawer;
+
+  } catch (err) {
+    console.error("Cart Drawer: fatal error during init", err);
+  }
 })();
