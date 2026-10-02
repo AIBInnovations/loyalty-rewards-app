@@ -10,6 +10,16 @@
   var container = document.getElementById("custom-cart-drawer");
   if (!container) return;
 
+  // Inside the Shopify Theme Editor's live preview, this script's global
+  // fetch/XHR/form interception (below) can mistake the editor's own
+  // background cart calls for a real add-to-cart, auto-opening the drawer
+  // and locking document.body's scroll with no way to close it from inside
+  // the editor iframe — leaving the whole customizer stuck unable to
+  // scroll. The drawer is a floating overlay, not a themeable section, so
+  // there's nothing useful to preview here anyway — skip it entirely in
+  // design mode.
+  if (window.Shopify && window.Shopify.designMode) return;
+
   // ─── Config from data attributes ──────────────────────────────
   var config = {
     primaryColor: container.dataset.primaryColor || "#5C6AC4",
