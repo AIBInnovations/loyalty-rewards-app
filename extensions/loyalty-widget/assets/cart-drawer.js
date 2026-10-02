@@ -10,6 +10,16 @@
   var container = document.getElementById("custom-cart-drawer");
   if (!container) return;
 
+  // Inside the Shopify Theme Editor's live preview, this script's global
+  // fetch/XHR/form interception (below) can mistake the editor's own
+  // background cart calls for a real add-to-cart, auto-opening the drawer
+  // and locking document.body's scroll with no way to close it from inside
+  // the editor iframe — leaving the whole customizer stuck unable to
+  // scroll. The drawer is a floating overlay, not a themeable section, so
+  // there's nothing useful to preview here anyway — skip it entirely in
+  // design mode.
+  if (window.Shopify && window.Shopify.designMode) return;
+
   // ─── Config from data attributes ──────────────────────────────
   var config = {
     primaryColor: container.dataset.primaryColor || "#5C6AC4",
@@ -32,6 +42,14 @@
 
   // Apply primary color
   document.documentElement.style.setProperty("--cd-primary", config.primaryColor);
+
+  // Captured before interceptAddToCart() (below) replaces window.fetch —
+  // our own cart mutations (addToCart/updateQuantity) use this directly so
+  // they never get picked back up by our own /cart/add|change interception,
+  // which would otherwise re-run fetchCart()/openDrawer() a second time for
+  // an action we already handle ourselves, and in theory chain if a removal
+  // triggered by that extra pass also matched the pattern.
+  var origFetch = window.fetch;
 
   // ─── State ────────────────────────────────────────────────────
   var state = {
@@ -566,7 +584,7 @@
 
   // ─── Cart Operations ─────────────────────────────────────────
   function addToCart(variantId, qty) {
-    return fetch("/cart/add.js", {
+    return origFetch("/cart/add.js", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items: [{ id: Number(variantId), quantity: qty || 1 }] }),
@@ -576,7 +594,7 @@
   }
 
   function updateQuantity(lineKey, qty) {
-    return fetch("/cart/change.js", {
+    return origFetch("/cart/change.js", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: lineKey, quantity: qty }),
@@ -1913,7 +1931,7 @@
       var qty = formData.get("quantity") || 1;
       var items = [{ id: Number(id), quantity: Number(qty) }];
 
-      fetch("/cart/add.js", {
+      origFetch("/cart/add.js", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: items }),
