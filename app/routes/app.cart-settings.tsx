@@ -1983,7 +1983,7 @@ export default function CartSettingsPage() {
                     )}
                     {upsellDiscountType === "none" && (
                       <Text as="p" variant="bodySm" tone="subdued">
-                        No discount applied — the product shows at its normal price.
+                        No discount applied — the product shows at its normal price !
                       </Text>
                     )}
                     <Divider />
