@@ -2002,13 +2002,35 @@
 
     // Intercept cart icon clicks to open drawer instead
     document.addEventListener("click", function (e) {
+      if (e.target.closest(".cd-drawer")) return; // never intercept clicks inside our own drawer
+
       var link = e.target.closest('a[href="/cart"], a[href*="/cart"]');
-      if (link && !link.closest(".cd-drawer")) {
+      if (link) {
         var href = link.getAttribute("href");
         if (href === "/cart" || href === "/cart/") {
           e.preventDefault();
           openDrawer();
+          return;
         }
+      }
+
+      // Newer themes (e.g. Shopify's component-based "Horizon" generation)
+      // trigger their native cart drawer from a <button> with no href at
+      // all, wired declaratively via aria-controls instead of a link — our
+      // own CSS permanently hides that native drawer (see
+      // injectNativeCartHideCSS), so without this the button still "opens"
+      // it internally but nothing visible happens on click. Catch any
+      // element that's clearly a cart-drawer trigger by its accessibility
+      // wiring, which themes set consistently regardless of how they wire
+      // the actual click handling, and stop the native toggle from running
+      // at all so it never gets a chance to apply its own scroll lock.
+      var trigger = e.target.closest(
+        '[aria-controls*="cart-drawer" i], [aria-controls*="CartDrawer" i], [data-testid="cart-drawer-trigger"]'
+      );
+      if (trigger) {
+        e.preventDefault();
+        e.stopPropagation();
+        openDrawer();
       }
     }, true);
   }
