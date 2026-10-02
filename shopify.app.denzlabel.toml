@@ -1,0 +1,43 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "305a768a7c056fd154463e4a607f2e70"
+name = "Vynexa Application"
+application_url = "https://loyalty-rewards-app.synquic.tech"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2025-01"
+
+  [[webhooks.subscriptions]]
+  topics = [
+  "products/create",
+  "products/delete",
+  "products/update",
+  "app/uninstalled"
+]
+  uri = "/webhooks"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_customers,write_customers,read_orders,read_checkouts,write_discounts,read_discounts,read_products"
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://loyalty-rewards-app.synquic.tech/auth/callback"
+]
+
+[app_proxy]
+# subpath/prefix must stay identical to the other configs — the storefront
+# widget JS has "/apps/loyalty/..." hardcoded in its fetch calls, so a
+# different value here would 404 every storefront request for shops
+# installed through this app.
+url = "https://loyalty-rewards-app.synquic.tech/api/proxy"
+subpath = "loyalty"
+prefix = "apps"
+
+[pos]
+embedded = false
