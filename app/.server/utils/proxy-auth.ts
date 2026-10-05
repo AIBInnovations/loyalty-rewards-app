@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { loadShopifyApiSecrets } from "../shopify-apps.server";
 
 /**
  * Verify Shopify App Proxy signature.
@@ -7,13 +8,19 @@ import crypto from "crypto";
  * To verify: sort all params (except `signature`), concatenate as key=value,
  * then HMAC-SHA256 with the app's API secret.
  *
+ * This server can answer for several app registrations (see
+ * shopify-apps.server.ts), so the signature is accepted if it verifies
+ * against any configured app's secret. Shopify signs with the secret of the
+ * app installed on the shop in the `shop` param, and that param is itself
+ * covered by the signature.
+ *
  * @see https://shopify.dev/docs/apps/online-store/app-proxies#verify-the-signature
  */
 export function verifyAppProxySignature(
   queryParams: URLSearchParams,
 ): boolean {
-  const secret = process.env.SHOPIFY_API_SECRET;
-  if (!secret) {
+  const secrets = loadShopifyApiSecrets();
+  if (secrets.length === 0) {
     console.error("SHOPIFY_API_SECRET not set, cannot verify proxy signature");
     return false;
   }
@@ -40,21 +47,19 @@ export function verifyAppProxySignature(
     .sort()
     .join("");
 
-  const expectedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(message)
-    .digest("hex");
+  const received = Buffer.from(signature, "hex");
 
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(signature, "hex"),
-      Buffer.from(expectedSignature, "hex"),
+  return secrets.some((secret) => {
+    const expected = crypto
+      .createHmac("sha256", secret)
+      .update(message)
+      .digest();
+    // timingSafeEqual throws if lengths differ, so compare lengths first.
+    return (
+      received.length === expected.length &&
+      crypto.timingSafeEqual(received, expected)
     );
-  } catch (e) {
-    // timingSafeEqual throws if lengths differ
-    console.error("Signature length mismatch");
-    return false;
-  }
+  });
 }
 
 /**
