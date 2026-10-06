@@ -19,6 +19,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Shopify configs in sync with stores.json
+        run: npm run configs:check
+
       - name: Typecheck
         run: npm run typecheck
 
