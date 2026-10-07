@@ -116,7 +116,13 @@ if (!primary) {
   );
 }
 
-export const configuredClientIds = apps.map((app) => app.credentials.apiKey);
+// Shopify client secrets are `shpss_` + 32 hex chars. Reporting only whether
+// each loaded secret has that shape (never the value) exposes a stray or
+// invisible character pasted into the environment without leaking anything.
+export const configuredApps = apps.map(({ credentials }) => ({
+  clientId: credentials.apiKey,
+  secretFormatOk: /^shpss_[0-9a-f]{32}$/.test(credentials.apiSecret),
+}));
 
 const appsByKey = new Map(apps.map((app) => [app.credentials.apiKey, app]));
 
