@@ -9,12 +9,6 @@
       "clientId": "305a768a7c056fd154463e4a607f2e70"
     },
     {
-      "file": "shopify.app.vynexa.toml",
-      "name": "Vynexa",
-      "clientId": "539db39b9b944e7c9f794f52122735a0",
-      "appUrl": "https://vynexa-app.onrender.com"
-    },
-    {
       "file": "shopify.app.vynexa-app.toml",
       "name": "Vynexa App",
       "clientId": "c5bacf4ba2d0b6272ad545bf2507f50c"
