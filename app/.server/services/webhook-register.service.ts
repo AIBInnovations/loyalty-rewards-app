@@ -1,5 +1,80 @@
 import mongoose from "mongoose";
 
+// Hosts that only ever front a developer's laptop (`shopify app dev` tunnels).
+// A webhook subscription pointing at one is dead the moment that session ends,
+// but Shopify keeps retrying it, so it's safe to remove. STALE_WEBHOOK_HOSTS
+// adds more (e.g. a retired deployment's host) as a comma-separated list.
+const TUNNEL_HOST_SUFFIXES = [
+  ".trycloudflare.com",
+  ".ngrok-free.app",
+  ".ngrok.io",
+  ".ngrok.app",
+  ".loca.lt",
+];
+
+export function isStaleWebhookCallback(
+  callbackUrl: string,
+  currentAppUrl: string,
+  extraHosts: string[] = [],
+): boolean {
+  let host: string;
+  let currentHost: string;
+  try {
+    host = new URL(callbackUrl).hostname.toLowerCase();
+    currentHost = new URL(currentAppUrl).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  // Never touch a subscription that already points at this deployment.
+  if (host === currentHost) return false;
+  return (
+    TUNNEL_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix)) ||
+    extraHosts.map((h) => h.trim().toLowerCase()).filter(Boolean).includes(host)
+  );
+}
+
+async function shopGraphql(shop: string, accessToken: string, query: string, variables = {}) {
+  const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": accessToken,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  return response.json();
+}
+
+/** Delete this app's webhook subscriptions on a shop that point at a dead host. */
+async function pruneStaleWebhooks(shop: string, accessToken: string, appUrl: string) {
+  const extraHosts = (process.env.STALE_WEBHOOK_HOSTS || "").split(",");
+  const listed = await shopGraphql(
+    shop,
+    accessToken,
+    `query { webhookSubscriptions(first: 100) { nodes { id topic endpoint { ... on WebhookHttpEndpoint { callbackUrl } } } } }`,
+  );
+  const nodes: Array<{ id: string; topic: string; endpoint?: { callbackUrl?: string } }> =
+    listed?.data?.webhookSubscriptions?.nodes ?? [];
+
+  for (const node of nodes) {
+    const callbackUrl = node.endpoint?.callbackUrl;
+    if (!callbackUrl || !isStaleWebhookCallback(callbackUrl, appUrl, extraHosts)) continue;
+
+    const result = await shopGraphql(
+      shop,
+      accessToken,
+      `mutation($id: ID!) { webhookSubscriptionDelete(id: $id) { deletedWebhookSubscriptionId userErrors { message } } }`,
+      { id: node.id },
+    );
+    const errors = result?.data?.webhookSubscriptionDelete?.userErrors;
+    if (errors?.length) {
+      console.warn(`  ${node.topic}: could not remove stale webhook ${callbackUrl}: ${errors[0].message}`);
+    } else {
+      console.log(`  ${node.topic}: removed stale webhook -> ${callbackUrl}`);
+    }
+  }
+}
+
 /**
  * Auto-register webhooks on server startup.
  * Reads all active shop sessions from MongoDB and re-registers
@@ -58,6 +133,12 @@ export async function registerWebhooksOnStartup(): Promise<void> {
       if (!shop || !accessToken) continue;
 
       console.log(`Registering webhooks for ${shop}...`);
+
+      try {
+        await pruneStaleWebhooks(shop, accessToken, appUrl);
+      } catch (err) {
+        console.error(`  stale webhook cleanup failed for ${shop}:`, (err as Error).message);
+      }
 
       for (const topic of webhookTopics) {
         try {
