@@ -22,8 +22,7 @@
     {
       "file": "shopify.app.vynexa-app.toml",
       "name": "Vynexa App",
-      "clientId": "c5bacf4ba2d0b6272ad545bf2507f50c",
-      "appUrl": "https://vynexa-app-1.onrender.com"
+      "clientId": "c5bacf4ba2d0b6272ad545bf2507f50c"
     }
   ]
 }
