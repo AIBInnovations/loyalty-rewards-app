@@ -15,6 +15,13 @@ services:
         sync: false
       - key: SHOPIFY_APP_URL
         sync: false  # Set to your Render URL after first deploy
+      # Additional Shopify app registrations served by THIS service (one
+      # custom-distribution app per store) — see app/.server/shopify-apps.server.ts.
+      # JSON array: [{"name":"store","apiKey":"<client id>","apiSecret":"<client secret>"}]
+      # Every app listed must use this service's URL in its shopify.app.<name>.toml.
+      # Onboarding a store = add one entry here; no new Render service.
+      - key: SHOPIFY_APPS
+        sync: false
       - key: SCOPES
         value: read_customers,write_customers,read_orders,read_checkouts,write_discounts,read_discounts,read_products
       - key: PORT
@@ -35,11 +42,12 @@ services:
       - key: ELEVENLABS_WEBHOOK_SECRET
         sync: false
 
-  # Same codebase, second identity — Vynexa is a separate Shopify app
-  # registration (client_id in shopify.app.vynexa.toml) that needs its own
-  # OAuth backend. One Render service can only authenticate as ONE Shopify
-  # app at a time (single static SHOPIFY_API_KEY/SECRET), so Vynexa can't
-  # share loyalty-rewards-app's service without breaking that app's installs.
+  # LEGACY — to be removed. Vynexa is a separate Shopify app registration
+  # (client_id in shopify.app.vynexa.toml) that predates SHOPIFY_APPS, when
+  # one service could only authenticate as one app. Once its credentials are
+  # in loyalty-rewards-app's SHOPIFY_APPS and its TOML points at that
+  # service's URL (then `shopify app deploy --config vynexa`), delete this
+  # service. Same for denzlabel-app below.
   - type: web
     name: vynexa-app
     runtime: docker
