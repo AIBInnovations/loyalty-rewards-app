@@ -116,6 +116,8 @@ if (!primary) {
   );
 }
 
+export const configuredClientIds = apps.map((app) => app.credentials.apiKey);
+
 const appsByKey = new Map(apps.map((app) => [app.credentials.apiKey, app]));
 
 // shop domain -> client ID of the app it installed. Only ever written after
