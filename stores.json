@@ -1,6 +1,6 @@
 {
   "_readme": "Source of truth for every shopify.app*.toml. Edit this file, then run `npm run configs:generate` (CI fails if the TOMLs are out of sync). Never hand-edit a generated TOML.",
-  "appUrl": "https://loyalty-rewards-app-gxb7.onrender.com",
+  "appUrl": "https://loyalty-rewards-app.synquic.tech",
   "scopes": "read_customers,read_discounts,read_orders,read_products,read_checkouts,write_customers,write_discounts",
   "apps": [
     {
@@ -11,8 +11,7 @@
     {
       "file": "shopify.app.denzlabel.toml",
       "name": "Vynexa Application",
-      "clientId": "305a768a7c056fd154463e4a607f2e70",
-      "appUrl": "https://loyalty-rewards-app.synquic.tech"
+      "clientId": "305a768a7c056fd154463e4a607f2e70"
     },
     {
       "file": "shopify.app.vynexa.toml",

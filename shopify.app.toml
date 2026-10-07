@@ -3,7 +3,7 @@
 
 client_id = "b63a3efb51482133917069cad999bef3"
 name = "Loyalty and Rewards App"
-application_url = "https://loyalty-rewards-app-gxb7.onrender.com"
+application_url = "https://loyalty-rewards-app.synquic.tech"
 embedded = true
 
 [build]
@@ -32,9 +32,9 @@ api_version = "2025-01"
 
   # Mandatory for public apps; harmless on custom ones.
   [webhooks.privacy_compliance]
-  customer_data_request_url = "https://loyalty-rewards-app-gxb7.onrender.com/webhooks"
-  customer_deletion_url = "https://loyalty-rewards-app-gxb7.onrender.com/webhooks"
-  shop_deletion_url = "https://loyalty-rewards-app-gxb7.onrender.com/webhooks"
+  customer_data_request_url = "https://loyalty-rewards-app.synquic.tech/webhooks"
+  customer_deletion_url = "https://loyalty-rewards-app.synquic.tech/webhooks"
+  shop_deletion_url = "https://loyalty-rewards-app.synquic.tech/webhooks"
 
 [access_scopes]
 # read_checkouts is required by the abandoned-cart poller and the
@@ -44,13 +44,13 @@ use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "https://loyalty-rewards-app-gxb7.onrender.com/auth/callback"
+  "https://loyalty-rewards-app.synquic.tech/auth/callback"
 ]
 
 [app_proxy]
 # subpath/prefix must be identical for every app - the storefront widget JS
 # has "/apps/loyalty/..." hardcoded in its fetch calls.
-url = "https://loyalty-rewards-app-gxb7.onrender.com/api/proxy"
+url = "https://loyalty-rewards-app.synquic.tech/api/proxy"
 subpath = "loyalty"
 prefix = "apps"
 
