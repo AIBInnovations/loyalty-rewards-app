@@ -4,11 +4,6 @@
   "scopes": "read_customers,read_discounts,read_orders,read_products,read_checkouts,write_customers,write_discounts",
   "apps": [
     {
-      "file": "shopify.app.toml",
-      "name": "Loyalty and Rewards App",
-      "clientId": "b63a3efb51482133917069cad999bef3"
-    },
-    {
       "file": "shopify.app.denzlabel.toml",
       "name": "Vynexa Application",
       "clientId": "305a768a7c056fd154463e4a607f2e70"
