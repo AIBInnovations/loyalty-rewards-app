@@ -121,7 +121,7 @@ embedded = false
 `;
 }
 
-const config = JSON.parse(readFileSync(join(root, "stores.json"), "utf8"));
+const config = JSON.parse(readFileSync(join(root, "stores.json"), "utf8").replace(/^﻿/, ""));
 validate(config);
 
 let stale = 0;
