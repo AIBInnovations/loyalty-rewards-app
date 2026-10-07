@@ -141,7 +141,14 @@ export async function registerWebhooksOnStartup(): Promise<void> {
       try {
         await pruneStaleWebhooks(shop, accessToken, appUrl);
       } catch (err) {
-        console.error(`  stale webhook cleanup failed for ${shop}:`, (err as Error).message);
+        const message = (err as Error).message;
+        // Shopify has rejected this shop's token (app deleted, uninstalled, or
+        // secret rotated), so every registration below would fail the same way.
+        if (message.includes("Invalid API key or access token")) {
+          console.warn(`  ${shop}: access token rejected by Shopify - skipping webhook registration (app uninstalled or deleted?)`);
+          continue;
+        }
+        console.error(`  stale webhook cleanup failed for ${shop}:`, message);
       }
 
       for (const topic of webhookTopics) {
