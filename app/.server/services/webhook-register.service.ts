@@ -53,8 +53,12 @@ async function pruneStaleWebhooks(shop: string, accessToken: string, appUrl: str
     accessToken,
     `query { webhookSubscriptions(first: 100) { nodes { id topic endpoint { ... on WebhookHttpEndpoint { callbackUrl } } } } }`,
   );
+  if (!listed?.data?.webhookSubscriptions) {
+    const reason = listed?.errors?.[0]?.message || (typeof listed?.errors === "string" ? listed.errors : "no data");
+    throw new Error(`could not list webhook subscriptions: ${reason}`);
+  }
   const nodes: Array<{ id: string; topic: string; endpoint?: { callbackUrl?: string } }> =
-    listed?.data?.webhookSubscriptions?.nodes ?? [];
+    listed.data.webhookSubscriptions.nodes ?? [];
 
   for (const node of nodes) {
     const callbackUrl = node.endpoint?.callbackUrl;
@@ -182,6 +186,16 @@ export async function registerWebhooksOnStartup(): Promise<void> {
 
           const result = await response.json();
           const errors = result?.data?.webhookSubscriptionCreate?.userErrors;
+
+          // A rejected token or API failure comes back with top-level `errors`
+          // (or no data) and no userErrors; that is a failure, not a success.
+          if (!result?.data?.webhookSubscriptionCreate) {
+            const reason =
+              result?.errors?.[0]?.message ||
+              (typeof result?.errors === "string" ? result.errors : `HTTP ${response.status}`);
+            console.warn(`  ${topic}: ❌ not registered - ${reason}`);
+            continue;
+          }
 
           if (errors && errors.length > 0) {
             // "already exists" is fine - just means it's already registered
