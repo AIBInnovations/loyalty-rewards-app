@@ -2056,12 +2056,57 @@
   var NATIVE_SCROLL_LOCK_CLASSES = [
     "modal-show", "modal-showing", "search-open", "body-no-scrollbar", "overflow-hidden",
   ];
+  var scrollLockObserver = null;
+  var scrollLockCheckQueued = false;
+  var scrollLockFights = 0;
+  var scrollLockWindowStart = 0;
+
   function clearStrayScrollLock() {
     if (state.isOpen) return; // our own drawer legitimately owns the lock
-    var locked = getComputedStyle(document.body).overflow === "hidden";
+    var body = document.body;
+    var locked = getComputedStyle(body).overflow === "hidden";
     if (!locked) return;
-    NATIVE_SCROLL_LOCK_CLASSES.forEach(function (cls) { document.body.classList.remove(cls); });
-    document.body.style.overflow = "";
+
+    // Only write when there is actually something of ours to strip. This
+    // observer watches body's style/class attributes, and writing
+    // body.style.overflow = "" re-serialises the style attribute even when
+    // nothing changes — which fires this same observer again. On a theme
+    // whose lock comes from a stylesheet (no known class, no inline style)
+    // that was an endless self-trigger that froze the whole page.
+    var changed = false;
+    NATIVE_SCROLL_LOCK_CLASSES.forEach(function (cls) {
+      if (body.classList.contains(cls)) {
+        body.classList.remove(cls);
+        changed = true;
+      }
+    });
+    if (body.style.overflow) {
+      body.style.overflow = "";
+      changed = true;
+    }
+    if (!changed) return; // the lock isn't ours to strip — leave it alone
+
+    // Loop breaker: if the theme re-applies the lock as fast as we strip it,
+    // stop fighting rather than spin forever.
+    var now = Date.now();
+    if (now - scrollLockWindowStart > 2000) {
+      scrollLockWindowStart = now;
+      scrollLockFights = 0;
+    }
+    scrollLockFights++;
+    if (scrollLockFights > 8 && scrollLockObserver) scrollLockObserver.disconnect();
+  }
+
+  // Run the check once per frame instead of synchronously inside the
+  // observer callback, so a theme that re-asserts its lock can never trap us
+  // in a microtask ping-pong with it.
+  function queueScrollLockCheck() {
+    if (scrollLockCheckQueued) return;
+    scrollLockCheckQueued = true;
+    (window.requestAnimationFrame || window.setTimeout)(function () {
+      scrollLockCheckQueued = false;
+      clearStrayScrollLock();
+    });
   }
 
   function watchForStrayScrollLock() {
@@ -2074,8 +2119,8 @@
     // cart-drawer lock from an actual add-to-cart, just not one already
     // present before this script ran.
     if (typeof MutationObserver === "undefined") return;
-    var observer = new MutationObserver(clearStrayScrollLock);
-    observer.observe(document.body, { attributes: true, attributeFilter: ["style", "class"] });
+    scrollLockObserver = new MutationObserver(queueScrollLockCheck);
+    scrollLockObserver.observe(document.body, { attributes: true, attributeFilter: ["style", "class"] });
   }
 
   // ─── Initialize ───────────────────────────────────────────────
