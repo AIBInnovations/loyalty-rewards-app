@@ -644,13 +644,37 @@
     // (e.g. a `page-wrapper--drawer-open` class that narrows the content).
     // Their drawer is permanently hidden here, so nothing ever closes it and
     // the page stays squeezed with a blank strip after our own drawer closes.
-    var PUSH_CLASSES = ["page-wrapper--drawer-open", "cart-drawer-open"];
+    stripThemePushClasses();
+  }
+
+  var PUSH_CLASSES = ["page-wrapper--drawer-open", "cart-drawer-open"];
+
+  function stripThemePushClasses() {
     PUSH_CLASSES.forEach(function (cls) {
       document.querySelectorAll("." + cls).forEach(function (el) {
         if (el.closest(".cd-drawer, .cd-overlay")) return;
         el.classList.remove(cls);
       });
     });
+  }
+
+  // The theme can add its push class at any moment, not only when we open or
+  // close ours (e.g. when its own add-to-cart finishes a moment after our
+  // handler already ran). Its drawer is hidden for good, so the push is never
+  // wanted: strip it as soon as it appears. Writes only when a class is
+  // actually present, so this can never re-trigger itself.
+  function watchForThemePush() {
+    if (typeof MutationObserver === "undefined") return;
+    var target = document.querySelector(".page-wrapper");
+    if (!target) return;
+    new MutationObserver(function () {
+      for (var i = 0; i < PUSH_CLASSES.length; i++) {
+        if (target.classList.contains(PUSH_CLASSES[i])) {
+          stripThemePushClasses();
+          return;
+        }
+      }
+    }).observe(target, { attributes: true, attributeFilter: ["class"] });
   }
 
   // Inject CSS to hide native cart drawer permanently when our drawer is active
@@ -2145,6 +2169,8 @@
   // ─── Initialize ───────────────────────────────────────────────
   injectNativeCartHideCSS(); // Hide native cart drawer permanently
   watchForStrayScrollLock();
+  watchForThemePush();
+  stripThemePushClasses();
   fetchSettings();
   interceptAddToCart();
 
