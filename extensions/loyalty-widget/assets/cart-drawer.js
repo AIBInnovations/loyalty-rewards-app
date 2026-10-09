@@ -639,6 +639,18 @@
         if (closeBtn) closeBtn.click();
       });
     });
+
+    // Some themes push the whole page aside while THEIR drawer is open
+    // (e.g. a `page-wrapper--drawer-open` class that narrows the content).
+    // Their drawer is permanently hidden here, so nothing ever closes it and
+    // the page stays squeezed with a blank strip after our own drawer closes.
+    var PUSH_CLASSES = ["page-wrapper--drawer-open", "cart-drawer-open"];
+    PUSH_CLASSES.forEach(function (cls) {
+      document.querySelectorAll("." + cls).forEach(function (el) {
+        if (el.closest(".cd-drawer, .cd-overlay")) return;
+        el.classList.remove(cls);
+      });
+    });
   }
 
   // Inject CSS to hide native cart drawer permanently when our drawer is active
@@ -2001,7 +2013,13 @@
     // globally for every other script too.
 
     // Intercept cart icon clicks to open drawer instead
-    document.addEventListener("click", function (e) {
+    // Registered on `window`, not `document`: in the capture phase window
+    // runs first, so stopImmediatePropagation() below really does keep the
+    // theme's own cart-toggle handler (often a document-level listener that
+    // registered before this script) from also opening ITS drawer — which
+    // pushes the page aside and was never closed again.
+    window.addEventListener("click", function (e) {
+      if (!e.target || !e.target.closest) return;
       if (e.target.closest(".cd-drawer")) return; // never intercept clicks inside our own drawer
 
       var link = e.target.closest('a[href="/cart"], a[href*="/cart"]');
@@ -2009,6 +2027,7 @@
         var href = link.getAttribute("href");
         if (href === "/cart" || href === "/cart/") {
           e.preventDefault();
+          e.stopImmediatePropagation();
           openDrawer();
           return;
         }
@@ -2029,7 +2048,7 @@
       );
       if (trigger) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         openDrawer();
       }
     }, true);

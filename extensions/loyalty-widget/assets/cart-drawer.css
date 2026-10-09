@@ -138,6 +138,15 @@
      .cd-drawer. Explicit fallback matches the merchant's configured font
      stack in case --cd-font isn't set for some reason. */
   font-family: var(--cd-font, Karla, system-ui, sans-serif)!important;
+  /* Same reason for the size: a bare `h2 { font-size: ... }` in the theme
+     (72px on the Denz store) beats anything inherited, and the <b> below is
+     sized in em relative to this element, so an inflated h2 blew the whole
+     "Your Cart" title up to ~98px. */
+  font-size: var(--cd-font-size, 14px) !important;
+  line-height: 1.2 !important;
+  font-weight: 400 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
 }
 
 .cd-header-title b {
