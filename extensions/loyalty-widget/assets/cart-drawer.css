@@ -44,8 +44,9 @@
      --cd-progress-bg now drives the progress LINE/dot accent color (the
      card itself is a plain bordered card, not a full-bleed block);
      --cd-offer-bg drives the progress card's own background. */
+  --cd-drawer-bg: var(--cd-cream);
   --cd-progress-bg: var(--cd-accent);
-  --cd-offer-bg: var(--cd-cream);
+  --cd-offer-bg: var(--cd-drawer-bg);
   --cd-offer-text: var(--cd-ink);
   --cd-pill-bg: #fff;
   --cd-pill-text: var(--cd-accent-dark);
@@ -90,7 +91,7 @@
   max-width: 100vw;
   height: 100vh;
   height: 100dvh;
-  background: var(--cd-cream);
+  background: var(--cd-drawer-bg);
   display: flex;
   flex-direction: column;
   box-shadow: -4px 0 28px rgba(28, 26, 23, 0.14);
@@ -265,7 +266,7 @@ svg[fill="none"] polyline[stroke] {
   position: sticky;
   top: 0;
   z-index: 5;
-  background: var(--cd-cream);
+  background: var(--cd-drawer-bg);
 }
 
 /* Flat, borderless strip — no card chrome, just the plain page color.

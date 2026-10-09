@@ -117,6 +117,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           fontFamily: String(data.fontFamily || "").slice(0, 120),
           fontSize: Math.min(24, Math.max(0, Number(data.fontSize) || 0)),
           progressBarColor: String(data.progressBarColor || "").slice(0, 20),
+          drawerBgColor: String(data.drawerBgColor || "").slice(0, 20),
           offerLineBg: String(data.offerLineBg || "").slice(0, 20),
           offerLineTextColor: String(data.offerLineTextColor || "").slice(0, 20),
           buttonColor: String(data.buttonColor || "").slice(0, 20),
@@ -289,6 +290,7 @@ export default function CartSettingsPage() {
   const [fontFamily, setFontFamily] = useState(settings.fontFamily || "");
   const [fontSize, setFontSize] = useState(String(settings.fontSize || ""));
   const [progressBarColor, setProgressBarColor] = useState(settings.progressBarColor || "");
+  const [drawerBgColor, setDrawerBgColor] = useState(settings.drawerBgColor || "");
   const [offerLineBg, setOfferLineBg] = useState(settings.offerLineBg || "");
   const [offerLineTextColor, setOfferLineTextColor] = useState(settings.offerLineTextColor || "");
   const [buttonColor, setButtonColor] = useState(settings.buttonColor || "");
@@ -375,6 +377,7 @@ export default function CartSettingsPage() {
     formData.set("fontFamily", fontFamily);
     formData.set("fontSize", fontSize);
     formData.set("progressBarColor", progressBarColor);
+    formData.set("drawerBgColor", drawerBgColor);
     formData.set("offerLineBg", offerLineBg);
     formData.set("offerLineTextColor", offerLineTextColor);
     formData.set("buttonColor", buttonColor);
@@ -402,7 +405,7 @@ export default function CartSettingsPage() {
     progressBannerText, progressExtraLineText, progressExtraLineMinAmount,
     paymentMethodsText, couponEnabled, couponCode,
     couponDescription, couponOffersUrl,
-    fontFamily, fontSize, progressBarColor, offerLineBg, offerLineTextColor,
+    fontFamily, fontSize, progressBarColor, drawerBgColor, offerLineBg, offerLineTextColor,
     buttonColor, buttonHoverColor, buttonHoverTextColor, headerCountSize, drawerWidth,
     pillColor, pillTextColor, nodeColor, nodeTextColor, submit,
   ]);
@@ -2314,6 +2317,15 @@ export default function CartSettingsPage() {
                     autoComplete="off"
                   />
                 </InlineGrid>
+                <Divider />
+                <TextField
+                  label="Drawer background color"
+                  value={drawerBgColor}
+                  onChange={setDrawerBgColor}
+                  placeholder="#fdfbf7"
+                  helpText="Background of the whole cart drawer panel and its header. Leave empty for the default cream. The progress-bar card follows it unless you set its own color below."
+                  autoComplete="off"
+                />
                 <Divider />
                 <Text as="h3" variant="headingSm">Progress bar</Text>
                 <TextField

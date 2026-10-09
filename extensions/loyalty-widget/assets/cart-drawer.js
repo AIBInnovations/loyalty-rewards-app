@@ -197,6 +197,7 @@
     loadGoogleFont(s.fontFamily);
 
     var vars = {
+      "--cd-drawer-bg": s.drawerBgColor,
       "--cd-progress-bg": s.progressBarColor,
       "--cd-offer-bg": s.offerLineBg,
       "--cd-offer-text": s.offerLineTextColor,
