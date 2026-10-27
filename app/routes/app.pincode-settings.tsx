@@ -8,7 +8,7 @@ import { useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { PincodeSettings, getOrCreatePincodeSettings } from "../.server/models/pincode-settings.model";
-import { PINCODE_ZONES } from "../pincode-zones";
+import { PINCODE_ZONES, CITY_ZONES } from "../pincode-zones";
 import { encryptSecret } from "../.server/crypto.server";
 import { encryptShiprocketSecret } from "../.server/services/shiprocket.service";
 import {
@@ -136,6 +136,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               o.minDays >= 0 && o.maxDays >= o.minDays,
           );
         })(),
+        cityDeliveryDays: (() => {
+          let parsed: { cityKey?: string; minDays: number; maxDays: number }[] = [];
+          try { parsed = JSON.parse(String(fd.get("cityDeliveryDays") || "[]")); } catch { parsed = []; }
+          const validKeys = new Set(CITY_ZONES.map((c) => c.key));
+          return parsed.filter(
+            (o) =>
+              o.cityKey && validKeys.has(o.cityKey) &&
+              Number.isFinite(o.minDays) && Number.isFinite(o.maxDays) &&
+              o.minDays >= 0 && o.maxDays >= o.minDays,
+          );
+        })(),
+        pincodeNote: String(fd.get("pincodeNote") || "").slice(0, 300),
         etaMode: ["shiprocket", "delhivery", "bluedart"].includes(String(fd.get("etaMode")))
           ? (fd.get("etaMode") as string)
           : "manual",
@@ -176,6 +188,7 @@ export default function PincodeSettingsPage() {
   const [cod, setCod]           = useState((s.codPincodes || []).join("\n"));
   const [noCod, setNoCod]       = useState((s.noCodPincodes || []).join("\n"));
   const [noService, setNoService] = useState((s.nonServiceablePincodes || []).join("\n"));
+  const [pincodeNote, setPincodeNote] = useState(s.pincodeNote || "");
   const [headingText, setHeadingText] = useState(s.headingText || "📦 Check Delivery & COD");
   const [bgColor, setBgColor] = useState(s.bgColor || "");
   const [buttonColor, setButtonColor] = useState(s.buttonColor || "");
@@ -220,6 +233,26 @@ export default function PincodeSettingsPage() {
     [zoneDays],
   );
 
+  // One row per metro city — same shape as the state zone rows above, but
+  // keyed by CITY_ZONES and higher priority in the ETA engine.
+  const initialCityDays: Record<string, { min: string; max: string }> = {};
+  for (const o of s.cityDeliveryDays || []) {
+    initialCityDays[o.cityKey] = { min: String(o.minDays), max: String(o.maxDays) };
+  }
+  const [cityDays, setCityDays] = useState(initialCityDays);
+
+  const updateCityDay = useCallback((cityKey: string, field: "min" | "max", value: string) => {
+    setCityDays((prev) => ({ ...prev, [cityKey]: { ...prev[cityKey], [field]: value } }));
+  }, []);
+
+  const buildCityDeliveryDays = useCallback(
+    (source = cityDays) =>
+      Object.entries(source)
+        .map(([cityKey, v]) => ({ cityKey, minDays: parseInt(v.min, 10), maxDays: parseInt(v.max, 10) }))
+        .filter((o) => Number.isFinite(o.minDays) && Number.isFinite(o.maxDays) && o.minDays >= 0 && o.maxDays >= o.minDays),
+    [cityDays],
+  );
+
   const save = useCallback(() => {
     const fd = new FormData();
     fd.set("enabled",                String(enabled));
@@ -229,6 +262,8 @@ export default function PincodeSettingsPage() {
     fd.set("noCodPincodes",          noCod);
     fd.set("nonServiceablePincodes", noService);
     fd.set("stateDeliveryDays", JSON.stringify(buildStateDeliveryDays()));
+    fd.set("cityDeliveryDays", JSON.stringify(buildCityDeliveryDays()));
+    fd.set("pincodeNote", pincodeNote);
     fd.set("etaMode", etaMode);
     fd.set("pickupPincode", pickupPincode);
     fd.set("handlingDays", handlingDays);
@@ -254,7 +289,7 @@ export default function PincodeSettingsPage() {
     if (delhiveryApiToken) setDelhiveryApiToken("");
     if (bluedartLicenseKey) setBluedartLicenseKey("");
   }, [
-    enabled, minDays, maxDays, cod, noCod, noService, buildStateDeliveryDays, submit,
+    enabled, minDays, maxDays, cod, noCod, noService, buildStateDeliveryDays, buildCityDeliveryDays, pincodeNote, submit,
     etaMode, pickupPincode, handlingDays, cutoffHour, workingDays, shiprocketEmail, shiprocketPassword,
     delhiveryApiToken, bluedartLoginId, bluedartLicenseKey,
     headingText, bgColor, buttonColor, buttonTextColor, buttonSize, sectionWidth, sectionHeight,
@@ -677,6 +712,65 @@ export default function PincodeSettingsPage() {
                     </BlockStack>
                   ))}
                 </BlockStack>
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="400">
+                <Text variant="headingMd" as="h2">Delivery Days by City</Text>
+                <Text variant="bodySm" as="p" tone="subdued">
+                  Metro-city overrides — checked before the state ranges above, so a pincode inside
+                  one of these cities uses this row instead of its state's row. Leave a row blank to
+                  fall back to that city's state range (or the default Min/Max Days).
+                </Text>
+
+                <BlockStack gap="300">
+                  {CITY_ZONES.map((city, i) => (
+                    <BlockStack key={city.key} gap="150">
+                      {i > 0 && <Divider />}
+                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                        {city.label}
+                      </Text>
+                      <InlineStack gap="300" blockAlign="end">
+                        <TextField
+                          label="Min Days"
+                          type="number"
+                          value={cityDays[city.key]?.min || ""}
+                          onChange={(v) => updateCityDay(city.key, "min", v)}
+                          onBlur={save}
+                          autoComplete="off"
+                          min="0"
+                        />
+                        <TextField
+                          label="Max Days"
+                          type="number"
+                          value={cityDays[city.key]?.max || ""}
+                          onChange={(v) => updateCityDay(city.key, "max", v)}
+                          onBlur={save}
+                          autoComplete="off"
+                          min="0"
+                        />
+                      </InlineStack>
+                    </BlockStack>
+                  ))}
+                </BlockStack>
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="400">
+                <Text variant="headingMd" as="h2">Note</Text>
+                <TextField
+                  label="Note shown below the pincode section"
+                  value={pincodeNote}
+                  onChange={setPincodeNote}
+                  onBlur={save}
+                  multiline={3}
+                  autoComplete="off"
+                  maxLength={300}
+                  placeholder="e.g. Delivery dates may vary during sale periods."
+                  helpText="Optional. Shown to every customer under the pincode input/result on the storefront, regardless of which city or state they're in."
+                />
               </BlockStack>
             </Card>
 

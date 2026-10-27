@@ -77,3 +77,11 @@
 .pe-unavailable { color: #c0392b; font-weight: 600; }
 .pe-error { color: #c0392b; font-size: 12px; margin-top: 6px; }
 .pe-access-denied { color: #c0392b; font-size: 13px; margin-top: 6px; }
+.pe-note {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid #ececec;
+  font-size: 12px;
+  color: #777;
+  line-height: 1.4;
+}

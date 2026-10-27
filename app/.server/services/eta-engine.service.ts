@@ -5,7 +5,7 @@
 
 import { encryptSecret, decryptSecret } from "../crypto.server";
 import { PincodeSettings, type IPincodeSettings } from "../models/pincode-settings.model";
-import { getZoneForPincode } from "../../pincode-zones";
+import { getZoneForPincode, getCityForPincode } from "../../pincode-zones";
 import {
   getShiprocketToken,
   checkServiceability,
@@ -48,6 +48,15 @@ function cacheKey(shop: string, pincode: string, mode: string) {
   return `${shop}:${pincode}:${mode}`;
 }
 
+/** Resolves the label shown to the customer — a metro city name takes
+    priority over its wider state zone when the pincode matches one of
+    CITY_ZONES. */
+function getLocationLabel(pincode: string): string {
+  const city = getCityForPincode(pincode);
+  if (city) return city.label;
+  return getZoneForPincode(pincode)?.label || "";
+}
+
 /** Manual calculation — the app's original logic, unchanged, now the
     shared fallback for both etaMode:"manual" and any Shiprocket failure. */
 function calculateManualETA(settings: IPincodeSettings, pincode: string): ETAResult {
@@ -59,17 +68,27 @@ function calculateManualETA(settings: IPincodeSettings, pincode: string): ETARes
     ? false
     : settings.codPincodes.length === 0 || settings.codPincodes.includes(pincode);
 
+  // City override takes priority over the wider state zone — a merchant
+  // setting a metro-specific window means it for that metro, not the whole
+  // state the metro sits in.
+  const city = getCityForPincode(pincode);
+  const cityOverride = city
+    ? (settings.cityDeliveryDays || []).find((o) => o.cityKey === city.key)
+    : undefined;
+
   const zone = getZoneForPincode(pincode);
   const zoneOverride = zone
     ? (settings.stateDeliveryDays || []).find((o) => o.zoneKey === zone.key)
     : undefined;
 
+  const override = cityOverride || zoneOverride;
+
   return {
     deliverable: true,
     cod,
-    minDays: zoneOverride ? zoneOverride.minDays : settings.defaultMinDays,
-    maxDays: zoneOverride ? zoneOverride.maxDays : settings.defaultMaxDays,
-    state: zone?.label || "",
+    minDays: override ? override.minDays : settings.defaultMinDays,
+    maxDays: override ? override.maxDays : settings.defaultMaxDays,
+    state: city?.label || zone?.label || "",
     source: "manual",
   };
 }
@@ -148,14 +167,13 @@ async function calculateShiprocketETA(
 
     const transitDays = result.etaDays ?? Math.max(settings.defaultMinDays, 1);
     const { minDays, maxDays } = addHandlingDays(settings, transitDays);
-    const zone = getZoneForPincode(pincode);
 
     return {
       deliverable: true,
       cod: result.codAvailable,
       minDays,
       maxDays,
-      state: zone?.label || "",
+      state: getLocationLabel(pincode),
       source: "shiprocket",
     };
   } catch (err) {
@@ -225,10 +243,9 @@ async function calculateBluedartETA(settings: IPincodeSettings, pincode: string)
     }
 
     const { minDays, maxDays } = addHandlingDays(settings, result.etaDays);
-    const zone = getZoneForPincode(pincode);
     await PincodeSettings.updateOne({ _id: settings._id }, { $set: { bluedartConnected: true, bluedartLastError: "" } });
 
-    return { deliverable: true, cod: true, minDays, maxDays, state: zone?.label || "", source: "bluedart" };
+    return { deliverable: true, cod: true, minDays, maxDays, state: getLocationLabel(pincode), source: "bluedart" };
   } catch (err) {
     await PincodeSettings.updateOne(
       { _id: settings._id },
