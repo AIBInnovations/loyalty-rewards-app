@@ -8,8 +8,12 @@ export interface IStateDeliveryDays {
 
 export interface ICityDeliveryDays {
   cityKey: string; // metro city key, e.g. "mumbai" — see CITY_ZONES in app/pincode-zones.ts
-  minDays: number;
-  maxDays: number;
+  minDays?: number;
+  maxDays?: number;
+  // Shown on the storefront instead of the min/max days line when this
+  // city's days are left blank. Mutually exclusive with minDays/maxDays —
+  // never both at once.
+  customText?: string;
 }
 
 export interface IPincodeSettings extends Document {
@@ -126,8 +130,9 @@ const pincodeSettingsSchema = new Schema<IPincodeSettings>(
         {
           _id: false,
           cityKey: { type: String, required: true },
-          minDays: { type: Number, required: true },
-          maxDays: { type: Number, required: true },
+          minDays: { type: Number },
+          maxDays: { type: Number },
+          customText: { type: String, default: "", maxlength: 120 },
         },
       ],
       default: [],
