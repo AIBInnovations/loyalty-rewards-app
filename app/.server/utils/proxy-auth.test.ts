@@ -70,6 +70,19 @@ describe("verifyAppProxySignature", () => {
     expect(verifyAppProxySignature(params)).toBe(false);
   });
 
+  it("accepts a request signed by an additional app from SHOPIFY_APPS", () => {
+    const params = sign({ shop: "demo.myshopify.com" });
+    process.env.SHOPIFY_API_SECRET = "primary-secret";
+    process.env.SHOPIFY_APPS = JSON.stringify([
+      { name: "second", apiKey: "second-key", apiSecret: SECRET },
+    ]);
+    try {
+      expect(verifyAppProxySignature(params)).toBe(true);
+    } finally {
+      delete process.env.SHOPIFY_APPS;
+    }
+  });
+
   it("fails closed when the secret is not configured", () => {
     const params = sign({ shop: "demo.myshopify.com" });
     delete process.env.SHOPIFY_API_SECRET;

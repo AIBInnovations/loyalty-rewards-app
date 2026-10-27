@@ -6,6 +6,8 @@ export interface IPlatformShop extends Document {
   shopId: string;
   shopDomain: string;
   shopifyShopId?: string;
+  /** Client ID of the Shopify app registration this shop installed. */
+  appClientId?: string;
   status: PlatformShopStatus;
   plan: string;
   scopes: string[];
@@ -24,6 +26,7 @@ const platformShopSchema = new Schema<IPlatformShop>(
     shopId: { type: String, required: true, unique: true, index: true },
     shopDomain: { type: String, required: true, index: true },
     shopifyShopId: { type: String, default: "" },
+    appClientId: { type: String, default: "" },
     status: {
       type: String,
       enum: ["active", "suspended", "archived", "uninstalled"],
@@ -50,6 +53,7 @@ export async function upsertPlatformShop(input: {
   shopId: string;
   shopDomain?: string;
   shopifyShopId?: string;
+  appClientId?: string;
   scopes?: string[];
   status?: PlatformShopStatus;
 }) {
@@ -60,6 +64,7 @@ export async function upsertPlatformShop(input: {
       $set: {
         shopDomain: input.shopDomain || input.shopId,
         ...(input.shopifyShopId ? { shopifyShopId: input.shopifyShopId } : {}),
+        ...(input.appClientId ? { appClientId: input.appClientId } : {}),
         ...(input.scopes ? { scopes: input.scopes } : {}),
         ...(input.status ? { status: input.status } : {}),
         lastSeenAt: now,

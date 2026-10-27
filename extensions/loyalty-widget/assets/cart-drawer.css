@@ -44,8 +44,9 @@
      --cd-progress-bg now drives the progress LINE/dot accent color (the
      card itself is a plain bordered card, not a full-bleed block);
      --cd-offer-bg drives the progress card's own background. */
+  --cd-drawer-bg: var(--cd-cream);
   --cd-progress-bg: var(--cd-accent);
-  --cd-offer-bg: var(--cd-cream);
+  --cd-offer-bg: var(--cd-drawer-bg);
   --cd-offer-text: var(--cd-ink);
   --cd-pill-bg: #fff;
   --cd-pill-text: var(--cd-accent-dark);
@@ -90,7 +91,7 @@
   max-width: 100vw;
   height: 100vh;
   height: 100dvh;
-  background: var(--cd-cream);
+  background: var(--cd-drawer-bg);
   display: flex;
   flex-direction: column;
   box-shadow: -4px 0 28px rgba(28, 26, 23, 0.14);
@@ -138,6 +139,15 @@
      .cd-drawer. Explicit fallback matches the merchant's configured font
      stack in case --cd-font isn't set for some reason. */
   font-family: var(--cd-font, Karla, system-ui, sans-serif)!important;
+  /* Same reason for the size: a bare `h2 { font-size: ... }` in the theme
+     (72px on the Denz store) beats anything inherited, and the <b> below is
+     sized in em relative to this element, so an inflated h2 blew the whole
+     "Your Cart" title up to ~98px. */
+  font-size: var(--cd-font-size, 14px) !important;
+  line-height: 1.2 !important;
+  font-weight: 400 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
 }
 
 .cd-header-title b {
@@ -256,7 +266,7 @@ svg[fill="none"] polyline[stroke] {
   position: sticky;
   top: 0;
   z-index: 5;
-  background: var(--cd-cream);
+  background: var(--cd-drawer-bg);
 }
 
 /* Flat, borderless strip — no card chrome, just the plain page color.

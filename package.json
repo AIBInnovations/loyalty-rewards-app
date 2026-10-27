@@ -12,6 +12,8 @@
     "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
     "typecheck": "tsc --noEmit",
     "audit:tenancy": "node scripts/audit-tenant-isolation.mjs",
+    "configs:generate": "node scripts/generate-shopify-configs.mjs",
+    "configs:check": "node scripts/generate-shopify-configs.mjs --check",
     "shopify": "shopify",
     "test": "vitest run",
     "test:watch": "vitest"

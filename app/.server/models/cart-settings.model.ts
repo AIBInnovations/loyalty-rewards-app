@@ -210,6 +210,7 @@ export interface ICartDrawerSettings extends Document {
   fontFamily: string;
   fontSize: number;
   progressBarColor: string;
+  drawerBgColor: string;
   offerLineBg: string;
   offerLineTextColor: string;
   buttonColor: string;
@@ -478,6 +479,7 @@ const cartDrawerSettingsSchema = new Schema<ICartDrawerSettings>(
     fontFamily: { type: String, default: "" },
     fontSize: { type: Number, default: 0, min: 0, max: 24 },
     progressBarColor: { type: String, default: "" },
+    drawerBgColor: { type: String, default: "" },
     offerLineBg: { type: String, default: "" },
     offerLineTextColor: { type: String, default: "" },
     buttonColor: { type: String, default: "" },

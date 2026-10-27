@@ -197,6 +197,7 @@
     loadGoogleFont(s.fontFamily);
 
     var vars = {
+      "--cd-drawer-bg": s.drawerBgColor,
       "--cd-progress-bg": s.progressBarColor,
       "--cd-offer-bg": s.offerLineBg,
       "--cd-offer-text": s.offerLineTextColor,
@@ -639,6 +640,42 @@
         if (closeBtn) closeBtn.click();
       });
     });
+
+    // Some themes push the whole page aside while THEIR drawer is open
+    // (e.g. a `page-wrapper--drawer-open` class that narrows the content).
+    // Their drawer is permanently hidden here, so nothing ever closes it and
+    // the page stays squeezed with a blank strip after our own drawer closes.
+    stripThemePushClasses();
+  }
+
+  var PUSH_CLASSES = ["page-wrapper--drawer-open", "cart-drawer-open"];
+
+  function stripThemePushClasses() {
+    PUSH_CLASSES.forEach(function (cls) {
+      document.querySelectorAll("." + cls).forEach(function (el) {
+        if (el.closest(".cd-drawer, .cd-overlay")) return;
+        el.classList.remove(cls);
+      });
+    });
+  }
+
+  // The theme can add its push class at any moment, not only when we open or
+  // close ours (e.g. when its own add-to-cart finishes a moment after our
+  // handler already ran). Its drawer is hidden for good, so the push is never
+  // wanted: strip it as soon as it appears. Writes only when a class is
+  // actually present, so this can never re-trigger itself.
+  function watchForThemePush() {
+    if (typeof MutationObserver === "undefined") return;
+    var target = document.querySelector(".page-wrapper");
+    if (!target) return;
+    new MutationObserver(function () {
+      for (var i = 0; i < PUSH_CLASSES.length; i++) {
+        if (target.classList.contains(PUSH_CLASSES[i])) {
+          stripThemePushClasses();
+          return;
+        }
+      }
+    }).observe(target, { attributes: true, attributeFilter: ["class"] });
   }
 
   // Inject CSS to hide native cart drawer permanently when our drawer is active
@@ -2001,7 +2038,13 @@
     // globally for every other script too.
 
     // Intercept cart icon clicks to open drawer instead
-    document.addEventListener("click", function (e) {
+    // Registered on `window`, not `document`: in the capture phase window
+    // runs first, so stopImmediatePropagation() below really does keep the
+    // theme's own cart-toggle handler (often a document-level listener that
+    // registered before this script) from also opening ITS drawer — which
+    // pushes the page aside and was never closed again.
+    window.addEventListener("click", function (e) {
+      if (!e.target || !e.target.closest) return;
       if (e.target.closest(".cd-drawer")) return; // never intercept clicks inside our own drawer
 
       var link = e.target.closest('a[href="/cart"], a[href*="/cart"]');
@@ -2009,6 +2052,7 @@
         var href = link.getAttribute("href");
         if (href === "/cart" || href === "/cart/") {
           e.preventDefault();
+          e.stopImmediatePropagation();
           openDrawer();
           return;
         }
@@ -2029,7 +2073,7 @@
       );
       if (trigger) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         openDrawer();
       }
     }, true);
@@ -2056,12 +2100,57 @@
   var NATIVE_SCROLL_LOCK_CLASSES = [
     "modal-show", "modal-showing", "search-open", "body-no-scrollbar", "overflow-hidden",
   ];
+  var scrollLockObserver = null;
+  var scrollLockCheckQueued = false;
+  var scrollLockFights = 0;
+  var scrollLockWindowStart = 0;
+
   function clearStrayScrollLock() {
     if (state.isOpen) return; // our own drawer legitimately owns the lock
-    var locked = getComputedStyle(document.body).overflow === "hidden";
+    var body = document.body;
+    var locked = getComputedStyle(body).overflow === "hidden";
     if (!locked) return;
-    NATIVE_SCROLL_LOCK_CLASSES.forEach(function (cls) { document.body.classList.remove(cls); });
-    document.body.style.overflow = "";
+
+    // Only write when there is actually something of ours to strip. This
+    // observer watches body's style/class attributes, and writing
+    // body.style.overflow = "" re-serialises the style attribute even when
+    // nothing changes — which fires this same observer again. On a theme
+    // whose lock comes from a stylesheet (no known class, no inline style)
+    // that was an endless self-trigger that froze the whole page.
+    var changed = false;
+    NATIVE_SCROLL_LOCK_CLASSES.forEach(function (cls) {
+      if (body.classList.contains(cls)) {
+        body.classList.remove(cls);
+        changed = true;
+      }
+    });
+    if (body.style.overflow) {
+      body.style.overflow = "";
+      changed = true;
+    }
+    if (!changed) return; // the lock isn't ours to strip — leave it alone
+
+    // Loop breaker: if the theme re-applies the lock as fast as we strip it,
+    // stop fighting rather than spin forever.
+    var now = Date.now();
+    if (now - scrollLockWindowStart > 2000) {
+      scrollLockWindowStart = now;
+      scrollLockFights = 0;
+    }
+    scrollLockFights++;
+    if (scrollLockFights > 8 && scrollLockObserver) scrollLockObserver.disconnect();
+  }
+
+  // Run the check once per frame instead of synchronously inside the
+  // observer callback, so a theme that re-asserts its lock can never trap us
+  // in a microtask ping-pong with it.
+  function queueScrollLockCheck() {
+    if (scrollLockCheckQueued) return;
+    scrollLockCheckQueued = true;
+    (window.requestAnimationFrame || window.setTimeout)(function () {
+      scrollLockCheckQueued = false;
+      clearStrayScrollLock();
+    });
   }
 
   function watchForStrayScrollLock() {
@@ -2074,13 +2163,15 @@
     // cart-drawer lock from an actual add-to-cart, just not one already
     // present before this script ran.
     if (typeof MutationObserver === "undefined") return;
-    var observer = new MutationObserver(clearStrayScrollLock);
-    observer.observe(document.body, { attributes: true, attributeFilter: ["style", "class"] });
+    scrollLockObserver = new MutationObserver(queueScrollLockCheck);
+    scrollLockObserver.observe(document.body, { attributes: true, attributeFilter: ["style", "class"] });
   }
 
   // ─── Initialize ───────────────────────────────────────────────
   injectNativeCartHideCSS(); // Hide native cart drawer permanently
   watchForStrayScrollLock();
+  watchForThemePush();
+  stripThemePushClasses();
   fetchSettings();
   interceptAddToCart();
 

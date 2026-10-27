@@ -6,7 +6,7 @@ import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 
-import { authenticate } from "../shopify.server";
+import { authenticate, getApiKeyForShop } from "../shopify.server";
 import { connectDB } from "../db.server";
 import { CartDrawerSettings } from "../.server/models/cart-settings.model";
 import { BundleSettings } from "../.server/models/bundle.model";
@@ -112,7 +112,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 
   return json(
-    { apiKey: process.env.SHOPIFY_API_KEY || "", enabled },
+    { apiKey: await getApiKeyForShop(shopId), enabled },
     { headers: { "Cache-Control": "no-store" } },
   );
 };

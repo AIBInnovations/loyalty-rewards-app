@@ -951,6 +951,7 @@ async function handleGetCartSettings(shop: string) {
     fontFamily: settings.fontFamily || "",
     fontSize: settings.fontSize || 0,
     progressBarColor: settings.progressBarColor || "",
+    drawerBgColor: settings.drawerBgColor || "",
     offerLineBg: settings.offerLineBg || "",
     offerLineTextColor: settings.offerLineTextColor || "",
     buttonColor: settings.buttonColor || "",
