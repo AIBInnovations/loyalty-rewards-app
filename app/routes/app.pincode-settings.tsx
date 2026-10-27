@@ -137,15 +137,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           );
         })(),
         cityDeliveryDays: (() => {
-          let parsed: { cityKey?: string; minDays: number; maxDays: number }[] = [];
+          let parsed: { cityKey?: string; minDays?: number; maxDays?: number; customText?: string }[] = [];
           try { parsed = JSON.parse(String(fd.get("cityDeliveryDays") || "[]")); } catch { parsed = []; }
           const validKeys = new Set(CITY_ZONES.map((c) => c.key));
-          return parsed.filter(
-            (o) =>
-              o.cityKey && validKeys.has(o.cityKey) &&
-              Number.isFinite(o.minDays) && Number.isFinite(o.maxDays) &&
-              o.minDays >= 0 && o.maxDays >= o.minDays,
-          );
+          return parsed
+            .filter((o) => o.cityKey && validKeys.has(o.cityKey))
+            .map((o) => {
+              const hasDays = Number.isFinite(o.minDays) && Number.isFinite(o.maxDays) && (o.minDays as number) >= 0 && (o.maxDays as number) >= (o.minDays as number);
+              const customText = String(o.customText || "").trim().slice(0, 120);
+              return hasDays
+                ? { cityKey: o.cityKey as string, minDays: o.minDays, maxDays: o.maxDays }
+                : { cityKey: o.cityKey as string, customText };
+            })
+            .filter((o) => (o.minDays !== undefined && o.maxDays !== undefined) || o.customText);
         })(),
         pincodeNote: String(fd.get("pincodeNote") || "").slice(0, 300),
         etaMode: ["shiprocket", "delhivery", "bluedart"].includes(String(fd.get("etaMode")))
@@ -233,23 +237,37 @@ export default function PincodeSettingsPage() {
     [zoneDays],
   );
 
-  // One row per metro city — same shape as the state zone rows above, but
-  // keyed by CITY_ZONES and higher priority in the ETA engine.
-  const initialCityDays: Record<string, { min: string; max: string }> = {};
+  // One row per metro city — same shape as the state zone rows above, plus
+  // an optional text that replaces the days line on the storefront when
+  // this city's Min/Max Days are left blank.
+  const initialCityDays: Record<string, { min: string; max: string; text: string }> = {};
   for (const o of s.cityDeliveryDays || []) {
-    initialCityDays[o.cityKey] = { min: String(o.minDays), max: String(o.maxDays) };
+    initialCityDays[o.cityKey] = {
+      min: o.minDays != null ? String(o.minDays) : "",
+      max: o.maxDays != null ? String(o.maxDays) : "",
+      text: o.customText || "",
+    };
   }
   const [cityDays, setCityDays] = useState(initialCityDays);
 
-  const updateCityDay = useCallback((cityKey: string, field: "min" | "max", value: string) => {
+  const updateCityDay = useCallback((cityKey: string, field: "min" | "max" | "text", value: string) => {
     setCityDays((prev) => ({ ...prev, [cityKey]: { ...prev[cityKey], [field]: value } }));
   }, []);
 
   const buildCityDeliveryDays = useCallback(
     (source = cityDays) =>
       Object.entries(source)
-        .map(([cityKey, v]) => ({ cityKey, minDays: parseInt(v.min, 10), maxDays: parseInt(v.max, 10) }))
-        .filter((o) => Number.isFinite(o.minDays) && Number.isFinite(o.maxDays) && o.minDays >= 0 && o.maxDays >= o.minDays),
+        .map(([cityKey, v]) => ({
+          cityKey,
+          minDays: parseInt(v.min, 10),
+          maxDays: parseInt(v.max, 10),
+          customText: (v.text || "").trim(),
+        }))
+        .filter(
+          (o) =>
+            (Number.isFinite(o.minDays) && Number.isFinite(o.maxDays) && o.minDays >= 0 && o.maxDays >= o.minDays) ||
+            o.customText,
+        ),
     [cityDays],
   );
 
@@ -751,6 +769,15 @@ export default function PincodeSettingsPage() {
                           min="0"
                         />
                       </InlineStack>
+                      <TextField
+                        label="Note (shown instead of the days above when Min/Max Days are left blank)"
+                        value={cityDays[city.key]?.text || ""}
+                        onChange={(v) => updateCityDay(city.key, "text", v)}
+                        onBlur={save}
+                        autoComplete="off"
+                        maxLength={120}
+                        placeholder="e.g. Delivers next day via local courier"
+                      />
                     </BlockStack>
                   ))}
                 </BlockStack>

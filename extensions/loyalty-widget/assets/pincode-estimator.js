@@ -121,10 +121,15 @@
                 ? data.minDays + " day" + (data.minDays === 1 ? "" : "s")
                 : data.minDays + "-" + data.maxDays + " days";
             }
+            // A city's custom note replaces the days line entirely — never
+            // show both for the same result.
+            var daysLine = data.customMessage
+              ? '<span class="pe-days">' + esc(String(data.customMessage)) + '</span><br>'
+              : (days ? '<span class="pe-days">🚚 Estimated delivery: ' + days + '</span><br>' : "");
             var stateLabel = data.state ? " (" + esc(String(data.state)) + ")" : "";
             result.innerHTML =
               '<span class="pe-delivery">Yes! We deliver to ' + code + stateLabel + '.</span><br>' +
-              (days ? '<span class="pe-days">🚚 Estimated delivery: ' + days + '</span><br>' : "") +
+              daysLine +
               (data.cod
                 ? '<span class="pe-cod-yes">✓ COD Available</span>'
                 : '<span class="pe-cod-no">✗ COD Not Available — Prepaid Only</span>');

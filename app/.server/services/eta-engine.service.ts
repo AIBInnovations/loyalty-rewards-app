@@ -23,6 +23,10 @@ export interface ETAResult {
   minDays: number;
   maxDays: number;
   state: string;
+  /** City-level custom text, shown instead of the min/max days line when
+      the matched city has this filled in but no days set. Empty = show
+      days as normal. */
+  customMessage?: string;
   /** Which engine actually produced this result, so the admin can tell at
       a glance whether the chosen provider is really taking effect or
       silently falling back. Not shown to the customer. */
@@ -81,14 +85,22 @@ function calculateManualETA(settings: IPincodeSettings, pincode: string): ETARes
     ? (settings.stateDeliveryDays || []).find((o) => o.zoneKey === zone.key)
     : undefined;
 
-  const override = cityOverride || zoneOverride;
+  // A city row with days filled wins outright. A city row with only a
+  // custom text (no days) replaces the days line on the storefront instead
+  // of falling back to the state range — the merchant explicitly chose
+  // text over a number for that city.
+  const cityHasDays = Number.isFinite(cityOverride?.minDays) && Number.isFinite(cityOverride?.maxDays);
+  const cityHasText = !cityHasDays && !!cityOverride?.customText?.trim();
+
+  const override = cityHasDays ? cityOverride : zoneOverride;
 
   return {
     deliverable: true,
     cod,
-    minDays: override ? override.minDays : settings.defaultMinDays,
-    maxDays: override ? override.maxDays : settings.defaultMaxDays,
+    minDays: override ? (override.minDays as number) : settings.defaultMinDays,
+    maxDays: override ? (override.maxDays as number) : settings.defaultMaxDays,
     state: city?.label || zone?.label || "",
+    customMessage: cityHasText ? cityOverride!.customText!.trim() : "",
     source: "manual",
   };
 }
@@ -213,6 +225,7 @@ async function calculateDelhiveryETA(settings: IPincodeSettings, pincode: string
       minDays: manual.minDays,
       maxDays: manual.maxDays,
       state: manual.state,
+      customMessage: manual.customMessage,
       source: "delhivery",
     };
   } catch (err) {
