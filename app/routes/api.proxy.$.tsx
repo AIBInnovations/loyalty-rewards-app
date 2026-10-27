@@ -1494,6 +1494,7 @@ async function handleGetPincodeSettings(shop: string) {
     buttonSize: settings?.buttonSize || "medium",
     sectionWidth: settings?.sectionWidth || "",
     sectionHeight: settings?.sectionHeight || "",
+    note: settings?.pincodeNote || "",
   }, { headers: { "Cache-Control": "no-store" } });
 }
 

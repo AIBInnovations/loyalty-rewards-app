@@ -6,6 +6,12 @@ export interface IStateDeliveryDays {
   maxDays: number;
 }
 
+export interface ICityDeliveryDays {
+  cityKey: string; // metro city key, e.g. "mumbai" — see CITY_ZONES in app/pincode-zones.ts
+  minDays: number;
+  maxDays: number;
+}
+
 export interface IPincodeSettings extends Document {
   shopId: string;
   enabled: boolean;
@@ -20,6 +26,14 @@ export interface IPincodeSettings extends Document {
   // so a merchant can quote a different delivery window per state instead
   // of one blanket estimate for every deliverable pincode.
   stateDeliveryDays: IStateDeliveryDays[];
+  // Metro-city PIN code overrides — takes priority over stateDeliveryDays
+  // (and defaultMinDays/defaultMaxDays) when the pincode falls inside one
+  // of CITY_ZONES, for merchants who want tighter big-city estimates than
+  // their state-wide number.
+  cityDeliveryDays: ICityDeliveryDays[];
+  // Free-text note shown under the pincode input/result on the storefront
+  // widget, e.g. delivery caveats or holiday notices. Empty = hidden.
+  pincodeNote: string;
 
   // ── Hybrid ETA (manual vs a connected courier's automatic ETA) ────────
   // "manual" (default, existing behaviour) uses the fields above as-is.
@@ -107,6 +121,18 @@ const pincodeSettingsSchema = new Schema<IPincodeSettings>(
       ],
       default: [],
     },
+    cityDeliveryDays: {
+      type: [
+        {
+          _id: false,
+          cityKey: { type: String, required: true },
+          minDays: { type: Number, required: true },
+          maxDays: { type: Number, required: true },
+        },
+      ],
+      default: [],
+    },
+    pincodeNote: { type: String, default: "", maxlength: 300 },
 
     etaMode:            { type: String, enum: ["manual", "shiprocket", "delhivery", "bluedart"], default: "manual" },
     pickupPincode:      { type: String, default: "", maxlength: 6 },

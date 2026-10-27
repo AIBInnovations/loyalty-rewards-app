@@ -18,6 +18,7 @@
     buttonSize: "medium",
     sectionWidth: "",
     sectionHeight: "",
+    note: "",
   };
 
   function fetchAppearance() {
@@ -37,6 +38,7 @@
           buttonSize: data.buttonSize || "medium",
           sectionWidth: data.sectionWidth || "",
           sectionHeight: data.sectionHeight || "",
+          note: data.note || "",
         };
       })
       .catch(function () {});
@@ -65,7 +67,8 @@
         '<input class="pe-input" id="pe-input" type="tel" maxlength="6" placeholder="Enter Pincode" inputmode="numeric">' +
         '<button class="pe-btn pe-btn--' + (appearance.buttonSize || "medium") + '" id="pe-check-btn">Check</button>' +
       '</div>' +
-      '<div class="pe-result" id="pe-result"></div>';
+      '<div class="pe-result" id="pe-result"></div>' +
+      (appearance.note ? '<p class="pe-note">' + esc(appearance.note) + '</p>' : "");
 
     // This is now a positionable app block — the merchant places #pincode-
     // estimator exactly where they want it via the theme editor's block

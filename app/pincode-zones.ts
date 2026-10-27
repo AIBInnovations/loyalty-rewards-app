@@ -22,3 +22,30 @@ export function getZoneForPincode(code: string): PincodeZone | undefined {
   const prefix = parseInt(code.slice(0, 2), 10);
   return PINCODE_ZONES.find((z) => prefix >= z.min && prefix <= z.max);
 }
+
+export interface CityZone {
+  key: string;
+  label: string;
+  // 3-digit PIN code prefixes for this metro — unlike state zones, a metro
+  // area isn't one contiguous prefix range (e.g. Delhi NCR spans Delhi,
+  // Gurugram, Noida and Faridabad), so each zone lists the exact prefixes.
+  prefixes: string[];
+}
+
+// Major metro cities, matched by PIN code prefix — takes priority over the
+// state-wise zones above when a merchant wants a tighter delivery estimate
+// for these metros specifically.
+export const CITY_ZONES: CityZone[] = [
+  { key: "mumbai", label: "Mumbai", prefixes: ["400"] },
+  { key: "delhi-ncr", label: "Delhi (NCR)", prefixes: ["110", "121", "122", "201"] },
+  { key: "bengaluru", label: "Bengaluru", prefixes: ["560"] },
+  { key: "hyderabad", label: "Hyderabad", prefixes: ["500"] },
+  { key: "chennai", label: "Chennai", prefixes: ["600"] },
+  { key: "kolkata", label: "Kolkata", prefixes: ["700"] },
+  { key: "pune-ahmedabad", label: "Pune & Ahmedabad", prefixes: ["411", "380"] },
+];
+
+export function getCityForPincode(code: string): CityZone | undefined {
+  const prefix = code.slice(0, 3);
+  return CITY_ZONES.find((c) => c.prefixes.includes(prefix));
+}
